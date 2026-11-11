@@ -35,6 +35,30 @@ jobs:
           find source -name "*.csproj" -print
           find source -name "*.sln" -print
 
+      - name: Fix unsupported XAML IsLooping
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          file = Path(
+              "source/src/MobileI2VConsole/Views/ResultPage.xaml"
+          )
+          content = file.read_text(encoding="utf-8")
+          if "IsLooping=" not in content:
+              raise SystemExit(
+                  "IsLooping not found: inspect XAML before patching"
+              )
+          import re
+          updated = re.sub(
+              r'\s+IsLooping\s*=\s*"[^"]*"',
+              '',
+              content
+          )
+          file.write_text(updated, encoding="utf-8")
+          print("Removed unsupported IsLooping attribute")
+          PY
+
       - name: Build Android ARM64
         shell: bash
         run: |
