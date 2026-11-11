@@ -1,0 +1,56 @@
+
+name: Build MobileI2V Android APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Download MobileI2V source
+        uses: actions/checkout@v4
+        with:
+          repository: himadriHK/MobileI2VConsole
+          path: source
+
+      - name: Install .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install Android workload
+        run: dotnet workload install android
+
+      - name: Locate Android projects
+        run: |
+          find source -name "*.csproj" -print
+          find source -name "*.sln" -print
+
+      - name: Build Android ARM64
+        shell: bash
+        run: |
+          PROJECT=$(find source -name "*.csproj" | head -n 1)
+          if [ -z "$PROJECT" ]; then
+            echo "No .NET project found"
+            exit 1
+          fi
+          dotnet publish "$PROJECT" \
+            -c Release \
+            -f net10.0-android \
+            -p:RuntimeIdentifier=android-arm64 \
+            -p:AndroidPackageFormat=apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MobileI2V-Xiaomi-APK
+          path: |
+            source/**/*.apk
+          if-no-files-found: error
+          
