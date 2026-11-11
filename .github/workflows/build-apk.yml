@@ -58,6 +58,65 @@ jobs:
           file.write_text(updated, encoding="utf-8")
           print("Removed unsupported IsLooping attribute")
           PY
+name: Build MobileI2V Android APK
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Download MobileI2V source
+        uses: actions/checkout@v4
+        with:
+          repository: himadriHK/MobileI2VConsole
+          path: source
+      - name: Install .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install MAUI Android workload
+        run: dotnet workload install maui-android
+      - name: Restore project workloads
+        run: dotnet workload restore source/src/MobileI2VConsole/MobileI2VConsole.csproj
+      - name: Fix unsupported XAML and missing color resource
+        shell: bash
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          import re
+          import xml.etree.ElementTree as ET
+          result = Path('source/src/MobileI2VConsole/Views/ResultPage.xaml')
+          content = result.read_text(encoding='utf-8')
+          content = re.sub(r'\s+IsLooping\s*=\s*"[^"]*"', '', content)
+          result.write_text(content, encoding='utf-8')
+          colors = Path('source/src/MobileI2VConsole/Resources/Styles/Colors.xaml')
+          content = colors.read_text(encoding='utf-8')
+          if 'x:Key="PageBackgroundColor"' not in content:
+              marker = '    <!-- Surface / Background -->'
+              if marker not in content:
+                  raise SystemExit('Colors.xaml changed; inspect before patching')
+              content = content.replace(marker, '    <Color x:Key="PageBackgroundColor">#1A1A2E</Color>\n' + marker, 1)
+              colors.write_text(content, encoding='utf-8')
+          ET.parse(colors)
+          print('XAML startup resource fix applied')
+          PYCODE
+      - name: Build Android ARM64
+        shell: bash
+        run: |
+          dotnet publish source/src/MobileI2VConsole/MobileI2VConsole.csproj \
+            -c Release \
+            -f net10.0-android \
+            -p:RuntimeIdentifier=android-arm64 \
+            -p:AndroidPackageFormat=apk
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MobileI2V-Xiaomi-APK
+          path: source/**/*.apk
+          if-no-files-found: error
 
       - name: Build Android ARM64
         shell: bash
