@@ -1,11 +1,8 @@
-name: MobileI2V V6 - Android Diagnostic APK
-
+name: Build MobileI2V V7 Photo Studio
 on:
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,11 +12,9 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-
-      - name: Install Android MAUI workload
+      - name: Install MAUI Android
         run: dotnet workload install maui-android
-
-      - name: Create isolated diagnostic application
+      - name: Create V7 app based on proven V6 architecture
         shell: bash
         run: |
           set -euo pipefail
@@ -27,114 +22,99 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
-          root = Path('diagnostic')
-          proj = root / 'MobileI2VDiagnostic.csproj'
-          data = proj.read_text(encoding='utf-8')
-          data = re.sub(r'<TargetFrameworks?>.*?</TargetFrameworks?>', '<TargetFramework>net10.0-android</TargetFramework>', data, count=1, flags=re.S)
-          data = re.sub(r'<ApplicationId>.*?</ApplicationId>', '<ApplicationId>com.mobilei2v.diagnostic.v6</ApplicationId>', data)
-          data = re.sub(r'<ApplicationTitle>.*?</ApplicationTitle>', '<ApplicationTitle>MobileI2V Diagnostic V6</ApplicationTitle>', data)
-          data = re.sub(r'<ApplicationDisplayVersion>.*?</ApplicationDisplayVersion>', '<ApplicationDisplayVersion>1.6</ApplicationDisplayVersion>', data)
-          data = re.sub(r'<ApplicationVersion>.*?</ApplicationVersion>', '<ApplicationVersion>6</ApplicationVersion>', data)
-          if '<ApplicationId>' not in data:
-              raise RuntimeError('ApplicationId missing from MAUI template')
-          proj.write_text(data, encoding='utf-8')
-          (root / 'App.xaml.cs').write_text('''using System;
+          root=Path('diagnostic')
+          p=root/'MobileI2VDiagnostic.csproj'
+          s=p.read_text()
+          s=re.sub(r'<TargetFrameworks?>.*?</TargetFrameworks?>','<TargetFramework>net10.0-android</TargetFramework>',s,count=1,flags=re.S)
+          for key,val in [('ApplicationId','com.mobilei2v.studio.v7'),('ApplicationTitle','MobileI2V Studio V7'),('ApplicationDisplayVersion','1.7'),('ApplicationVersion','7')]:
+              s,n=re.subn(r'<'+key+r'>.*?</'+key+r'>','<'+key+'>'+val+'</'+key+'>',s)
+              assert n==1,key
+          p.write_text(s)
+          (root/'App.xaml.cs').write_text(r'''using System;
+          using System.IO;
           using System.Runtime.InteropServices;
           using Microsoft.Maui.Controls;
           using Microsoft.Maui.Graphics;
+          using Microsoft.Maui.Storage;
+          using Microsoft.Maui.ApplicationModel;
 
           namespace MobileI2VDiagnostic;
 
           public partial class App : Application
           {
-              public App()
-              {
-                  InitializeComponent();
-              }
-
+              public App() { InitializeComponent(); }
               protected override Window CreateWindow(IActivationState? activationState)
               {
-                  var status = new Label
-                  {
-                      Text = "Diagnostic prêt. Appuyez sur Tester.",
-                      FontSize = 16,
-                      TextColor = Colors.White
-                  };
-                  var test = new Button { Text = "Tester CPU et stockage" };
-                  test.Clicked += (sender, args) =>
+                  var status = new Label { Text = "Prêt. Choisissez une photo.", FontSize = 15, TextColor = Colors.White };
+                  var photo = new Image { HeightRequest = 340, Aspect = Aspect.AspectFit, BackgroundColor = Color.FromArgb("#17243A") };
+                  var check = new Button { Text = "1. Tester CPU et stockage" };
+                  check.Clicked += (sender, args) =>
                   {
                       try
                       {
-                          var path = FileSystem.AppDataDirectory;
-                          var arch = RuntimeInformation.ProcessArchitecture;
-                          var file = System.IO.Path.Combine(path, "diagnostic-v6.txt");
-                          System.IO.File.WriteAllText(file, "MobileI2V V6 diagnostic OK");
-                          status.Text = $"TEST RÉUSSI\\nCPU : {arch}\\nStockage : OK\\n{file}";
+                          var dir = FileSystem.AppDataDirectory;
+                          var file = Path.Combine(dir, "diagnostic-v7.txt");
+                          File.WriteAllText(file, "MobileI2V V7 diagnostic OK");
+                          status.Text = $"TEST RÉUSSI\nCPU : {RuntimeInformation.ProcessArchitecture}\nStockage : OK\n{file}";
                       }
-                      catch (Exception ex)
-                      {
-                          status.Text = $"ERREUR : {ex.GetType().Name}\\n{ex.Message}";
-                      }
+                      catch (Exception ex) { status.Text = $"ERREUR : {ex}"; }
                   };
+                  var select = new Button { Text = "2. Choisir une photo", BackgroundColor = Color.FromArgb("#6D5BD0"), TextColor = Colors.White };
+                  select.Clicked += async (sender, args) =>
+                  {
+                      try
+                      {
+                          var picked = await MediaPicker.Default.PickPhotoAsync();
+                          if (picked == null) { status.Text = "Sélection annulée."; return; }
+                          var ext = Path.GetExtension(picked.FileName).ToLowerInvariant();
+                          if (ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".webp")
+                          { status.Text = "Format non pris en charge."; return; }
+                          var destination = Path.Combine(FileSystem.AppDataDirectory, "photo-source" + ext);
+                          await using (var input = await picked.OpenReadAsync())
+                          await using (var output = File.Create(destination))
+                              await input.CopyToAsync(output);
+                          photo.Source = ImageSource.FromFile(destination);
+                          status.Text = "Photo importée et sauvegardée localement : " + picked.FileName;
+                      }
+                      catch (Exception ex) { status.Text = "Échec import photo : " + ex.Message; }
+                  };
+                  var info = new Label { Text = "Montage MP4 et IA : non encore intégrés. Cette version vérifie d'abord l'import et la prévisualisation sans crash.", TextColor = Color.FromArgb("#AAB8CE"), FontSize = 13 };
                   var layout = new VerticalStackLayout
                   {
-                      Padding = new Thickness(24),
-                      Spacing = 20,
-                      Children =
-                      {
-                          new Label { Text = "MobileI2V - Diagnostic V6", FontSize = 25,
-                                      FontAttributes = FontAttributes.Bold, TextColor = Colors.Cyan },
-                          new Label { Text = "Application de diagnostic autonome ARM64. Aucun modèle IA chargé.",
-                                      TextColor = Colors.White },
-                          test,
-                          status
+                      Padding = new Thickness(22), Spacing = 16,
+                      Children = {
+                          new Label { Text = "MobileI2V Studio V7", FontSize = 26, FontAttributes = FontAttributes.Bold, TextColor = Colors.Cyan },
+                          new Label { Text = "Diagnostic V6 conservé · Photo locale · ARM64", TextColor = Colors.White },
+                          check, select, photo, status, info
                       }
                   };
-                  return new Window(new ContentPage
-                  {
-                      BackgroundColor = Color.FromArgb("#101827"),
-                      Content = new ScrollView { Content = layout }
-                  });
+                  return new Window(new ContentPage { BackgroundColor = Color.FromArgb("#101827"), Content = new ScrollView { Content = layout } });
               }
           }
-          ''', encoding='utf-8')
-          print('Diagnostic app generated:', proj)
+          ''')
           PY
-
       - name: Build ARM64 APK
         shell: bash
         run: |
           set -euo pipefail
-          dotnet publish diagnostic/MobileI2VDiagnostic.csproj \
-            -c Release -f net10.0-android \
-            -p:RuntimeIdentifier=android-arm64 \
-            -p:AndroidPackageFormat=apk \
-            -p:AndroidKeyStore=false
-
-      - name: Collect and verify APK
+          dotnet publish diagnostic/MobileI2VDiagnostic.csproj -c Release -f net10.0-android -p:RuntimeIdentifier=android-arm64 -p:AndroidPackageFormat=apk -p:AndroidKeyStore=false
+      - name: Verify APK and copy
         shell: bash
         run: |
           set -euo pipefail
-          find diagnostic/bin/Release -type f -name '*.apk' -print
           APK=$(find diagnostic/bin/Release -type f -name '*Signed.apk' -print -quit)
-          if [ -z "$APK" ]; then
-            echo 'No signed APK found. Inspect build output.' >&2
-            exit 1
-          fi
+          test -n "$APK"
           python3 - "$APK" <<'PY'
-          import sys, zipfile
-          apk = sys.argv[1]
-          with zipfile.ZipFile(apk) as archive:
-              bad = archive.testzip()
-              assert bad is None, f'Corrupt APK entry: {bad}'
-              assert 'AndroidManifest.xml' in archive.namelist()
-              print('APK ZIP integrity and manifest verified')
+          import sys,zipfile
+          with zipfile.ZipFile(sys.argv[1]) as z:
+              assert z.testzip() is None
+              assert 'AndroidManifest.xml' in z.namelist()
+          print('APK integrity OK')
           PY
-          cp "$APK" MobileI2V-V6-Diagnostic-arm64.apk
-
-      - name: Upload diagnostic APK
+          cp "$APK" MobileI2V-V7-Photo-Studio-arm64.apk
+      - name: Upload V7 APK
         uses: actions/upload-artifact@v4
         with:
-          name: MobileI2V-V6-Diagnostic-arm64
-          path: MobileI2V-V6-Diagnostic-arm64.apk
+          name: MobileI2V-V7-Photo-Studio-arm64
+          path: MobileI2V-V7-Photo-Studio-arm64.apk
           if-no-files-found: error
