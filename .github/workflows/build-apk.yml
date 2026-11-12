@@ -28,41 +28,85 @@ jobs:
       - name: Restore workloads
         run: dotnet workload restore source/src/MobileI2VConsole/MobileI2VConsole.csproj
 
-      - name: Patch and validate XAML
+      - name: Patch XAML and add safe diagnostic startup
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
           import xml.etree.ElementTree as ET
-
           base = Path('source/src/MobileI2VConsole')
-          views = base / 'Views'
-          patched = []
-          for file in views.rglob('*.xaml'):
-              original = file.read_text(encoding='utf-8')
-              updated = original.replace('{StaticResource PageBackgroundColor}', '#1A1A2E')
-              if file.name == 'ResultPage.xaml':
-                  updated = re.sub(r'\s+IsLooping\s*=\s*"[^"]*"', '', updated)
-              if updated != original:
-                  file.write_text(updated, encoding='utf-8')
-                  patched.append(str(file))
-              ET.parse(file)
-          colors = base / 'Resources/Styles/Colors.xaml'
-          s = colors.read_text(encoding='utf-8')
-          if 'x:Key="PageBackgroundColor"' not in s:
-              marker = '    <!-- Surface / Background -->'
-              if marker not in s:
-                  raise SystemExit('Missing expected marker in Colors.xaml')
-              s = s.replace(marker, '    <Color x:Key="PageBackgroundColor">#1A1A2E</Color>\n' + marker, 1)
-              colors.write_text(s, encoding='utf-8')
-          ET.parse(colors)
           for file in base.rglob('*.xaml'):
+              old = file.read_text(encoding='utf-8')
+              new = old.replace('{StaticResource PageBackgroundColor}', '#1A1A2E')
+              if file.name == 'ResultPage.xaml':
+                  new = re.sub(r'\s+IsLooping\s*=\s*"[^"]*"', '', new)
+              if new != old:
+                  file.write_text(new, encoding='utf-8')
               ET.parse(file)
-          home = (views / 'HomePage.xaml').read_text(encoding='utf-8')
-          assert 'BackgroundColor="#1A1A2E"' in home
-          assert '{StaticResource PageBackgroundColor}' not in home
-          print('Validated XAML; patched:', patched)
+
+          csproj = base / 'MobileI2VConsole.csproj'
+          xml = csproj.read_text(encoding='utf-8')
+          assert '<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>' in xml
+          assert '<ApplicationVersion>1</ApplicationVersion>' in xml
+          xml = xml.replace('<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>',
+                            '<ApplicationDisplayVersion>1.3</ApplicationDisplayVersion>')
+          xml = xml.replace('<ApplicationVersion>1</ApplicationVersion>',
+                            '<ApplicationVersion>3</ApplicationVersion>')
+          csproj.write_text(xml, encoding='utf-8')
+          ET.parse(csproj)
+
+          app = base / 'App.xaml.cs'
+          old = app.read_text(encoding='utf-8')
+          assert 'return new Window(new AppShell());' in old
+          new = old.replace('return new Window(new AppShell());',
+              '''return new Window(new ContentPage
+              {
+                  BackgroundColor = Color.FromArgb("#1A1A2E"),
+                  Content = new VerticalStackLayout
+                  {
+                      Padding = new Thickness(24),
+                      Spacing = 20,
+                      VerticalOptions = LayoutOptions.Center,
+                      Children =
+                      {
+                          new Label
+                          {
+                              Text = "MobileI2V V3 - DIAGNOSTIC",
+                              FontSize = 24,
+                              TextColor = Colors.White,
+                              HorizontalTextAlignment = TextAlignment.Center
+                          },
+                          new Label
+                          {
+                              Text = "Demarrage Android MAUI reussi. Aucun modele IA charge.",
+                              FontSize = 16,
+                              TextColor = Colors.White,
+                              HorizontalTextAlignment = TextAlignment.Center
+                          },
+                          new Button
+                          {
+                              Text = "Ouvrir l'application complete",
+                              Command = new Command(() =>
+                              {
+                                  try
+                                  {
+                                      if (Application.Current?.Windows.FirstOrDefault() is Window window)
+                                          window.Page = new AppShell();
+                                  }
+                                  catch (Exception ex)
+                                  {
+                                      if (Application.Current?.Windows.FirstOrDefault()?.Page is Page page)
+                                          page.DisplayAlert("Erreur interface", ex.ToString(), "OK");
+                                  }
+                              })
+                          }
+                      }
+                  }
+              });''')
+          app.write_text(new, encoding='utf-8')
+          assert 'MobileI2V V3 - DIAGNOSTIC' in app.read_text(encoding='utf-8')
+          print('V3 diagnostic startup installed; version 1.3 (code 3)')
           PY
 
       - name: Build Android ARM64
@@ -73,9 +117,9 @@ jobs:
             -p:RuntimeIdentifier=android-arm64 \
             -p:AndroidPackageFormat=apk
 
-      - name: Upload APK
+      - name: Upload signed APK only
         uses: actions/upload-artifact@v4
         with:
-          name: MobileI2V-Xiaomi-APK
-          path: source/**/*.apk
+          name: MobileI2V-V3-Diagnostic-Signed-APK
+          path: source/src/MobileI2VConsole/bin/Release/net10.0-android/android-arm64/publish/*-Signed.apk
           if-no-files-found: error
