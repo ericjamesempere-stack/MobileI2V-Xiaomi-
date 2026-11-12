@@ -1,4 +1,3 @@
-
 name: Build MobileI2V Android APK
 
 on:
@@ -11,7 +10,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-
     steps:
       - name: Download source
         uses: actions/checkout@v4
@@ -30,7 +28,7 @@ jobs:
       - name: Restore workloads
         run: dotnet workload restore source/src/MobileI2VConsole/MobileI2VConsole.csproj
 
-      - name: Fix XAML startup errors
+      - name: Patch and validate XAML
         shell: bash
         run: |
           python3 - <<'PY'
@@ -38,26 +36,33 @@ jobs:
           import re
           import xml.etree.ElementTree as ET
 
-          base = Path("source/src/MobileI2VConsole")
-
-          result = base / "Views/ResultPage.xaml"
-          s = result.read_text(encoding="utf-8")
-          s = re.sub(r'\s+IsLooping\s*=\s*"[^"]*"', '', s)
-          result.write_text(s, encoding="utf-8")
-
-          colors = base / "Resources/Styles/Colors.xaml"
-          s = colors.read_text(encoding="utf-8")
+          base = Path('source/src/MobileI2VConsole')
+          views = base / 'Views'
+          patched = []
+          for file in views.rglob('*.xaml'):
+              original = file.read_text(encoding='utf-8')
+              updated = original.replace('{StaticResource PageBackgroundColor}', '#1A1A2E')
+              if file.name == 'ResultPage.xaml':
+                  updated = re.sub(r'\s+IsLooping\s*=\s*"[^"]*"', '', updated)
+              if updated != original:
+                  file.write_text(updated, encoding='utf-8')
+                  patched.append(str(file))
+              ET.parse(file)
+          colors = base / 'Resources/Styles/Colors.xaml'
+          s = colors.read_text(encoding='utf-8')
           if 'x:Key="PageBackgroundColor"' not in s:
               marker = '    <!-- Surface / Background -->'
-              assert marker in s
-              s = s.replace(
-                  marker,
-                  '    <Color x:Key="PageBackgroundColor">#1A1A2E</Color>\n' + marker,
-                  1
-              )
-              colors.write_text(s, encoding="utf-8")
+              if marker not in s:
+                  raise SystemExit('Missing expected marker in Colors.xaml')
+              s = s.replace(marker, '    <Color x:Key="PageBackgroundColor">#1A1A2E</Color>\n' + marker, 1)
+              colors.write_text(s, encoding='utf-8')
           ET.parse(colors)
-          print("XAML fixes applied")
+          for file in base.rglob('*.xaml'):
+              ET.parse(file)
+          home = (views / 'HomePage.xaml').read_text(encoding='utf-8')
+          assert 'BackgroundColor="#1A1A2E"' in home
+          assert '{StaticResource PageBackgroundColor}' not in home
+          print('Validated XAML; patched:', patched)
           PY
 
       - name: Build Android ARM64
