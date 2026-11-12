@@ -1,120 +1,785 @@
-name: Build MobileI2V V7 Photo Studio
-on:
-  workflow_dispatch:
-permissions:
-  contents: read
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - name: Install .NET 10
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-      - name: Install MAUI Android
-        run: dotnet workload install maui-android
-      - name: Create V7 app based on proven V6 architecture
-        shell: bash
-        run: |
-          set -euo pipefail
-          dotnet new maui -n MobileI2VDiagnostic -o diagnostic
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          root=Path('diagnostic')
-          p=root/'MobileI2VDiagnostic.csproj'
-          s=p.read_text()
-          s=re.sub(r'<TargetFrameworks?>.*?</TargetFrameworks?>','<TargetFramework>net10.0-android</TargetFramework>',s,count=1,flags=re.S)
-          for key,val in [('ApplicationId','com.mobilei2v.studio.v7'),('ApplicationTitle','MobileI2V Studio V7'),('ApplicationDisplayVersion','1.7'),('ApplicationVersion','7')]:
-              s,n=re.subn(r'<'+key+r'>.*?</'+key+r'>','<'+key+'>'+val+'</'+key+'>',s)
-              assert n==1,key
-          p.write_text(s)
-          (root/'App.xaml.cs').write_text(r'''using System;
-          using System.IO;
-          using System.Runtime.InteropServices;
-          using Microsoft.Maui.Controls;
-          using Microsoft.Maui.Graphics;
-          using Microsoft.Maui.Storage;
-          using Microsoft.Maui.ApplicationModel;
+extends Control
+# V14: consolidated V10 technical base and V13 cleaned artwork.
+# V13: built from V10. Cleaned storyboard panels, separated close-up cut; no blending or warping.
+# Variable hold times, pose-by-pose inspection and touchscreen scrubbing.
+const BG: Color = Color("101923")
+const SCENES: Array[String] = ["Le regard", "Il rit", "Clin d'oeil", "Profil", "Danse : 16 poses", "Final : gros plans", "Photo 1", "Photo 2", "Photo 3", "Photo 4", "Squelette 2D (demo)", "Planche validee"]
+const SCENE_TIMES: Array[float] = [2.1, 1.8, 1.6, 2.0, 5.8, 2.2, 2.5, 2.5, 2.5, 2.5, 6.0, 6.0]
+const FRAME_COUNT: int = 18
+const DANCE_COUNT: int = 16
+# Relative duration of each original illustrated pose, for anticipation and follow-through.
+const HOLD_WEIGHTS: Array[float] = [1.25, 0.72, 0.72, 0.78, 0.75, 0.82, 0.9, 0.8, 1.05, 1.1, 0.75, 0.82, 0.82, 0.88, 1.0, 1.3]
+var portraits: Array[Texture2D] = []
+var user_photos: Array[Texture2D] = [null, null, null, null]
+var photo_picker: FileDialog
+var photo_slot: int = 0
+var photo_motion: bool = true
+var motion_button: Button
+var photo_button: Button
+var duration_label: Label
+var custom_durations: Array[float] = []
+var approved_frames: Array[Texture2D] = []
+var approved_timeline: Array[int] = []
+var approved_duration: float = 6.0
+var poses: Array[Texture2D] = []
+var intermediate_poses: Array[Texture2D] = []
+var smooth_motion: bool = true
+var rig: Control
+var rig_button: Button
+var smooth_button: Button
+var current_scene: int = 4
+var scene_clock: float = 0.0
+var playing: bool = true
+var speed: float = 1.0
+var pose_index: int = -1
+var loop_dance: bool = true
+var cinema_mode: bool = false
+var seeking: bool = false
+var canvas: TextureRect
+var title_label: Label
+var info_label: Label
+var play_button: Button
+var speed_button: Button
+var loop_button: Button
+var timeline: HSlider
+# Editable shot list. The original V10/V14 artwork and animation remain unchanged.
+var shot_list: Array[int] = [0, 1, 2, 3, 4, 5]
+var shot_cursor: int = 4
+var edit_mode: bool = false
+var editor_panel: PanelContainer
+var shots_label: Label
+var edit_button: Button
+var shot_duration: float = 1.0
+const SAVE_PATH: String = "user://mobilei2v_v15.cfg"
 
-          namespace MobileI2VDiagnostic;
+func _load_texture(path: String) -> Texture2D:
+    # FIX V50: ne jamais planter si un asset binaire manque (archive sans images).
+    if ResourceLoader.exists(path):
+        var tex: Texture2D = load(path)
+        if tex != null:
+            return tex
+    push_warning("Asset manquant : " + path)
+    return null
 
-          public partial class App : Application
-          {
-              public App() { InitializeComponent(); }
-              protected override Window CreateWindow(IActivationState? activationState)
-              {
-                  var status = new Label { Text = "Prêt. Choisissez une photo.", FontSize = 15, TextColor = Colors.White };
-                  var photo = new Image { HeightRequest = 340, Aspect = Aspect.AspectFit, BackgroundColor = Color.FromArgb("#17243A") };
-                  var check = new Button { Text = "1. Tester CPU et stockage" };
-                  check.Clicked += (sender, args) =>
-                  {
-                      try
-                      {
-                          var dir = FileSystem.AppDataDirectory;
-                          var file = Path.Combine(dir, "diagnostic-v7.txt");
-                          File.WriteAllText(file, "MobileI2V V7 diagnostic OK");
-                          status.Text = $"TEST RÉUSSI\nCPU : {RuntimeInformation.ProcessArchitecture}\nStockage : OK\n{file}";
-                      }
-                      catch (Exception ex) { status.Text = $"ERREUR : {ex}"; }
-                  };
-                  var select = new Button { Text = "2. Choisir une photo", BackgroundColor = Color.FromArgb("#6D5BD0"), TextColor = Colors.White };
-                  select.Clicked += async (sender, args) =>
-                  {
-                      try
-                      {
-                          var picked = await MediaPicker.Default.PickPhotoAsync();
-                          if (picked == null) { status.Text = "Sélection annulée."; return; }
-                          var ext = Path.GetExtension(picked.FileName).ToLowerInvariant();
-                          if (ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".webp")
-                          { status.Text = "Format non pris en charge."; return; }
-                          var destination = Path.Combine(FileSystem.AppDataDirectory, "photo-source" + ext);
-                          await using (var input = await picked.OpenReadAsync())
-                          await using (var output = File.Create(destination))
-                              await input.CopyToAsync(output);
-                          photo.Source = ImageSource.FromFile(destination);
-                          status.Text = "Photo importée et sauvegardée localement : " + picked.FileName;
-                      }
-                      catch (Exception ex) { status.Text = "Échec import photo : " + ex.Message; }
-                  };
-                  var info = new Label { Text = "Montage MP4 et IA : non encore intégrés. Cette version vérifie d'abord l'import et la prévisualisation sans crash.", TextColor = Color.FromArgb("#AAB8CE"), FontSize = 13 };
-                  var layout = new VerticalStackLayout
-                  {
-                      Padding = new Thickness(22), Spacing = 16,
-                      Children = {
-                          new Label { Text = "MobileI2V Studio V7", FontSize = 26, FontAttributes = FontAttributes.Bold, TextColor = Colors.Cyan },
-                          new Label { Text = "Diagnostic V6 conservé · Photo locale · ARM64", TextColor = Colors.White },
-                          check, select, photo, status, info
-                      }
-                  };
-                  return new Window(new ContentPage { BackgroundColor = Color.FromArgb("#101827"), Content = new ScrollView { Content = layout } });
-              }
-          }
-          ''')
-          PY
-      - name: Build ARM64 APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          dotnet publish diagnostic/MobileI2VDiagnostic.csproj -c Release -f net10.0-android -p:RuntimeIdentifier=android-arm64 -p:AndroidPackageFormat=apk -p:AndroidKeyStore=false
-      - name: Verify APK and copy
-        shell: bash
-        run: |
-          set -euo pipefail
-          APK=$(find diagnostic/bin/Release -type f -name '*Signed.apk' -print -quit)
-          test -n "$APK"
-          python3 - "$APK" <<'PY'
-          import sys,zipfile
-          with zipfile.ZipFile(sys.argv[1]) as z:
-              assert z.testzip() is None
-              assert 'AndroidManifest.xml' in z.namelist()
-          print('APK integrity OK')
-          PY
-          cp "$APK" MobileI2V-V7-Photo-Studio-arm64.apk
-      - name: Upload V7 APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: MobileI2V-V7-Photo-Studio-arm64
-          path: MobileI2V-V7-Photo-Studio-arm64.apk
-          if-no-files-found: error
+func _ready() -> void:
+    for key in ["hero", "laugh", "wink", "profile"]:
+        var texture: Texture2D = _load_texture("res://assets/" + key + ".jpg")
+        if texture != null:
+            portraits.append(texture)
+    for i in range(FRAME_COUNT):
+        var texture: Texture2D = _load_texture("res://assets/poses/pose_%02d.jpg" % i)
+        if texture != null:
+            poses.append(texture)
+    for i in range(15):
+        var mid: Texture2D = _load_texture("res://assets/poses/mid_%02d.jpg" % i)
+        if mid != null:
+            intermediate_poses.append(mid)
+    var background: ColorRect = ColorRect.new()
+    background.color = BG
+    background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    add_child(background)
+    canvas = TextureRect.new()
+    canvas.position = Vector2(0, 118)
+    canvas.size = Vector2(720, 885)
+    canvas.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+    canvas.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+    canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    canvas.pivot_offset = canvas.size * 0.5
+    add_child(canvas)
+    var header: ColorRect = ColorRect.new()
+    header.color = Color("192634")
+    header.position = Vector2.ZERO
+    header.size = Vector2(720, 118)
+    add_child(header)
+    title_label = _label(Vector2(20, 12), 28, Color.WHITE)
+    info_label = _label(Vector2(20, 68), 18, Color("b5c7d8"))
+    var footer: ColorRect = ColorRect.new()
+    footer.color = Color("192634")
+    footer.position = Vector2(0, 1004)
+    footer.size = Vector2(720, 276)
+    add_child(footer)
+    timeline = HSlider.new()
+    timeline.position = Vector2(24, 1024)
+    timeline.size = Vector2(672, 40)
+    timeline.min_value = 0.0
+    timeline.max_value = 1000.0
+    timeline.step = 1.0
+    timeline.value_changed.connect(_on_seek)
+    timeline.drag_started.connect(_on_drag_started)
+    timeline.drag_ended.connect(_on_drag_ended)
+    add_child(timeline)
+    play_button = _button("Pause", Vector2(12, 1080), Vector2(160, 76))
+    play_button.pressed.connect(_toggle_pause)
+    var back: Button = _button("Pose -", Vector2(185, 1080), Vector2(160, 76))
+    back.pressed.connect(_previous_pose)
+    var forward: Button = _button("Pose +", Vector2(358, 1080), Vector2(160, 76))
+    forward.pressed.connect(_next_pose)
+    speed_button = _button("1x", Vector2(531, 1080), Vector2(175, 76))
+    speed_button.pressed.connect(_change_speed)
+    var replay: Button = _button("Rejouer", Vector2(12, 1173), Vector2(160, 76))
+    replay.pressed.connect(_restart)
+    var next_scene: Button = _button("Scene +", Vector2(185, 1173), Vector2(160, 76))
+    next_scene.pressed.connect(_next_scene)
+    var dance: Button = _button("Danse", Vector2(358, 1173), Vector2(160, 76))
+    dance.pressed.connect(_go_dance)
+    loop_button = _button("Boucle ON", Vector2(531, 1173), Vector2(175, 76))
+    loop_button.pressed.connect(_toggle_loop)
+    var film_button: Button = _button("Film / Danse", Vector2(12, 950), Vector2(210, 46))
+    film_button.pressed.connect(_toggle_film_mode)
+    for i in range(SCENE_TIMES.size()):
+        custom_durations.append(SCENE_TIMES[i])
+    _load_project()
+    _load_user_photos()
+    _load_approved_board()
+    _build_photo_picker()
+    _build_editor()
+    _build_motion_controls()
+    _build_smooth_control()
+    rig = Control.new()
+    rig.set_script(load("res://scripts/rig_character.gd"))
+    rig.position = Vector2(0, 105)
+    rig.size = Vector2(720, 900)
+    rig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    add_child(rig)
+    rig_button = _button("Squelette 2D", Vector2(232, 950), Vector2(235, 46))
+    rig_button.pressed.connect(_go_rig)
+    var board_button: Button = _button("Planche / Valider", Vector2(473, 950), Vector2(233, 46))
+    board_button.pressed.connect(_open_storyboard)
+    var guided: Button = _button("Photo > Danse V49", Vector2(232, 900), Vector2(270, 44))
+    guided.pressed.connect(_open_guided)
+    _render()
+
+func _open_guided() -> void:
+    playing = false
+    var guided: Control = Control.new()
+    guided.set_script(load("res://scripts/guided_studio.gd"))
+    add_child(guided)
+
+func _open_storyboard() -> void:
+    playing = false
+    var board: Control = Control.new()
+    board.set_script(load("res://scripts/storyboard.gd"))
+    board.parent_studio = self
+    add_child(board)
+
+func _label(pos: Vector2, font_size: int, color: Color) -> Label:
+    var item: Label = Label.new()
+    item.position = pos
+    item.add_theme_font_size_override("font_size", font_size)
+    item.add_theme_color_override("font_color", color)
+    add_child(item)
+    return item
+
+func _button(label_text: String, pos: Vector2, dimensions: Vector2) -> Button:
+    var item: Button = Button.new()
+    item.text = label_text
+    item.position = pos
+    item.size = dimensions
+    item.add_theme_font_size_override("font_size", 21)
+    add_child(item)
+    return item
+
+func _pose_for_time(t: float) -> int:
+    var sum_weights: float = 0.0
+    for weight in HOLD_WEIGHTS:
+        sum_weights += weight
+    var progress: float = clampf(t / SCENE_TIMES[4], 0.0, 0.999999)
+    var threshold: float = progress * sum_weights
+    var running: float = 0.0
+    for i in range(DANCE_COUNT):
+        running += HOLD_WEIGHTS[i]
+        if threshold < running:
+            return i
+    return DANCE_COUNT - 1
+
+func _time_for_pose(index: int) -> float:
+    var total: float = 0.0
+    var before: float = 0.0
+    for i in range(DANCE_COUNT):
+        total += HOLD_WEIGHTS[i]
+        if i < index:
+            before += HOLD_WEIGHTS[i]
+    return SCENE_TIMES[4] * (before + HOLD_WEIGHTS[index] * 0.5) / total
+
+func _process(delta: float) -> void:
+    if not playing or seeking:
+        return
+    scene_clock += delta * speed
+    if scene_clock >= custom_durations[current_scene]:
+        # Keep the approved storyboard visible at the final frame instead of
+        # silently switching to a different (possibly empty) scene.
+        if current_scene == 11 and not cinema_mode:
+            scene_clock = 0.0
+            _render()
+            return
+        if current_scene == 4 and loop_dance and not cinema_mode:
+            scene_clock = fmod(scene_clock, SCENE_TIMES[4])
+        else:
+            if cinema_mode and not shot_list.is_empty():
+                shot_cursor = (shot_cursor + 1) % shot_list.size()
+                current_scene = shot_list[shot_cursor]
+            else:
+                current_scene = (current_scene + 1) % SCENES.size()
+            scene_clock = 0.0
+            pose_index = -1
+    _render()
+
+func _apply_photo_motion() -> void:
+    # Camera motion only: original pixels are not morphed or blended.
+    canvas.pivot_offset = canvas.size * 0.5
+    if current_scene >= 6 and current_scene < 10 and photo_motion and playing:
+        var t: float = scene_clock
+        var duration: float = maxf(custom_durations[current_scene], 0.3)
+        var phase: float = clampf(t / duration, 0.0, 1.0)
+        var ease_value: float = phase * phase * (3.0 - 2.0 * phase)  # FIX V50: 'ease' masquait la fonction globale.
+        var direction: float = -1.0 if (current_scene % 2) == 0 else 1.0
+        canvas.scale = Vector2.ONE * (1.0 + 0.045 * ease_value)
+        canvas.rotation = 0.006 * sin(t * 1.6) * direction
+        canvas.position = Vector2(0.0, 118.0) + Vector2(direction * 9.0 * sin(phase * PI), 3.0 * sin(t * 1.1))
+    else:
+        canvas.scale = Vector2.ONE
+        canvas.rotation = 0.0
+        canvas.position = Vector2(0.0, 118.0)
+
+func _build_motion_controls() -> void:
+    motion_button = _button("Photo animee ON", Vector2(12, 893), Vector2(285, 48))
+    motion_button.pressed.connect(_toggle_photo_motion)
+    var auto_button: Button = _button("Film auto", Vector2(313, 893), Vector2(190, 48))
+    auto_button.pressed.connect(_auto_film)
+    var save_auto: Button = _button("Sauver", Vector2(516, 893), Vector2(180, 48))
+    save_auto.pressed.connect(_save_project)
+    # FIX V50: export MP4 reel via plugin Android (MediaCodec), repli PNG sinon.
+    var mp4_button: Button = _button("Exporter MP4", Vector2(12, 846), Vector2(285, 44))
+    mp4_button.pressed.connect(_export_mp4)
+    motion_button.text = "Photo animee ON" if photo_motion else "Photo animee OFF"
+
+func _export_mp4() -> void:
+    var exporter: Node = Node.new()
+    exporter.set_script(load("res://scripts/export_mp4.gd"))
+    exporter.set("status_label", info_label)
+    add_child(exporter)
+    exporter.call("export_rig_mp4", rig, current_scene, scene_clock)
+
+func _toggle_photo_motion() -> void:
+    photo_motion = not photo_motion
+    motion_button.text = "Photo animee ON" if photo_motion else "Photo animee OFF"
+    _render()
+
+func _auto_film() -> void:
+    # Build a film from available user photos, or fall back to demo artwork.
+    shot_list.clear()
+    for i in range(4):
+        if user_photos[i] != null:
+            shot_list.append(6 + i)
+    if shot_list.is_empty():
+        shot_list.append_array([0, 1, 2, 3, 4, 5])
+    elif shot_list.size() == 1:
+        # Repeat one photo with different movement directions, without changing pixels.
+        shot_list.append(shot_list[0])
+        shot_list.append(shot_list[0])
+    for i in range(6, custom_durations.size()):
+        custom_durations[i] = 3.0
+    _play_custom_film()
+    _save_project()
+
+func _render() -> void:
+    if current_scene != 11:
+        _apply_photo_motion()
+    else:
+        canvas.position = Vector2(0, 118)
+        canvas.scale = Vector2.ONE
+        canvas.rotation = 0.0
+        canvas.modulate = Color.WHITE
+        canvas.self_modulate = Color.WHITE
+    rig.visible = current_scene == 10
+    canvas.visible = current_scene != 10
+    if current_scene == 10:
+        rig.call("update_pose", scene_clock)
+        info_label.text = "Squelette articule | mouvement continu sans deformation des pixels"
+    elif current_scene == 11:
+        if approved_frames.is_empty() or approved_timeline.is_empty():
+            # FIX V50: ne pas indexer poses[0] si les assets sont absents.
+            if not poses.is_empty():
+                canvas.texture = poses[0]
+            info_label.text = "Aucune planche validee : ouvrir Planche / Valider"
+        else:
+            var duration: float = maxf(approved_duration, 0.1)
+            var at: int = mini(approved_timeline.size() - 1, int(clampf(scene_clock / duration, 0.0, 0.99999) * approved_timeline.size()))
+            var image_index: int = clampi(approved_timeline[at], 0, approved_frames.size() - 1)
+            canvas.texture = approved_frames[image_index]
+            canvas.modulate = Color.WHITE
+            canvas.self_modulate = Color.WHITE
+            info_label.text = "Planche validee | %d dessins | %.1f s | sans deformation" % [approved_frames.size(), duration]
+    elif current_scene >= 6:
+        # FIX V50: ternaires explicites + garde si aucune photo ni asset.
+        var photo: Texture2D = null
+        if current_scene - 6 < user_photos.size():
+            photo = user_photos[current_scene - 6]
+        if photo == null and not portraits.is_empty():
+            photo = portraits[0]
+        canvas.texture = photo
+        if photo_motion:
+            info_label.text = "Photo %d | camera animee sans deformation du visage" % (current_scene - 5)
+        else:
+            info_label.text = "Photo %d | plan fixe" % (current_scene - 5)
+    elif current_scene < 4:
+        if current_scene < portraits.size():
+            canvas.texture = portraits[current_scene]
+        info_label.text = "Portrait original | sans deformation"
+    elif current_scene == 5:
+        if poses.size() > 17:
+            var close_index: int = 16 if scene_clock < SCENE_TIMES[5] * 0.5 else 17
+            canvas.texture = poses[close_index]
+            info_label.text = "Plan final %d/2 | coupe de camera volontaire" % (close_index - 15)
+    else:
+        var index: int = _pose_for_time(scene_clock)
+        var display_index: int = index * 2
+        if smooth_motion and index < 15:
+            var total_weight: float = 0.0
+            var previous_weight: float = 0.0
+            for j in range(16):
+                total_weight += HOLD_WEIGHTS[j]
+                if j < index:
+                    previous_weight += HOLD_WEIGHTS[j]
+            var within_pose: float = (clampf(scene_clock / SCENE_TIMES[4], 0.0, 0.99999) * total_weight - previous_weight) / HOLD_WEIGHTS[index]
+            if within_pose >= 0.5:
+                display_index += 1
+        if display_index != pose_index:
+            pose_index = display_index
+            # FIX V50: garde si les assets de poses sont absents.
+            if display_index % 2 == 1 and index < intermediate_poses.size():
+                canvas.texture = intermediate_poses[index]
+            elif index < poses.size():
+                canvas.texture = poses[index]
+        info_label.text = "31 images | poses intermediaires rigides (sans morphing)" if smooth_motion else "Animation originale 16 images | comparaison"
+    title_label.text = "MOBILEI2V V30 | " + SCENES[current_scene]
+    if not seeking:
+        timeline.set_value_no_signal(1000.0 * scene_clock / custom_durations[current_scene])
+
+func _toggle_pause() -> void:
+    playing = not playing
+    play_button.text = "Pause" if playing else "Lecture"
+
+func _pause_for_inspection() -> void:
+    playing = false
+    play_button.text = "Lecture"
+
+func _restart() -> void:
+    scene_clock = 0.0
+    pose_index = -1
+    playing = true
+    play_button.text = "Pause"
+    _render()
+
+func _next_scene() -> void:
+    if cinema_mode and not shot_list.is_empty():
+        shot_cursor = (shot_cursor + 1) % shot_list.size()
+        current_scene = shot_list[shot_cursor]
+    else:
+        current_scene = (current_scene + 1) % SCENES.size()
+    scene_clock = 0.0
+    pose_index = -1
+    _render()
+
+func _go_dance() -> void:
+    current_scene = 4
+    scene_clock = 0.0
+    pose_index = -1
+    playing = true
+    play_button.text = "Pause"
+    _render()
+
+func _previous_pose() -> void:
+    current_scene = 4
+    _pause_for_inspection()
+    var index: int = _pose_for_time(scene_clock)
+    scene_clock = _time_for_pose(maxi(index - 1, 0))
+    pose_index = -1
+    _render()
+
+func _next_pose() -> void:
+    current_scene = 4
+    _pause_for_inspection()
+    var index: int = _pose_for_time(scene_clock)
+    scene_clock = _time_for_pose(mini(index + 1, DANCE_COUNT - 1))
+    pose_index = -1
+    _render()
+
+func _change_speed() -> void:
+    if speed == 1.0:
+        speed = 0.75
+        speed_button.text = "0.75x"
+    elif speed == 0.75:
+        speed = 1.25
+        speed_button.text = "1.25x"
+    else:
+        speed = 1.0
+        speed_button.text = "1x"
+
+func _toggle_loop() -> void:
+    loop_dance = not loop_dance
+    loop_button.text = "Boucle ON" if loop_dance else "Boucle OFF"
+
+func _on_seek(value: float) -> void:
+    scene_clock = clampf(value / 1000.0, 0.0, 0.999999) * custom_durations[current_scene]
+    pose_index = -1
+    _render()
+
+func _on_drag_started() -> void:
+    seeking = true
+
+func _on_drag_ended(_value_changed: bool) -> void:
+    seeking = false
+    _render()
+
+func _toggle_film_mode() -> void:
+    cinema_mode = not cinema_mode
+    loop_dance = not cinema_mode
+    loop_button.text = "Boucle ON" if loop_dance else "Boucle OFF"
+    shot_cursor = 0
+    current_scene = shot_list[0] if cinema_mode and not shot_list.is_empty() else 4
+    scene_clock = 0.0
+    pose_index = -1
+    playing = true
+    play_button.text = "Pause"
+    _render()
+
+
+# Storyboard editor: rearrange shots without deforming frames or changing V14.
+func _build_editor() -> void:
+    edit_button = _button("Montage", Vector2(238, 950), Vector2(208, 46))
+    edit_button.pressed.connect(_toggle_editor)
+    var save_button: Button = _button("Sauver", Vector2(462, 950), Vector2(230, 46))
+    save_button.pressed.connect(_save_project)
+    editor_panel = PanelContainer.new()
+    editor_panel.position = Vector2(22, 170)
+    editor_panel.size = Vector2(676, 700)
+    editor_panel.visible = false
+    add_child(editor_panel)
+    var column: VBoxContainer = VBoxContainer.new()
+    editor_panel.add_child(column)
+    var heading: Label = Label.new()
+    heading.text = "MONTAGE DES PLANS"
+    heading.add_theme_font_size_override("font_size", 30)
+    column.add_child(heading)
+    shots_label = Label.new()
+    shots_label.add_theme_font_size_override("font_size", 21)
+    shots_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    column.add_child(shots_label)
+    var row1: HBoxContainer = HBoxContainer.new()
+    column.add_child(row1)
+    _editor_button(row1, "Plan <", _select_previous_shot)
+    _editor_button(row1, "Plan >", _select_next_shot)
+    var row2: HBoxContainer = HBoxContainer.new()
+    column.add_child(row2)
+    _editor_button(row2, "Monter", _move_shot_up)
+    _editor_button(row2, "Descendre", _move_shot_down)
+    var row3: HBoxContainer = HBoxContainer.new()
+    column.add_child(row3)
+    _editor_button(row3, "Ajouter plan", _add_shot)
+    _editor_button(row3, "Supprimer", _delete_shot)
+    var row4: HBoxContainer = HBoxContainer.new()
+    column.add_child(row4)
+    _editor_button(row4, "Changer image", _change_shot)
+    _editor_button(row4, "Film", _play_custom_film)
+    var row5: HBoxContainer = HBoxContainer.new()
+    column.add_child(row5)
+    _editor_button(row5, "Importer photo", _import_selected_photo)
+    _editor_button(row5, "Duree -", _shorten_shot)
+    _editor_button(row5, "Duree +", _lengthen_shot)
+    duration_label = Label.new()
+    duration_label.add_theme_font_size_override("font_size", 19)
+    column.add_child(duration_label)
+    var hint: Label = Label.new()
+    hint.text = "Changer image : parcourt les 6 plans existants.\nAjouter : duplique le plan selectionne.\nFilm : joue votre montage dans l'ordre."
+    hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    hint.add_theme_font_size_override("font_size", 19)
+    column.add_child(hint)
+    _refresh_editor()
+
+func _editor_button(parent: HBoxContainer, caption: String, callback: Callable) -> void:
+    var btn: Button = Button.new()
+    btn.text = caption
+    btn.custom_minimum_size = Vector2(0, 66)
+    btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    btn.add_theme_font_size_override("font_size", 19)
+    btn.pressed.connect(callback)
+    parent.add_child(btn)
+
+func _toggle_editor() -> void:
+    edit_mode = not edit_mode
+    editor_panel.visible = edit_mode
+    edit_button.text = "Fermer" if edit_mode else "Montage"
+    if edit_mode:
+        _pause_for_inspection()
+        _refresh_editor()
+
+func _refresh_editor() -> void:
+    if shots_label == null:
+        return
+    var lines: Array[String] = []
+    for i in range(shot_list.size()):
+        var mark: String = "▶ " if i == shot_cursor else "    "
+        lines.append("%s%02d. %s" % [mark, i + 1, SCENES[shot_list[i]]])
+    shots_label.text = "\n".join(lines)
+    if duration_label != null and not shot_list.is_empty():
+        duration_label.text = "Duree du type de plan : %.1f s" % custom_durations[shot_list[shot_cursor]]
+
+func _select_previous_shot() -> void:
+    shot_cursor = maxi(0, shot_cursor - 1)
+    _refresh_editor()
+
+func _select_next_shot() -> void:
+    shot_cursor = mini(shot_list.size() - 1, shot_cursor + 1)
+    _refresh_editor()
+
+func _move_shot_up() -> void:
+    if shot_cursor > 0:
+        var temp: int = shot_list[shot_cursor - 1]
+        shot_list[shot_cursor - 1] = shot_list[shot_cursor]
+        shot_list[shot_cursor] = temp
+        shot_cursor -= 1
+    _refresh_editor()
+
+func _move_shot_down() -> void:
+    if shot_cursor < shot_list.size() - 1:
+        var temp: int = shot_list[shot_cursor + 1]
+        shot_list[shot_cursor + 1] = shot_list[shot_cursor]
+        shot_list[shot_cursor] = temp
+        shot_cursor += 1
+    _refresh_editor()
+
+func _add_shot() -> void:
+    if shot_list.size() >= 24:
+        return
+    shot_list.insert(shot_cursor + 1, shot_list[shot_cursor])
+    shot_cursor += 1
+    _refresh_editor()
+
+func _delete_shot() -> void:
+    if shot_list.size() <= 1:
+        return
+    shot_list.remove_at(shot_cursor)
+    shot_cursor = mini(shot_cursor, shot_list.size() - 1)
+    _refresh_editor()
+
+func _change_shot() -> void:
+    shot_list[shot_cursor] = (shot_list[shot_cursor] + 1) % SCENES.size()
+    _refresh_editor()
+
+func _play_custom_film() -> void:
+    edit_mode = false
+    editor_panel.visible = false
+    edit_button.text = "Montage"
+    cinema_mode = true
+    loop_dance = false
+    loop_button.text = "Boucle OFF"
+    shot_cursor = 0
+    current_scene = shot_list[0]
+    scene_clock = 0.0
+    pose_index = -1
+    playing = true
+    play_button.text = "Pause"
+    _render()
+
+func _save_project() -> void:
+    var config: ConfigFile = ConfigFile.new()
+    config.set_value("montage", "shots", shot_list)
+    config.set_value("playback", "speed", speed)
+    config.set_value("playback", "loop", loop_dance)
+    config.set_value("playback", "photo_motion", photo_motion)
+    config.set_value("montage", "durations", custom_durations)
+    var err: Error = config.save(SAVE_PATH)
+    if err == OK:
+        info_label.text = "Montage sauvegarde sur le telephone"
+    else:
+        info_label.text = "Echec de sauvegarde : %d" % err
+
+func _load_project() -> void:
+    var config: ConfigFile = ConfigFile.new()
+    if config.load(SAVE_PATH) != OK:
+        return
+    var loaded: Variant = config.get_value("montage", "shots", [])
+    if loaded is Array and loaded.size() >= 1 and loaded.size() <= 24:
+        var valid: bool = true
+        for item in loaded:
+            if typeof(item) != TYPE_INT or item < 0 or item >= SCENES.size():
+                valid = false
+        if valid:
+            shot_list.clear()
+            for item in loaded:
+                shot_list.append(int(item))
+    var saved_durations: Variant = config.get_value("montage", "durations", [])
+    if saved_durations is Array and saved_durations.size() == custom_durations.size():
+        for i in range(custom_durations.size()):
+            custom_durations[i] = clampf(float(saved_durations[i]), 0.3, 30.0)
+    speed = clampf(float(config.get_value("playback", "speed", 1.0)), 0.5, 2.0)
+    loop_dance = bool(config.get_value("playback", "loop", true))
+    photo_motion = bool(config.get_value("playback", "photo_motion", true))
+    loop_button.text = "Boucle ON" if loop_dance else "Boucle OFF"
+
+
+# Photos personnelles: copied into user:// to survive reopening the app.
+# The photo is intentionally displayed as a still image, not falsely advertised as AI animation.
+func _build_photo_picker() -> void:
+    photo_picker = FileDialog.new()
+    photo_picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+    photo_picker.access = FileDialog.ACCESS_FILESYSTEM
+    photo_picker.use_native_dialog = true
+    photo_picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp ; Images"])
+    photo_picker.file_selected.connect(_on_photo_selected)
+    add_child(photo_picker)
+
+func _import_selected_photo() -> void:
+    if shot_list.is_empty():
+        return
+    var selected: int = shot_list[shot_cursor]
+    photo_slot = selected - 6 if selected >= 6 else 0
+    if selected < 6:
+        for i in range(4):
+            if user_photos[i] == null:
+                photo_slot = i
+                break
+    photo_picker.popup_centered_ratio(0.9)
+
+func _on_photo_selected(path: String) -> void:
+    var image_data: Image = Image.new()
+    var error: Error = image_data.load(path)
+    if error != OK:
+        info_label.text = "Image non lisible : %d" % error
+        return
+    if image_data.get_width() < 16 or image_data.get_height() < 16:
+        info_label.text = "Image trop petite"
+        return
+    if image_data.get_width() > 1600 or image_data.get_height() > 1600:
+        var factor: float = 1600.0 / float(maxi(image_data.get_width(), image_data.get_height()))
+        image_data.resize(maxi(1, int(image_data.get_width() * factor)), maxi(1, int(image_data.get_height() * factor)), Image.INTERPOLATE_LANCZOS)
+    var output: String = "user://mobilei2v_photo_%d.png" % photo_slot
+    error = image_data.save_png(output)
+    if error != OK:
+        info_label.text = "Impossible de sauvegarder la photo"
+        return
+    user_photos[photo_slot] = ImageTexture.create_from_image(image_data)
+    shot_list[shot_cursor] = 6 + photo_slot
+    current_scene = 6 + photo_slot
+    scene_clock = 0.0
+    pose_index = -1
+    _refresh_editor()
+    _render()
+
+func _load_user_photos() -> void:
+    for i in range(4):
+        var path: String = "user://mobilei2v_photo_%d.png" % i
+        if FileAccess.file_exists(path):
+            var img: Image = Image.new()
+            if img.load(path) == OK:
+                user_photos[i] = ImageTexture.create_from_image(img)
+
+func _shorten_shot() -> void:
+    if shot_list.is_empty():
+        return
+    var index: int = shot_list[shot_cursor]
+    custom_durations[index] = maxf(0.3, custom_durations[index] - 0.5)
+    _refresh_editor()
+
+func _lengthen_shot() -> void:
+    if shot_list.is_empty():
+        return
+    var index: int = shot_list[shot_cursor]
+    custom_durations[index] = minf(30.0, custom_durations[index] + 0.5)
+    _refresh_editor()
+
+# Toggle lets the user compare original 16 drawings against 31-frame motion sequence.
+func _build_smooth_control() -> void:
+    smooth_button = _button("31 images ON", Vector2(480, 910), Vector2(220, 46))
+    smooth_button.pressed.connect(_toggle_smooth)
+
+func _toggle_smooth() -> void:
+    smooth_motion = not smooth_motion
+    smooth_button.text = "31 images ON" if smooth_motion else "16 images"
+    pose_index = -1
+    _render()
+
+func _go_rig() -> void:
+    current_scene = 10
+    scene_clock = 0.0
+    pose_index = -1
+    playing = true
+    play_button.text = "Pause"
+    _render()
+
+# V24: the approved storyboard becomes a real playable scene, not just a saved checklist.
+# Drawings are reused without warping; this is NOT AI image generation.
+func apply_approved_board(drawings: Array, timeline_indices: Array, duration: float) -> void:
+    approved_frames.clear()
+    approved_timeline.clear()
+    for path_value in drawings:
+        var path: String = str(path_value)
+        if ResourceLoader.exists(path) or path.begins_with("user://"):
+            var tex: Texture2D = _load_board_texture(path)
+            if tex != null:
+                approved_frames.append(tex)
+    for index_value in timeline_indices:
+        var idx: int = int(index_value)
+        if idx >= 0 and idx < approved_frames.size():
+            approved_timeline.append(idx)
+    if approved_frames.is_empty() or approved_timeline.is_empty():
+        info_label.text = "ERREUR : images non chargees, retourne a la planche"
+        playing = false
+        return
+    approved_duration = maxf(duration, 0.3)
+    custom_durations[11] = approved_duration
+    if not shot_list.has(11):
+        shot_list.append(11)
+    current_scene = 11
+    cinema_mode = false
+    loop_dance = false
+    scene_clock = 0.0
+    pose_index = -1
+    playing = true
+    play_button.text = "Pause"
+    _save_project()
+    _render()
+
+func _load_approved_board() -> void:
+    var path: String = "user://mobilei2v_storyboard_v23.json"
+    if not FileAccess.file_exists(path):
+        return
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        return
+    var data: Variant = JSON.parse_string(file.get_as_text())
+    file.close()
+    if not data is Dictionary:
+        return
+    var drawing_paths: Array = data.get("approved_drawings", [])
+    var timeline_indices: Array = data.get("approved_timeline", [])
+    if drawing_paths.is_empty() or timeline_indices.is_empty():
+        return
+    approved_frames.clear()
+    approved_timeline.clear()
+    for path_value in drawing_paths:
+        var drawing_path: String = str(path_value)
+        if ResourceLoader.exists(drawing_path) or drawing_path.begins_with("user://"):
+            var tex: Texture2D = _load_board_texture(drawing_path)
+            if tex != null:
+                approved_frames.append(tex)
+    for idx_value in timeline_indices:
+        var idx: int = int(idx_value)
+        if idx >= 0 and idx < approved_frames.size():
+            approved_timeline.append(idx)
+    if approved_frames.is_empty() or approved_timeline.is_empty():
+        return
+    approved_duration = maxf(float(data.get("duration_seconds", 6.0)), 0.3)
+    custom_durations[11] = approved_duration
+
+func _load_board_texture(path: String) -> Texture2D:
+    if path.begins_with("user://"):
+        var image := Image.new()
+        if image.load(path) == OK:
+            return ImageTexture.create_from_image(image)
+        return null
+    if ResourceLoader.exists(path):
+        return load(path)
+    return null
+
