@@ -1,4 +1,4 @@
-name: Build MobileI2V Android APK (V6 Diagnostic Valide)
+name: MobileI2V V6 - Android Diagnostic APK
 
 on:
   workflow_dispatch:
@@ -10,672 +10,131 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-
     steps:
-      - name: Download source from himadriHK/MobileI2VConsole
-        uses: actions/checkout@v4
-        with:
-          repository: himadriHK/MobileI2VConsole
-          path: source
-
       - name: Install .NET 10
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
-      - name: Install MAUI Android workload
-        run: dotnet workload install maui-android --ignore-failed-sources
+      - name: Install Android MAUI workload
+        run: dotnet workload install maui-android
 
-      - name: Restore workloads
-        run: dotnet workload restore source/src/MobileI2VConsole/MobileI2VConsole.csproj --ignore-failed-sources
-
-      - name: Supply valid OpenSans font assets
+      - name: Create isolated diagnostic application
         shell: bash
         run: |
-          mkdir -p source/src/MobileI2VConsole/Resources/Fonts
-          curl -s -L "https://raw.githubusercontent.com/google/fonts/main/ofl/opensans/OpenSans%5Bwdth%2Cwght%5D.ttf" -o source/src/MobileI2VConsole/Resources/Fonts/OpenSans-Regular.ttf
-          cp source/src/MobileI2VConsole/Resources/Fonts/OpenSans-Regular.ttf source/src/MobileI2VConsole/Resources/Fonts/OpenSans-Semibold.ttf
-          echo "[OK] Polices OpenSans fournies dans Resources/Fonts/"
-
-      - name: Apply V6 Anti-Crash and Diagnostic Patch
-        shell: bash
-        run: |
+          set -euo pipefail
+          dotnet new maui -n MobileI2VDiagnostic -o diagnostic
           python3 - <<'PY'
-          import os
-          import re
-          import xml.etree.ElementTree as ET
           from pathlib import Path
+          import re
+          root = Path('diagnostic')
+          proj = root / 'MobileI2VDiagnostic.csproj'
+          data = proj.read_text(encoding='utf-8')
+          data = re.sub(r'<TargetFrameworks?>.*?</TargetFrameworks?>', '<TargetFramework>net10.0-android</TargetFramework>', data, count=1, flags=re.S)
+          data = re.sub(r'<ApplicationId>.*?</ApplicationId>', '<ApplicationId>com.mobilei2v.diagnostic.v6</ApplicationId>', data)
+          data = re.sub(r'<ApplicationTitle>.*?</ApplicationTitle>', '<ApplicationTitle>MobileI2V Diagnostic V6</ApplicationTitle>', data)
+          data = re.sub(r'<ApplicationDisplayVersion>.*?</ApplicationDisplayVersion>', '<ApplicationDisplayVersion>1.6</ApplicationDisplayVersion>', data)
+          data = re.sub(r'<ApplicationVersion>.*?</ApplicationVersion>', '<ApplicationVersion>6</ApplicationVersion>', data)
+          if '<ApplicationId>' not in data:
+              raise RuntimeError('ApplicationId missing from MAUI template')
+          proj.write_text(data, encoding='utf-8')
+          (root / 'App.xaml.cs').write_text('''using System;
+          using System.Runtime.InteropServices;
+          using Microsoft.Maui.Controls;
+          using Microsoft.Maui.Graphics;
 
-          base = Path('source/src/MobileI2VConsole')
+          namespace MobileI2VDiagnostic;
 
-          # 1. Ressource XAML PageBackgroundColor manquante dans Colors.xaml
-          colors_file = base / 'Resources' / 'Styles' / 'Colors.xaml'
-          colors_xml = colors_file.read_text(encoding='utf-8')
-          if 'PageBackgroundColor' not in colors_xml:
-              colors_xml = colors_xml.replace('</ResourceDictionary>', '    <Color x:Key="PageBackgroundColor">#1A1A2E</Color>\n</ResourceDictionary>')
-              colors_file.write_text(colors_xml, encoding='utf-8')
-          ET.parse(colors_file)
-          print('[OK] Colors.xaml mis a jour avec PageBackgroundColor.')
+          public partial class App : Application
+          {
+              public App()
+              {
+                  InitializeComponent();
+              }
 
-          # 2. Correction des XAML (ShouldLoopPlayback au lieu de IsLooping, PageBackgroundColor, DataType CollectionView)
-          for xaml in base.rglob('*.xaml'):
-              raw = xaml.read_text(encoding='utf-8')
-              fixed = raw.replace('{StaticResource PageBackgroundColor}', '#1A1A2E')
-              if xaml.name == 'ResultPage.xaml':
-                  fixed = re.sub(r'\s+IsLooping\s*=\s*"[^"]*"', ' ShouldLoopPlayback="True"', fixed)
-              if xaml.name == 'HomePage.xaml':
-                  if 'xmlns:models=' not in fixed:
-                      fixed = fixed.replace('xmlns:vm="clr-namespace:MobileI2VConsole.ViewModels"',
-                                            'xmlns:vm="clr-namespace:MobileI2VConsole.ViewModels"\n             xmlns:models="clr-namespace:MobileI2VConsole.Models"')
-                  fixed = fixed.replace('<DataTemplate x:DataType="vm:HomeViewModel">', '<DataTemplate x:DataType="models:PromptTemplate">')
-              if fixed != raw:
-                  xaml.write_text(fixed, encoding='utf-8')
-              ET.parse(xaml)
-          print('[OK] Fichiers XAML corriges et valides.')
-
-          # 3. Isolation stricte de l'identifiant pour preserver l'app originale
-          csproj_file = base / 'MobileI2VConsole.csproj'
-          csproj_xml = csproj_file.read_text(encoding='utf-8')
-          csproj_xml = csproj_xml.replace('<ApplicationId>com.mobilei2v.console</ApplicationId>',
-                                          '<ApplicationId>com.mobilei2v.diagnostic</ApplicationId>')
-          csproj_xml = csproj_xml.replace('<ApplicationTitle>MobileI2V</ApplicationTitle>',
-                                          '<ApplicationTitle>MobileI2V Diagnostic</ApplicationTitle>')
-          csproj_xml = csproj_xml.replace('<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>',
-                                          '<ApplicationDisplayVersion>1.6-diag</ApplicationDisplayVersion>')
-          csproj_xml = csproj_xml.replace('<ApplicationVersion>1</ApplicationVersion>',
-                                          '<ApplicationVersion>6</ApplicationVersion>')
-          csproj_file.write_text(csproj_xml, encoding='utf-8')
-          ET.parse(csproj_file)
-          print('[OK] csproj configure: com.mobilei2v.diagnostic (v1.6-diag code 6).')
-
-          # 4. Autorisation Android 14+ dans AndroidManifest.xml
-          manifest_file = base / 'Platforms' / 'Android' / 'AndroidManifest.xml'
-          manifest_xml = manifest_file.read_text(encoding='utf-8')
-          if 'android.permission.READ_MEDIA_VIDEO' not in manifest_xml:
-              manifest_xml = manifest_xml.replace('</manifest>', '    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />\n</manifest>')
-              manifest_file.write_text(manifest_xml, encoding='utf-8')
-          ET.parse(manifest_file)
-          print('[OK] AndroidManifest.xml mis a jour avec READ_MEDIA_VIDEO.')
-
-          # 5. Suppression de l'appel bloquant synchrone .Result dans HomeViewModel.cs
-          hvm_file = base / 'ViewModels' / 'HomeViewModel.cs'
-          hvm_text = hvm_file.read_text(encoding='utf-8')
-          if '.Result' in hvm_text:
-              hvm_text = hvm_text.replace('LoadPromptTemplates();', '_ = LoadPromptTemplatesAsync();')
-              old_sync_method = """    private void LoadPromptTemplates()
-    {
-        try
-        {
-            // Try loading from embedded resource
-            var assembly = typeof(HomeViewModel).Assembly;
-            using var stream = FileSystem.OpenAppPackageFileAsync("PromptTemplates.json").Result;
-            if (stream != null)
-            {
-                using var reader = new StreamReader(stream);
-                var json = reader.ReadToEnd();
-                var templates = JsonSerializer.Deserialize<List<PromptTemplate>>(json);
-                if (templates != null)
-                {
-                    PromptTemplates.Clear();
-                    foreach (var t in templates)
-                        PromptTemplates.Add(t);
-                }
-            }
-        }
-        catch(Exception ex)
-        {
-            // Fallback defaults
-            PromptTemplates.Add(new PromptTemplate { Name = "Gentle Motion", Prompt = "gentle motion, smooth and subtle movement", Icon = "🌊" });
-            PromptTemplates.Add(new PromptTemplate { Name = "Cinematic Pan", Prompt = "cinematic panning shot, slow camera movement", Icon = "🎬" });
-        }
-    }"""
-              new_async_method = """    private async Task LoadPromptTemplatesAsync()
-    {
-        try
-        {
-            using var stream = await FileSystem.OpenAppPackageFileAsync("PromptTemplates.json").ConfigureAwait(false);
-            if (stream != null)
-            {
-                using var reader = new StreamReader(stream);
-                var json = await reader.ReadToEndAsync().ConfigureAwait(false);
-                var templates = JsonSerializer.Deserialize<List<PromptTemplate>>(json);
-                if (templates != null)
-                {
-                    MainThread.BeginInvokeOnMainThread(() =>
-                    {
-                        PromptTemplates.Clear();
-                        foreach (var t in templates)
-                            PromptTemplates.Add(t);
-                    });
-                }
-            }
-        }
-        catch (Exception)
-        {
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                PromptTemplates.Add(new PromptTemplate { Name = "Gentle Motion", Prompt = "gentle motion, smooth and subtle movement", Icon = "🌊" });
-                PromptTemplates.Add(new PromptTemplate { Name = "Cinematic Pan", Prompt = "cinematic panning shot, slow camera movement", Icon = "🎬" });
-            });
-        }
-    }"""
-              if old_sync_method in hvm_text:
-                  hvm_text = hvm_text.replace(old_sync_method, new_async_method)
-              else:
-                  hvm_text = re.sub(r'private void LoadPromptTemplates\(\)\s*\{.*?FileSystem\.OpenAppPackageFileAsync\("PromptTemplates\.json"\)\.Result;.*?catch.*?\}\s*\}',
-                                   new_async_method.strip(), hvm_text, flags=re.DOTALL)
-              hvm_file.write_text(hvm_text, encoding='utf-8')
-              print('[OK] HomeViewModel.cs converti en chargement 100% asynchrone sans .Result.')
-
-          # 6. Creation de DiagnosticLogger.cs
-          logger_code = """using System;
-using System.Collections.Generic;
-using System.IO;
-
-namespace MobileI2VConsole;
-
-public static class DiagnosticLogger
-{
-    private static readonly List<string> _logs = new();
-    private static readonly object _lock = new();
-
-    public static void Log(string message)
-    {
-        var line = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC] {message}";
-        lock (_lock)
-        {
-            _logs.Add(line);
-            try
-            {
-#if ANDROID
-                var context = Android.App.Application.Context;
-                var baseDir = context.GetExternalFilesDir(null)?.AbsolutePath ?? context.FilesDir?.AbsolutePath ?? "";
-                if (!string.IsNullOrEmpty(baseDir))
-                {
-                    var filePath = Path.Combine(baseDir, "mobilei2v_diagnostic.log");
-                    File.AppendAllText(filePath, line + Environment.NewLine);
-                }
-#endif
-            }
-            catch { }
-        }
-    }
-
-    public static string GetFullLog()
-    {
-        lock (_lock)
-        {
-            return _logs.Count > 0 ? string.Join(Environment.NewLine, _logs) : "Aucun journal pour le moment.";
-        }
-    }
-
-    public static string GetLogFilePath()
-    {
-#if ANDROID
-        var context = Android.App.Application.Context;
-        var baseDir = context.GetExternalFilesDir(null)?.AbsolutePath ?? context.FilesDir?.AbsolutePath ?? "";
-        return string.IsNullOrEmpty(baseDir) ? "Chemin introuvable" : Path.Combine(baseDir, "mobilei2v_diagnostic.log");
-#else
-        return "Non-Android";
-#endif
-    }
-}
-"""
-          (base / 'DiagnosticLogger.cs').write_text(logger_code, encoding='utf-8')
-          print('[OK] DiagnosticLogger.cs genere.')
-
-          # 7. Creation de DiagnosticPage.cs sans aucun retour a la ligne non echappe et 100% async
-          diag_page_code = """using System;
-using System.IO;
-using System.Linq;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Graphics;
-using Microsoft.Maui.ApplicationModel.DataTransfer;
-using Microsoft.Maui.Storage;
-
-namespace MobileI2VConsole;
-
-public class DiagnosticPage : ContentPage
-{
-    private readonly Label _statusLabel;
-    private readonly Label _detailsLabel;
-
-    public DiagnosticPage()
-    {
-        BackgroundColor = Color.FromArgb("#0B0F19");
-
-        _statusLabel = new Label
-        {
-            Text = "Pret. Choisissez un test ci-dessous pour verifier votre materiel.",
-            FontSize = 13,
-            TextColor = Color.FromArgb("#94A3B8"),
-            LineBreakMode = LineBreakMode.WordWrap
-        };
-
-        _detailsLabel = new Label
-        {
-            Text = "Journal de diagnostic en direct...",
-            FontSize = 12,
-            TextColor = Color.FromArgb("#E2E8F0"),
-            FontFamily = "monospace",
-            LineBreakMode = LineBreakMode.WordWrap
-        };
-
-        var mainLayout = new VerticalStackLayout
-        {
-            Padding = new Thickness(20),
-            Spacing = 14,
-            Children =
-            {
-                new Label
-                {
-                    Text = "MobileI2V - Diagnostic V6",
-                    FontSize = 22,
-                    FontAttributes = FontAttributes.Bold,
-                    TextColor = Color.FromArgb("#38BDF8"),
-                    HorizontalTextAlignment = TextAlignment.Center
-                },
-                new Label
-                {
-                    Text = "Xiaomi 14T Pro (Dimensity 9300+ / ARM64) - Demarrage Securise",
-                    FontSize = 13,
-                    TextColor = Color.FromArgb("#34D399"),
-                    HorizontalTextAlignment = TextAlignment.Center
-                },
-                new Border
-                {
-                    Stroke = Color.FromArgb("#1E293B"),
-                    BackgroundColor = Color.FromArgb("#0F172A"),
-                    Padding = new Thickness(12),
-                    Content = _statusLabel
-                },
-                CreateButton("1. Diagnostic Materiel & Architecture CPU", "#1E293B", OnRunHardwareDiag),
-                CreateButton("2. Test Initialisation ONNX Runtime & Providers", "#1E293B", OnTestOnnxRuntime),
-                CreateButton("3. Test Stockage & Fichiers Package (Async)", "#1E293B", OnTestStorage),
-                CreateButton("4. Lancer l'Application Complete (AppShell)", "#4338CA", OnLaunchAppShell),
-                CreateButton("5. Copier / Partager le Journal d'Erreurs", "#047857", OnExportLogs),
-                new Label
-                {
-                    Text = "Journal de diagnostic en direct :",
-                    FontSize = 13,
-                    FontAttributes = FontAttributes.Bold,
-                    TextColor = Color.FromArgb("#CBD5E1"),
-                    Margin = new Thickness(0, 8, 0, 0)
-                },
-                new Border
-                {
-                    Stroke = Color.FromArgb("#334155"),
-                    BackgroundColor = Color.FromArgb("#020617"),
-                    Padding = new Thickness(12),
-                    Content = _detailsLabel
-                }
-            }
-        };
-
-        Content = new ScrollView
-        {
-            Content = mainLayout
-        };
-
-        DiagnosticLogger.Log("DiagnosticPage initialisee avec succes.");
-    }
-
-    private Button CreateButton(string text, string hexBg, EventHandler clicked)
-    {
-        var btn = new Button
-        {
-            Text = text,
-            BackgroundColor = Color.FromArgb(hexBg),
-            TextColor = Colors.White,
-            FontSize = 14,
-            FontAttributes = FontAttributes.Bold,
-            CornerRadius = 8,
-            HeightRequest = 48
-        };
-        btn.Clicked += clicked;
-        return btn;
-    }
-
-    private void OnRunHardwareDiag(object? sender, EventArgs e)
-    {
-        try
-        {
-            var arch = RuntimeInformation.ProcessArchitecture;
-            var os = RuntimeInformation.OSDescription;
-            var runtime = RuntimeInformation.FrameworkDescription;
-            var cpus = Environment.ProcessorCount;
-            var cache = FileSystem.CacheDirectory;
-            var appData = FileSystem.AppDataDirectory;
-
-            var lines = new[]
-            {
-                $"Architecture: {arch}",
-                $"OS: {os}",
-                $"Runtime: {runtime}",
-                $"Coeurs CPU: {cpus}",
-                $"Cache: {cache}",
-                $"AppData: {appData}"
-            };
-
-            _detailsLabel.Text = string.Join(Environment.NewLine, lines);
-            _statusLabel.Text = "[OK] Diagnostic materiel termine avec succes.";
-            DiagnosticLogger.Log($"Test Hardware: Arch={arch}, OS={os}, Coeurs={cpus}");
-        }
-        catch (Exception ex)
-        {
-            _detailsLabel.Text = $"Erreur materiel: {ex.Message}";
-            _statusLabel.Text = "[ERREUR] Impossible de lire les proprietes materiel.";
-            DiagnosticLogger.Log($"Erreur materiel: {ex}");
-        }
-    }
-
-    private void OnTestOnnxRuntime(object? sender, EventArgs e)
-    {
-        try
-        {
-            _statusLabel.Text = "Initialisation de Microsoft.ML.OnnxRuntime...";
-            var sw = Stopwatch.StartNew();
-            var env = Microsoft.ML.OnnxRuntime.OrtEnv.Instance();
-            sw.Stop();
-
-            var handleValid = env.Handle != IntPtr.Zero;
-            string providers = "Inconnu";
-            try
-            {
-                var pList = env.GetAvailableProviders();
-                providers = pList != null ? string.Join(", ", pList) : "Aucun";
-            }
-            catch { }
-
-            var lines = new[]
-            {
-                $"[SUCCES] OrtEnv initialise avec succes en {sw.ElapsedMilliseconds} ms !",
-                $"Handle C++ non nul: {handleValid}",
-                $"Providers disponibles: {providers}",
-                "Bibliotheque native libonnxruntime.so operationnelle sur ARM64."
-            };
-
-            _detailsLabel.Text = string.Join(Environment.NewLine, lines);
-            _statusLabel.Text = "[OK] ONNX Runtime est operationnel sur votre puce Dimensity 9300+ !";
-            DiagnosticLogger.Log($"ONNX Initialise: time={sw.ElapsedMilliseconds}ms, handleValid={handleValid}, providers={providers}");
-        }
-        catch (Exception ex)
-        {
-            var lines = new[]
-            {
-                "[ECHEC ONNX]",
-                $"Type: {ex.GetType().FullName}",
-                $"Message: {ex.Message}",
-                "",
-                "StackTrace:",
-                ex.StackTrace ?? "Aucune trace"
-            };
-            _detailsLabel.Text = string.Join(Environment.NewLine, lines);
-            _statusLabel.Text = "[ECHEC] Erreur lors du chargement de la bibliotheque ONNX.";
-            DiagnosticLogger.Log($"Erreur ONNX Runtime: {ex}");
-        }
-    }
-
-    private async void OnTestStorage(object? sender, EventArgs e)
-    {
-        try
-        {
-            _statusLabel.Text = "Verification asynchrone du stockage...";
-            var personal = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
-            var modelsDir = Path.Combine(personal, "models");
-            var outputDir = Path.Combine(personal, "output");
-            var tempDir = Path.Combine(personal, "temp");
-
-            Directory.CreateDirectory(modelsDir);
-            Directory.CreateDirectory(outputDir);
-            Directory.CreateDirectory(tempDir);
-
-            bool packagePromptExists = false;
-            try
-            {
-                using var stream = await FileSystem.OpenAppPackageFileAsync("PromptTemplates.json");
-                packagePromptExists = stream != null;
-            }
-            catch { }
-
-            var logFile = DiagnosticLogger.GetLogFilePath();
-            var lines = new[]
-            {
-                $"Dossier models cree: {Directory.Exists(modelsDir)}",
-                $"Dossier output cree: {Directory.Exists(outputDir)}",
-                $"Dossier temp cree: {Directory.Exists(tempDir)}",
-                $"PromptTemplates.json accessible: {packagePromptExists}",
-                $"Fichier journal: {logFile}"
-            };
-
-            _detailsLabel.Text = string.Join(Environment.NewLine, lines);
-            _statusLabel.Text = "[OK] Test du stockage et des dossiers reussi (100% async).";
-            DiagnosticLogger.Log($"Test Storage: models={Directory.Exists(modelsDir)}, packagePrompt={packagePromptExists}");
-        }
-        catch (Exception ex)
-        {
-            _detailsLabel.Text = $"[ECHEC STOCKAGE] {ex.GetType().Name}: {ex.Message}";
-            _statusLabel.Text = "[ECHEC] Impossible d'acceder au stockage.";
-            DiagnosticLogger.Log($"Erreur Stockage: {ex}");
-        }
-    }
-
-    private void OnLaunchAppShell(object? sender, EventArgs e)
-    {
-        try
-        {
-            DiagnosticLogger.Log("Tentative d'instanciation de AppShell...");
-            if (Application.Current?.Windows.FirstOrDefault() is Window window)
-            {
-                window.Page = new AppShell();
-                DiagnosticLogger.Log("AppShell instancie et affecte avec succes a Window.Page.");
-            }
-            else
-            {
-                _statusLabel.Text = "Window principale introuvable.";
-            }
-        }
-        catch (Exception ex)
-        {
-            var lines = new[]
-            {
-                "[CRASH EVITE LORS DU LANCEMENT DE L'INTERFACE]",
-                $"Type: {ex.GetType().FullName}",
-                $"Message: {ex.Message}",
-                "",
-                "StackTrace:",
-                ex.StackTrace ?? "Aucune trace"
-            };
-            _detailsLabel.Text = string.Join(Environment.NewLine, lines);
-            _statusLabel.Text = "[EXCEPTION INTERCEPTEE] L'interface a leve une erreur.";
-            DiagnosticLogger.Log($"Erreur AppShell: {ex}");
-        }
-    }
-
-    private async void OnExportLogs(object? sender, EventArgs e)
-    {
-        try
-        {
-            var fullLog = DiagnosticLogger.GetFullLog();
-            _detailsLabel.Text = fullLog;
-
-            await Clipboard.Default.SetTextAsync(fullLog);
-            _statusLabel.Text = "[COPIE] Journal complet copie dans le presse-papier !";
-
-            try
-            {
-                await Share.Default.RequestAsync(new ShareTextRequest
-                {
-                    Text = fullLog,
-                    Title = "Journal MobileI2V Diagnostic Xiaomi 14T Pro"
-                });
-            }
-            catch
-            {
-                // Ignorer si annule par l'utilisateur
-            }
-        }
-        catch (Exception ex)
-        {
-            _detailsLabel.Text = $"Erreur exportation journal: {ex.Message}";
-            _statusLabel.Text = "Impossible d'exporter le journal.";
-        }
-    }
-}
-"""
-          (base / 'DiagnosticPage.cs').write_text(diag_page_code, encoding='utf-8')
-          print('[OK] DiagnosticPage.cs genere sans retours de ligne non echappes et 100% async.')
-
-          # 8. Securisation de App.xaml.cs
-          app_cs_code = """using System;
-using Microsoft.Maui.Controls;
-
-namespace MobileI2VConsole;
-
-public partial class App : Application
-{
-    public App()
-    {
-        try
-        {
-            InitializeComponent();
-            DiagnosticLogger.Log("App: InitializeComponent XAML execute avec succes.");
-        }
-        catch (Exception ex)
-        {
-            DiagnosticLogger.Log($"AVERTISSEMENT App.xaml: InitializeComponent a echoue: {ex.GetType().Name}: {ex.Message}");
-        }
-    }
-
-    protected override Window CreateWindow(IActivationState? activationState)
-    {
-        return new Window(new DiagnosticPage());
-    }
-}
-"""
-          (base / 'App.xaml.cs').write_text(app_cs_code, encoding='utf-8')
-          print('[OK] App.xaml.cs configure avec CreateWindow(DiagnosticPage).')
-
-          # 9. Capture globale des exceptions Android dans MainApplication.cs
-          main_app_code = """using System;
-using Android.App;
-using Android.Runtime;
-
-namespace MobileI2VConsole;
-
-[Application]
-public class MainApplication : MauiApplication
-{
-    public MainApplication(IntPtr handle, JniHandleOwnership ownership)
-        : base(handle, ownership)
-    {
-        AppDomain.CurrentDomain.UnhandledException += (s, e) =>
-        {
-            var ex = e.ExceptionObject as Exception;
-            var msg = ex != null ? $"[CRASH AppDomain] {ex.GetType().FullName}: {ex.Message}" : "[CRASH AppDomain] Exception non disponible";
-            DiagnosticLogger.Log(msg);
-        };
-
-        AndroidEnvironment.UnhandledExceptionRaiser += (s, e) =>
-        {
-            var msg = e.Exception != null ? $"[CRASH AndroidEnvironment] {e.Exception.GetType().FullName}: {e.Exception.Message}" : "[CRASH AndroidEnvironment] Exception inconnue";
-            DiagnosticLogger.Log(msg);
-            e.Handled = true;
-        };
-    }
-
-    protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
-}
-"""
-          (base / 'Platforms' / 'Android' / 'MainApplication.cs').write_text(main_app_code, encoding='utf-8')
-          print('[OK] MainApplication.cs configure avec gestionnaires de crash Android.')
+              protected override Window CreateWindow(IActivationState? activationState)
+              {
+                  var status = new Label
+                  {
+                      Text = "Diagnostic prêt. Appuyez sur Tester.",
+                      FontSize = 16,
+                      TextColor = Colors.White
+                  };
+                  var test = new Button { Text = "Tester CPU et stockage" };
+                  test.Clicked += (sender, args) =>
+                  {
+                      try
+                      {
+                          var path = FileSystem.AppDataDirectory;
+                          var arch = RuntimeInformation.ProcessArchitecture;
+                          var file = System.IO.Path.Combine(path, "diagnostic-v6.txt");
+                          System.IO.File.WriteAllText(file, "MobileI2V V6 diagnostic OK");
+                          status.Text = $"TEST RÉUSSI\\nCPU : {arch}\\nStockage : OK\\n{file}";
+                      }
+                      catch (Exception ex)
+                      {
+                          status.Text = $"ERREUR : {ex.GetType().Name}\\n{ex.Message}";
+                      }
+                  };
+                  var layout = new VerticalStackLayout
+                  {
+                      Padding = new Thickness(24),
+                      Spacing = 20,
+                      Children =
+                      {
+                          new Label { Text = "MobileI2V - Diagnostic V6", FontSize = 25,
+                                      FontAttributes = FontAttributes.Bold, TextColor = Colors.Cyan },
+                          new Label { Text = "Application de diagnostic autonome ARM64. Aucun modèle IA chargé.",
+                                      TextColor = Colors.White },
+                          test,
+                          status
+                      }
+                  };
+                  return new Window(new ContentPage
+                  {
+                      BackgroundColor = Color.FromArgb("#101827"),
+                      Content = new ScrollView { Content = layout }
+                  });
+              }
+          }
+          ''', encoding='utf-8')
+          print('Diagnostic app generated:', proj)
           PY
 
-      - name: Generate Diagnostic Signing Keystore
+      - name: Build ARM64 APK
         shell: bash
         run: |
-          KEYSTORE_PATH="${GITHUB_WORKSPACE}/source/src/MobileI2VConsole/diagnostic.keystore"
-          keytool -genkey -v \
-            -keystore "$KEYSTORE_PATH" \
-            -alias diagnostic \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass diagnostic123 \
-            -keypass diagnostic123 \
-            -dname "CN=MobileI2VDiagnostic, OU=Engineering, O=MobileI2V, C=FR"
-          cp "$KEYSTORE_PATH" "${GITHUB_WORKSPACE}/diagnostic.keystore"
-          echo "[OK] Keystore RSA-2048 genere."
-
-      - name: Build Android ARM64 APK
-        shell: bash
-        run: |
-          KEYSTORE_PATH="${GITHUB_WORKSPACE}/source/src/MobileI2VConsole/diagnostic.keystore"
-          dotnet publish source/src/MobileI2VConsole/MobileI2VConsole.csproj \
-            -c Release \
-            -f net10.0-android \
+          set -euo pipefail
+          dotnet publish diagnostic/MobileI2VDiagnostic.csproj \
+            -c Release -f net10.0-android \
             -p:RuntimeIdentifier=android-arm64 \
             -p:AndroidPackageFormat=apk \
-            -p:AndroidKeyStore=true \
-            -p:AndroidSigningKeyStore="$KEYSTORE_PATH" \
-            -p:AndroidSigningStorePass=diagnostic123 \
-            -p:AndroidSigningKeyAlias=diagnostic \
-            -p:AndroidSigningKeyPass=diagnostic123
+            -p:AndroidKeyStore=false
 
-      - name: Automated Verification of Generated APK
+      - name: Collect and verify APK
         shell: bash
         run: |
-          set -e
-          echo "=== 1. Recherche de l'APK genere ==="
-          APK_PATH=$(find source/src/MobileI2VConsole/bin/Release/net10.0-android -name "*Signed.apk" | head -n 1)
-          if [ -z "$APK_PATH" ]; then
-            APK_PATH=$(find source/src/MobileI2VConsole/bin/Release/net10.0-android -name "*.apk" | head -n 1)
-          fi
-          if [ -z "$APK_PATH" ]; then
-            echo "::error::Aucun APK n'a ete produit par dotnet publish !"
+          set -euo pipefail
+          find diagnostic/bin/Release -type f -name '*.apk' -print
+          APK=$(find diagnostic/bin/Release -type f -name '*Signed.apk' -print -quit)
+          if [ -z "$APK" ]; then
+            echo 'No signed APK found. Inspect build output.' >&2
             exit 1
           fi
-          echo "APK detecte: $APK_PATH"
-          ls -lh "$APK_PATH"
-
-          echo "=== 2. Inspection du contenu interne de l'APK (ZIP) ==="
-          python3 - <<'PY'
-          import zipfile, sys, glob
-          apks = glob.glob("source/src/MobileI2VConsole/bin/Release/net10.0-android/android-arm64/publish/*.apk")
-          if not apks:
-              sys.exit("Aucun fichier APK trouve pour inspection.")
-          apk_path = apks[0]
-
-          with zipfile.ZipFile(apk_path, 'r') as zf:
-              names = zf.namelist()
-              print(f"Nombre total de fichiers dans l'APK: {len(names)}")
-              
-              so_files = [n for n in names if n.endswith('.so')]
-              print(f"Bibliotheques natives .so ({len(so_files)} fichiers):")
-              for so in so_files[:10]:
-                  print("  -", so)
-              
-              fonts = [n for n in names if 'OpenSans' in n]
-              print(f"Polices OpenSans trouvees: {fonts}")
-              
-              dlls = [n for n in names if n.endswith('.dll')]
-              print(f"Assemblies .NET integres: {len(dlls)} fichiers DLL")
-              
-              has_manifest = "AndroidManifest.xml" in names
-              print(f"AndroidManifest.xml present: {has_manifest}")
-              assert has_manifest, "AndroidManifest.xml manquant dans l'APK"
-              
-              print("[OK] Verification automatique de l'APK reussie avec succes.")
+          python3 - "$APK" <<'PY'
+          import sys, zipfile
+          apk = sys.argv[1]
+          with zipfile.ZipFile(apk) as archive:
+              bad = archive.testzip()
+              assert bad is None, f'Corrupt APK entry: {bad}'
+              assert 'AndroidManifest.xml' in archive.namelist()
+              print('APK ZIP integrity and manifest verified')
           PY
+          cp "$APK" MobileI2V-V6-Diagnostic-arm64.apk
 
-          cp "$APK_PATH" MobileI2V-Diagnostic-v6-arm64.apk
-          echo "[SUCCES] MobileI2V-Diagnostic-v6-arm64.apk pret pour installation."
-
-      - name: Upload Verified Diagnostic APK
+      - name: Upload diagnostic APK
         uses: actions/upload-artifact@v4
         with:
-          name: MobileI2V-Diagnostic-v6-arm64
-          path: MobileI2V-Diagnostic-v6-arm64.apk
+          name: MobileI2V-V6-Diagnostic-arm64
+          path: MobileI2V-V6-Diagnostic-arm64.apk
           if-no-files-found: error
