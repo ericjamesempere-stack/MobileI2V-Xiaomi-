@@ -649,7 +649,11 @@ func _automatic_local_movie() -> void:
         status.text = "Planche non validee. Export annule."
         return
     status.text = "Etape 3/3 : calcul de %d images a 30 fps." % maxi(1, roundi(float(duration_input.value) * 30.0))
-    await _export_video("user://exports/animation_auto.avi")
+    var export_dir: String = "user://exports"
+    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(export_dir)) != OK:
+        status.text = "Impossible de creer le dossier video."
+        return
+    await _export_video(export_dir.path_join("animation_auto.avi"))
 
 func _generate_text_cartoon() -> void:
     var story: String = action_input.text.strip_edges()
