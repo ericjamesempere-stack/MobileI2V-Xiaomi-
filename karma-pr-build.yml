@@ -1,0 +1,27 @@
+
+name: MobileI2V - Build KARMA PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch-apk:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'karma-one/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Launch existing APK build on PR branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          gh api --method POST "repos/$REPO/actions/workflows/build-apk.yml/dispatches" -f ref="$BRANCH"
+          echo "Android build requested for $BRANCH"
