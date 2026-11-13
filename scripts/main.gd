@@ -650,8 +650,11 @@ func _import_selected_photo() -> void:
     photo_picker.popup_centered_ratio(0.9)
 
 func _on_photo_selected(path: String) -> void:
-    var image_data: Image = Image.new()
-    var error: Error = image_data.load(path)
+    var image_data: Image = load("res://scripts/android_image_reader.gd").read_image(path)
+    if image_data == null:
+        info_label.text = "Photo inaccessible ou format non reconnu"
+        return
+    var error: Error = OK
     if error != OK:
         info_label.text = "Image non lisible : %d" % error
         return
