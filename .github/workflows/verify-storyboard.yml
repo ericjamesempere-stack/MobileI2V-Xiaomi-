@@ -27,3 +27,4 @@ jobs:
       - name: Run movement sequence regression
         run: |
           ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_story_motion_planner.gd
+          ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_adaptive_storyboard.gd
