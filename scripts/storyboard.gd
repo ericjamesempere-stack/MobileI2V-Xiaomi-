@@ -43,8 +43,8 @@ func _ready() -> void:
     root_box.add_theme_constant_override("separation", 12)
     sc.add_child(root_box)
     sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-    _label("PLANCHE / VALIDATION", 30)
-    _label("Local : poses 2D approximatives. IA / MediaPipe : serveur externe facultatif.", 17)
+    _label("CREER MON ANIMATION", 28)
+    _label("1. Choisis une photo, raconte les mouvements, puis genere.", 18)
     _button("1. CHOISIR MA PHOTO", _choose_image)
     status = _label("Choisis une photo pour creer une planche locale approximative.", 23)
     preview = TextureRect.new()
@@ -60,7 +60,6 @@ func _ready() -> void:
     skeleton_preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     skeleton_preview.visible = false
     root_box.add_child(skeleton_preview)
-    _button("2. VALIDER ET ANIMER", _validate_and_animate)
     contact_caption = _label("PLANCHE : choisis une photo pour creer des poses articulees", 20)
     contact_sheet = TextureRect.new()
     contact_sheet.custom_minimum_size = Vector2(0, 380)
@@ -70,7 +69,7 @@ func _ready() -> void:
     root_box.add_child(contact_sheet)
     action_input = TextEdit.new()
     action_input.custom_minimum_size = Vector2(0, 95)
-    action_input.placeholder_text = "Decris les actions et le style..."
+    action_input.placeholder_text = "Exemple : Il court, trebuche, tombe puis se releve."
     root_box.add_child(action_input)
     var line := HBoxContainer.new()
     root_box.add_child(line)
@@ -83,7 +82,8 @@ func _ready() -> void:
     duration_input.step = 1
     duration_input.value = 6
     line.add_child(duration_input)
-    _label("MOTEUR IA EXTERNE (optionnel, serveur personnel compatible)", 18)
+    _label("OPTIONS AVANCEES (facultatives)", 18)
+    _label("MOTEUR IA EXTERNE (serveur personnel compatible)", 16)
     ai_endpoint = LineEdit.new()
     ai_endpoint.placeholder_text = "https://serveur-personnel.example/generate"
     ai_endpoint.text = ""
@@ -91,7 +91,8 @@ func _ready() -> void:
     _button("DETECTER LE SQUELETTE MEDIAPIPE", _request_pose)
     _button("12 POSES AVEC ARTICULATIONS DETECTEES", _generate_detected_board)
     _button("GENERER NOUVELLES POSES PAR IA (GPU externe)", _request_ai_board)
-    _button("Planche adaptative 2D (sans IA)", _generate_articulated_board)
+    _button("2. GENERER MON HISTOIRE", _generate_articulated_board)
+    _button("3. VALIDER ET ANIMER", _validate_and_animate)
     _button("Mouvement de camera seulement", _generate_from_photo)
     _button("Planche de demonstration (16 poses)", _prepare)
     _button("Exporter images PNG de la planche", _export_png_sequence)
