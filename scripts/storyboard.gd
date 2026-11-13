@@ -659,6 +659,18 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
     var count: int = _adaptive_pose_count(action_input.text, float(duration_input.value))
     var story_planner: RefCounted = load("res://scripts/story_motion_planner.gd").new()
     var story_plan: Dictionary = story_planner.plan(action_input.text, float(duration_input.value))
+    # KARMA ONE production manifest: one contract for storyboard and animation.
+    var director: RefCounted = load("res://scripts/story_director.gd").new()
+    var production: Dictionary = director.build(action_input.text, float(duration_input.value), imported_path)
+    if production.get("scenes", []).is_empty():
+        status.text = "Aucune scene exploitable : precise les mouvements."
+        return
+    var manifest_path: String = imported_path.get_base_dir().path_join("production_manifest.json")
+    var manifest_file: FileAccess = FileAccess.open(manifest_path, FileAccess.WRITE)
+    if manifest_file != null:
+        manifest_file.store_string(JSON.stringify(production, "  "))
+        manifest_file.close()
+
     if not bool(story_plan.get("ok", false)):
         status.text = "Action non reconnue : essaie courir, tomber, danser, marcher..."
         return
