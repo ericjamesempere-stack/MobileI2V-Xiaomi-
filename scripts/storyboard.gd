@@ -766,12 +766,18 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
     original.convert(Image.FORMAT_RGBA8)
     var base := Image.create(width,height,false,Image.FORMAT_RGBA8)
     base.fill(Color("25364a"))
-    base.blit_rect(original,Rect2i(0,0,fw,fh),Vector2i(int((width-fw)/2),int((height-fh)/2)))
-    # Only isolate artwork with a demonstrably uniform edge background.
-    # Complex photographic scenes must not be silently mis-segmented.
+    # Segment BEFORE adding the studio backdrop. Segmenting the padded
+    # canvas previously made every photo appear to have a uniform background.
     var separator: RefCounted = load("res://scripts/character_separator.gd").new()
-    var separated: Dictionary = separator.separate(base)
-    var foreground: Image = separated.get("foreground", base)
+    var separated: Dictionary = separator.separate(original)
+    if not bool(separated.get("ok", false)):
+        status.text = "Personnage non isole : " + str(separated.get("reason", "fond complexe")) + ". Utilise une image PNG detouree ou un fond uni."
+        return
+    var cutout: Image = separated["foreground"]
+    base.blit_rect(original, Rect2i(0, 0, fw, fh), Vector2i(int((width-fw)/2), int((height-fh)/2)))
+    var foreground := Image.create(width, height, false, Image.FORMAT_RGBA8)
+    foreground.fill(Color(0, 0, 0, 0))
+    foreground.blend_rect(cutout, Rect2i(0, 0, fw, fh), Vector2i(int((width-fw)/2), int((height-fh)/2)))
 
     var shoulder_l := Vector2(width*0.35,height*0.31)
     var shoulder_r := Vector2(width*0.65,height*0.31)
