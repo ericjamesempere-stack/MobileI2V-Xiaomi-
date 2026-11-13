@@ -109,6 +109,9 @@ func _ready() -> void:
     picker = FileDialog.new()
     picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
     picker.access = FileDialog.ACCESS_FILESYSTEM
+    # Start in shared pictures rather than Android filesystem root.
+    if OS.get_name() == "Android":
+        picker.current_dir = "/storage/emulated/0/Pictures"
     picker.use_native_dialog = true
     picker.filters = PackedStringArray(["*.png, *.jpg, *.jpeg, *.webp ; Images"])
     picker.file_selected.connect(_image_chosen)
@@ -358,6 +361,8 @@ func _export_video(destination: String) -> void:
     status.text = "Video AVI exportee : %d images, %d fps. Pas encore MP4." % [written, fps]
 
 func _choose_image() -> void:
+    if OS.get_name() == "Android":
+        OS.request_permissions()
     picker.popup_centered_ratio(0.9)
 
 func _image_chosen(path: String) -> void:
