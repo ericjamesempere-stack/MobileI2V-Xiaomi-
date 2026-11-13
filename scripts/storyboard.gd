@@ -75,6 +75,7 @@ func _ready() -> void:
     duration_input.step = 1
     duration_input.value = 6
     line.add_child(duration_input)
+    _button("CREER AUTOMATIQUEMENT : DESSINS + MOUVEMENTS + VIDEO", _automatic_local_movie)
     _button("2A. DESSINER DEPUIS LE TEXTE (SANS PHOTO)", _generate_text_cartoon)
     _button("2A bis. PHOTO : ZOOM ET DEPLACEMENT (LOCAL)", _generate_from_photo)
     _button("2B. ANIMER MA PHOTO", _generate_articulated_board)
@@ -626,6 +627,29 @@ func _generate_detected_board() -> void:
         status.text = "Detecte d'abord les articulations MediaPipe."
         return
     await _generate_articulated_board(true)
+
+func _automatic_local_movie() -> void:
+    if exporting_video:
+        status.text = "Export deja en cours."
+        return
+    if action_input.text.strip_edges().is_empty():
+        status.text = "Decris les mouvements avant de lancer."
+        return
+    status.text = "Etape 1/3 : creation automatique de la planche."
+    if not imported_path.is_empty() and FileAccess.file_exists(imported_path):
+        _generate_articulated_board()
+    else:
+        await _generate_text_cartoon()
+    if sources.is_empty():
+        status.text = "Aucun dessin genere. Export annule."
+        return
+    status.text = "Etape 2/3 : validation de %d dessins." % sources.size()
+    _approve_all()
+    if accepted.is_empty():
+        status.text = "Planche non validee. Export annule."
+        return
+    status.text = "Etape 3/3 : calcul de %d images a 30 fps." % maxi(1, roundi(float(duration_input.value) * 30.0))
+    await _export_video("user://exports/animation_auto.avi")
 
 func _generate_text_cartoon() -> void:
     var story: String = action_input.text.strip_edges()
