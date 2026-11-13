@@ -677,6 +677,14 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
     # KARMA ONE production manifest: one contract for storyboard and animation.
     var director: RefCounted = load("res://scripts/story_director.gd").new()
     var production: Dictionary = director.build(action_input.text, float(duration_input.value), imported_path)
+    # Image-first contract: drawing briefs precede any rig or video rendering.
+    var board_planner: RefCounted = load("res://scripts/board_generation_plan.gd").new()
+    var drawing_plan: Dictionary = board_planner.make_plan(action_input.text, [imported_path], float(duration_input.value))
+    var drawing_file: FileAccess = FileAccess.open(imported_path.get_base_dir().path_join("drawing_plan.json"), FileAccess.WRITE)
+    if drawing_file != null:
+        drawing_file.store_string(JSON.stringify(drawing_plan, "  "))
+        drawing_file.close()
+
     if production.get("scenes", []).is_empty():
         status.text = "Aucune scene exploitable : precise les mouvements."
         return
