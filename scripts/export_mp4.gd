@@ -82,23 +82,53 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
         return
     var total: int = maxi(1, roundi(clampf(duration, 0.5, 60.0) * float(FPS)))
     var written: int = 0
+    var interpolator: RefCounted = load("res://scripts/frame_interpolator.gd").new()
+    var previous_pair: String = ""
+    var shift: Vector2i = Vector2i.ZERO
+    var image_a: Image = null
+    var image_b: Image = null
     for n in range(total):
-        var slot: int = mini(timeline.size() - 1, int(float(n) / float(total) * float(timeline.size())))
+        var position: float = float(n) / float(total) * float(timeline.size())
+        var slot: int = mini(timeline.size() - 1, floori(position))
+        var next_slot: int = mini(timeline.size() - 1, slot + 1)
         var index: int = int(timeline[slot])
-        if index < 0 or index >= board_images.size():
-            continue
-        var texture: Texture2D = board_images[index] as Texture2D
-        if texture == null:
-            continue
-        var img: Image = texture.get_image()
-        if img == null or img.is_empty():
-            continue
+        var next_index: int = int(timeline[next_slot])
+        if index < 0 or index >= board_images.size() or next_index < 0 or next_index >= board_images.size():
+            _set_status("Index de pose invalide : export MP4 annule.")
+            encoder.call("finish")
+            exporting = false
+            return
+        var pair: String = "%d:%d" % [index, next_index]
+        if pair != previous_pair:
+            var tex_a: Texture2D = board_images[index] as Texture2D
+            var tex_b: Texture2D = board_images[next_index] as Texture2D
+            if tex_a == null or tex_b == null:
+                _set_status("Dessin absent : export MP4 annule.")
+                encoder.call("finish")
+                exporting = false
+                return
+            image_a = tex_a.get_image()
+            image_b = tex_b.get_image()
+            if image_a == null or image_a.is_empty() or image_b == null or image_b.is_empty():
+                _set_status("Dessin vide : export MP4 annule.")
+                encoder.call("finish")
+                exporting = false
+                return
+            image_a.convert(Image.FORMAT_RGB8)
+            image_b.convert(Image.FORMAT_RGB8)
+            image_a.resize(360, 480, Image.INTERPOLATE_BILINEAR)
+            image_b.resize(360, 480, Image.INTERPOLATE_BILINEAR)
+            shift = interpolator.estimate_shift(image_a, image_b, 12) if index != next_index else Vector2i.ZERO
+            previous_pair = pair
+        var progress: float = position - float(slot)
+        var eased: float = progress * progress * (3.0 - 2.0 * progress)
+        var img: Image = interpolator.blend(image_a, image_b, eased, shift) if index != next_index else image_a.duplicate()
+        img.resize(WIDTH, HEIGHT, Image.INTERPOLATE_BILINEAR)
         img.convert(Image.FORMAT_RGBA8)
-        img.resize(WIDTH, HEIGHT, Image.INTERPOLATE_LANCZOS)
         encoder.call("push_frame_rgba", img.get_data())
         written += 1
         if n % 8 == 0:
-            _set_status("Encodage MP4 : %d / %d" % [n + 1, total])
+            _set_status("MP4 interpole : %d / %d" % [n + 1, total])
             await get_tree().process_frame
     var result: String = str(encoder.call("finish"))
     exporting = false
