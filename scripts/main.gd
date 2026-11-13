@@ -618,6 +618,9 @@ func _build_photo_picker() -> void:
     photo_picker = FileDialog.new()
     photo_picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
     photo_picker.access = FileDialog.ACCESS_FILESYSTEM
+    # Start in shared pictures rather than Android filesystem root.
+    if OS.get_name() == "Android":
+        photo_picker.current_dir = "/storage/emulated/0/Pictures"
     photo_picker.use_native_dialog = true
     photo_picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp ; Images"])
     photo_picker.file_selected.connect(_on_photo_selected)
@@ -633,6 +636,8 @@ func _import_selected_photo() -> void:
             if user_photos[i] == null:
                 photo_slot = i
                 break
+    if OS.get_name() == "Android":
+        OS.request_permissions()
     photo_picker.popup_centered_ratio(0.9)
 
 func _on_photo_selected(path: String) -> void:
