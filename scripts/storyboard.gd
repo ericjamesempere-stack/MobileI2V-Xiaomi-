@@ -97,7 +97,7 @@ func _ready() -> void:
     endpoint_label.text = "Serveur IA externe (facultatif)"
     advanced_box.add_child(endpoint_label)
     ai_endpoint = LineEdit.new()
-    ai_endpoint.placeholder_text = "https://serveur-personnel.example/generate"
+    ai_endpoint.placeholder_text = "https://ton-serveur/generate/storyboard"
     advanced_box.add_child(ai_endpoint)
     _button("Detecter le squelette (serveur externe)", _request_pose, advanced_box)
     _button("Poses avec articulations detectees", _generate_detected_board, advanced_box)
@@ -514,9 +514,9 @@ func _request_ai_board() -> void:
     if bytes.is_empty():
         status.text = "Impossible de lire la photo."
         return
-    var payload := {"image_base64": Marshalls.raw_to_base64(bytes), "prompt": action_input.text, "frames": 12}
+    var payload := {"image_base64": Marshalls.raw_to_base64(bytes), "prompt": action_input.text, "frames": 4, "seed": 42}
     ai_running = true
-    status.text = "Generation IA en cours (MediaPipe + diffusion sur serveur)..."
+    status.text = "Generation SDXL avec reference en cours (serveur GPU requis)..."
     var err: Error = ai_http.request(url, ["Content-Type: application/json"], HTTPClient.METHOD_POST, JSON.stringify(payload))
     if err != OK:
         ai_running = false
