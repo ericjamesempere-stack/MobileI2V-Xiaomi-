@@ -1,70 +1,61 @@
-name: Build Android APK (MobileI2V V50 - corrected)
 
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+[preset.0]
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - name: Install Godot 4.3 stable
-        run: |
-          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
-          unzip -q Godot_v4.3-stable_linux.x86_64.zip
-          chmod +x Godot_v4.3-stable_linux.x86_64
-      - name: Install Godot Android export templates
-        run: |
-          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz
-          unzip -q Godot_v4.3-stable_export_templates.tpz
-          mkdir -p "$HOME/.local/share/godot/export_templates/4.3.stable"
-          cp -a templates/. "$HOME/.local/share/godot/export_templates/4.3.stable/"
-      - name: Configure Android SDK and debug signing
-        run: |
-          set -euo pipefail
-          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
-          keytool -genkeypair -keystore "$RUNNER_TEMP/mobilei2v.keystore" -alias mobilei2v -keyalg RSA -keysize 2048 -validity 3650 -storepass mobilei2v -keypass mobilei2v -dname 'CN=MobileI2V, O=Development, C=FR'
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('export_presets.cfg')
-          s=p.read_text()
-          needle='package/signed=true'
-          assert needle in s, 'Android export preset missing'
-          s=s.replace(needle,needle+'\npackage/keystore/debug="'+str(Path(__import__('os').environ['RUNNER_TEMP'])/'mobilei2v.keystore')+'"\npackage/keystore/debug_user="mobilei2v"\npackage/keystore/debug_password="mobilei2v"',1)
-          p.write_text(s)
-          PY
-      - name: Import and validate Godot project
-        run: |
-          set -euo pipefail
-          ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --import 2>&1 | tee import.log
-          if grep -E 'SCRIPT ERROR|Parse Error|ConfigFile parse error' import.log; then exit 1; fi
-      - name: Export debug APK ARM64
-        run: |
-          set -euo pipefail
-          mkdir -p build
-          ./Godot_v4.3-stable_linux.x86_64 --headless --path . --export-debug Android build/MobileI2V_v50_arm64.apk 2>&1 | tee export.log
-          test -s build/MobileI2V_v50_arm64.apk
-          unzip -t build/MobileI2V_v50_arm64.apk | tail -2
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: MobileI2V_v50_arm64_apk
-          path: build/MobileI2V_v50_arm64.apk
-          if-no-files-found: error
-      - name: Upload diagnostics on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mobilei2v-build-logs
-          path: |
-            import.log
-            export.log
-          if-no-files-found: ignore
+name="Android"
+platform="Android"
+runnable=true
+advanced_options=false
+dedicated_server=false
+custom_features=""
+export_filter="all_resources"
+include_filter=""
+exclude_filter="backend_optional/*"
+export_path="build/MobileI2V_v50_arm64.apk"
+patches=PackedStringArray()
+encryption_include_filters=""
+encryption_exclude_filters=""
+seed=0
+encrypt_pck=false
+encrypt_directory=false
+script_export_mode=2
+
+[preset.0.options]
+
+custom_template/debug=""
+custom_template/release=""
+gradle_build/use_gradle_build=false
+gradle_build/gradle_build_directory=""
+gradle_build/android_source_template=""
+gradle_build/compress_native_libraries=false
+gradle_build/export_format=0
+architectures/armeabi-v7a=false
+architectures/arm64-v8a=true
+architectures/x86=false
+architectures/x86_64=false
+version/code=1
+version/name="1.0 (V50)"
+package/unique_name="com.ericjamesempere.mobilei2v"
+package/name="MobileI2V Studio"
+package/signed=true
+package/app_category=2
+package/retain_data_on_uninstall=false
+package/exclude_from_recents=false
+package/show_in_android_tv=false
+package/show_in_app_library=true
+package/show_as_launcher_app=false
+launcher_icons/main_192x192=""
+launcher_icons/adaptive_foreground_432x432=""
+launcher_icons/adaptive_background_432x432=""
+graphics/opengl_debug=false
+xr_features/xr_mode=0
+screen/immersive_mode=true
+screen/support_small=true
+screen/support_normal=true
+screen/support_large=true
+screen/support_xlarge=true
+user_data_backup/allow=false
+command_line/extra_args=""
+apk_expansion/enable=false
+apk_expansion/SALT=""
+apk_expansion/public_key=""
+permissions/custom_permissions=PackedStringArray()
