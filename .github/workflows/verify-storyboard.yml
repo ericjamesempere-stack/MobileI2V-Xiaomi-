@@ -26,12 +26,9 @@ jobs:
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --editor --path . --import --quit
       - name: Run movement sequence regression
         run: |
-          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_story_motion_planner.gd
-          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_adaptive_storyboard.gd
-          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_story_director.gd
-          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_character_separator.gd
-          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_continuous_rig.gd
-          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_board_generation_plan.gd
-          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_frame_interpolator.gd
-          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_drawing_quality_gate.gd
-          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_procedural_cartoon_generator.gd
+          set -euo pipefail
+          for test in test_story_motion_planner.gd test_adaptive_storyboard.gd test_story_director.gd test_character_separator.gd test_continuous_rig.gd test_board_generation_plan.gd test_frame_interpolator.gd test_drawing_quality_gate.gd test_procedural_cartoon_generator.gd; do
+            echo "::group::Godot regression: $test"
+            timeout --signal=TERM --kill-after=10s 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script "res://tests/$test"
+            echo "::endgroup::"
+          done
