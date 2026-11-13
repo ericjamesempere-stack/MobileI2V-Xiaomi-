@@ -77,11 +77,10 @@ jobs:
               settings.set_setting("export/android/debug_keystore", OS.get_environment("RUNNER_TEMP").path_join("mobilei2v.keystore"))
               settings.set_setting("export/android/debug_keystore_user", "mobilei2v")
               settings.set_setting("export/android/debug_keystore_pass", "mobilei2v")
-              settings.save()
               print("Android SDK configured")
               quit(0)
           GDSCRIPT
-          timeout 45s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --script res://ci/configure_android.gd 2>&1 | tee configure.log
+          timeout 45s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --script res://ci/configure_android.gd --quit-after 2 2>&1 | tee configure.log
           if grep -E 'SCRIPT ERROR|Parse Error|Invalid call' configure.log; then exit 1; fi
 
       - name: Export APK ARM64
