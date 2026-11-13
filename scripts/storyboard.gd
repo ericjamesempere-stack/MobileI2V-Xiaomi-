@@ -48,7 +48,7 @@ func _ready() -> void:
     _button("1. CHOISIR MA PHOTO", _choose_image)
     status = _label("Choisis une photo pour creer une planche locale approximative.", 23)
     preview = TextureRect.new()
-    preview.custom_minimum_size = Vector2(0, 360)
+    preview.custom_minimum_size = Vector2(0, 210)
     preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -60,16 +60,9 @@ func _ready() -> void:
     skeleton_preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     skeleton_preview.visible = false
     root_box.add_child(skeleton_preview)
-    contact_caption = _label("PLANCHE : choisis une photo pour creer des poses articulees", 20)
-    contact_sheet = TextureRect.new()
-    contact_sheet.custom_minimum_size = Vector2(0, 380)
-    contact_sheet.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    contact_sheet.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-    contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-    root_box.add_child(contact_sheet)
     action_input = TextEdit.new()
-    action_input.custom_minimum_size = Vector2(0, 95)
-    action_input.placeholder_text = "Exemple : Il court, trebuche, tombe puis se releve."
+    action_input.custom_minimum_size = Vector2(0, 125)
+    action_input.placeholder_text = "Exemple : Le personnage danse, saute puis tombe et se releve."
     root_box.add_child(action_input)
     var line := HBoxContainer.new()
     root_box.add_child(line)
@@ -82,30 +75,41 @@ func _ready() -> void:
     duration_input.step = 1
     duration_input.value = 6
     line.add_child(duration_input)
-    _label("OPTIONS AVANCEES (facultatives)", 18)
-    _label("MOTEUR IA EXTERNE (serveur personnel compatible)", 16)
+    _button("2. GENERER AUTOMATIQUEMENT", _generate_articulated_board)
+    _button("3. VALIDER ET ANIMER", _validate_and_animate)
+    contact_caption = _label("Les poses generees apparaitront ici.", 20)
+    contact_sheet = TextureRect.new()
+    contact_sheet.custom_minimum_size = Vector2(0, 220)
+    contact_sheet.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    contact_sheet.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+    contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+    root_box.add_child(contact_sheet)
+    _button("4. EXPORTER LA VIDEO (AVI)", _export_video_direct)
+    var advanced := CollapsibleContainer.new()
+    advanced.title = "Options avancees (facultatives)"
+    advanced.folded = true
+    root_box.add_child(advanced)
+    var advanced_box := VBoxContainer.new()
+    advanced.add_child(advanced_box)
+    var endpoint_label := Label.new()
+    endpoint_label.text = "Serveur IA externe (facultatif)"
+    advanced_box.add_child(endpoint_label)
     ai_endpoint = LineEdit.new()
     ai_endpoint.placeholder_text = "https://serveur-personnel.example/generate"
-    ai_endpoint.text = ""
-    root_box.add_child(ai_endpoint)
-    _button("DETECTER LE SQUELETTE MEDIAPIPE", _request_pose)
-    _button("12 POSES AVEC ARTICULATIONS DETECTEES", _generate_detected_board)
-    _button("GENERER NOUVELLES POSES PAR IA (GPU externe)", _request_ai_board)
-    _button("2. GENERER MON HISTOIRE", _generate_articulated_board)
-    _button("3. VALIDER ET ANIMER", _validate_and_animate)
-    _button("Mouvement de camera seulement", _generate_from_photo)
-    _button("Planche de demonstration (16 poses)", _prepare)
-    _button("Exporter images PNG de la planche", _export_png_sequence)
-    _button("Exporter VIDEO AVI hors ligne", _choose_video_export)
-    _button("TOUT VALIDER", _approve_all)
-    _button("TOUT RETIRER", _reject_all)
-    var controls := HBoxContainer.new()
-    root_box.add_child(controls)
-    _button("< Precedente", _previous, controls)
-    _button("Valider / Retirer", _toggle_approval, controls)
-    _button("Suivante >", _next, controls)
-    _button("Enregistrer la planche", _save)
-    _button("Recharger la planche", _load_saved)
+    advanced_box.add_child(ai_endpoint)
+    _button("Detecter le squelette (serveur externe)", _request_pose, advanced_box)
+    _button("Poses avec articulations detectees", _generate_detected_board, advanced_box)
+    _button("Generer par IA externe", _request_ai_board, advanced_box)
+    _button("Mouvement de camera uniquement", _generate_from_photo, advanced_box)
+    _button("Planche de demonstration", _prepare, advanced_box)
+    _button("Exporter les images PNG", _export_png_sequence, advanced_box)
+    _button("Tout valider", _approve_all, advanced_box)
+    _button("Tout retirer", _reject_all, advanced_box)
+    _button("Pose precedente", _previous, advanced_box)
+    _button("Valider ou retirer la pose", _toggle_approval, advanced_box)
+    _button("Pose suivante", _next, advanced_box)
+    _button("Enregistrer la planche", _save, advanced_box)
+    _button("Recharger la planche", _load_saved, advanced_box)
     _button("Retour au studio", _close)
     picker = FileDialog.new()
     picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
@@ -210,6 +214,13 @@ func _avi_headers(width: int, height: int, fps: int, count: int, max_jpg: int) -
     var hdrl := _avi_chunk("avih", avih)
     hdrl.append_array(_avi_list("strl", stream))
     return _avi_list("hdrl", hdrl)
+
+func _export_video_direct() -> void:
+    if sources.is_empty():
+        status.text = "Genere d'abord les poses avec le bouton 2."
+        return
+    var output_dir: String = imported_path.get_base_dir() if not imported_path.is_empty() else "user://"
+    _export_video(output_dir.path_join("animation.avi"))
 
 func _choose_video_export() -> void:
     if sources.is_empty():
