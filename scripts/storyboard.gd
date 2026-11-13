@@ -114,7 +114,7 @@ func _ready() -> void:
     if OS.get_name() == "Android":
         picker.current_dir = "/storage/emulated/0/Pictures"
     picker.use_native_dialog = true
-    picker.filters = PackedStringArray(["*.png, *.jpg, *.jpeg, *.webp ; Images"])
+    picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp;Images;image/png,image/jpeg,image/webp"])
     picker.file_selected.connect(_image_chosen)
     add_child(picker)
     video_picker = FileDialog.new()
@@ -642,12 +642,6 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
         hip_r = _joint_point(24,width,height,fw,fh)
         leg_l = _joint_point(27,width,height,fw,fh)
         leg_r = _joint_point(28,width,height,fw,fh)
-    sources.clear()
-    paths.clear()
-    plan.clear()
-    accepted.clear()
-    var folder: String = imported_path.get_base_dir() + ("/mediapipe_board" if use_detected else "/articulated_board")
-    DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder))
     if action_input.text.strip_edges().is_empty():
         status.text = "Ecris une action avant de generer la planche."
         return
@@ -657,6 +651,13 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
     if not bool(story_plan.get("ok", false)):
         status.text = "Action non reconnue : essaie courir, tomber, danser, marcher..."
         return
+    # Keep the previous approved board until the new request has been validated.
+    sources.clear()
+    paths.clear()
+    plan.clear()
+    accepted.clear()
+    var folder: String = imported_path.get_base_dir() + ("/mediapipe_board" if use_detected else "/articulated_board")
+    DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder))
     for i in range(count):
         var seconds: float = float(i) / float(count) * float(duration_input.value)
         var action: String = story_planner.action_at(story_plan, seconds) if bool(story_plan.get("ok", false)) else "marche"
