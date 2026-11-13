@@ -1,0 +1,61 @@
+extends RefCounted
+# Real, fully offline procedural cartoon drawing from text.
+# Not a diffusion model: produces a stylized character sheet, not arbitrary
+# photorealistic or reference-faithful illustrations.
+func render(description: String, phase: float = 0.0, size: Vector2i = Vector2i(360, 480)) -> Image:
+    var image: Image = Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
+    var sky := Color("#d9e9f1")
+    image.fill(sky)
+    var seed: int = absi(description.to_lower().hash())
+    var skin := Color("#d8a27b")
+    var shirt := Color("#306caa") if seed % 2 == 0 else Color("#c34e59")
+    var pants := Color("#25354b")
+    var hair := Color("#342b2b")
+    var scale: float = float(size.x) / 360.0
+    var cx: float = size.x * 0.5
+    var floor_y: float = size.y * 0.85
+    _ellipse(image, Vector2(cx, floor_y + 5 * scale), Vector2(85, 12) * scale, Color("#a8c6cf"))
+    var swing: float = sin(phase * TAU)
+    var lift: float = absf(sin(phase * TAU)) * 6.0 * scale
+    var hip := Vector2(cx, floor_y - 104 * scale - lift)
+    var shoulder := Vector2(cx, floor_y - 210 * scale - lift)
+    var left_foot := Vector2(cx - (30 + 18 * swing) * scale, floor_y - maxf(0.0, swing) * 18 * scale)
+    var right_foot := Vector2(cx + (30 - 18 * swing) * scale, floor_y - maxf(0.0, -swing) * 18 * scale)
+    var left_knee := hip.lerp(left_foot, 0.52) + Vector2(-12 * scale, -12 * scale)
+    var right_knee := hip.lerp(right_foot, 0.52) + Vector2(12 * scale, -12 * scale)
+    _stroke(image, hip + Vector2(-13, 0) * scale, left_knee, 19 * scale, pants)
+    _stroke(image, left_knee, left_foot, 17 * scale, pants)
+    _stroke(image, hip + Vector2(13, 0) * scale, right_knee, 19 * scale, pants)
+    _stroke(image, right_knee, right_foot, 17 * scale, pants)
+    _ellipse(image, left_foot + Vector2(-6, 0) * scale, Vector2(22, 9) * scale, Color("#172533"))
+    _ellipse(image, right_foot + Vector2(6, 0) * scale, Vector2(22, 9) * scale, Color("#172533"))
+    _stroke(image, hip, shoulder, 57 * scale, shirt)
+    var left_hand := shoulder + Vector2((-67 - 17 * swing) * scale, (67 + 28 * swing) * scale)
+    var right_hand := shoulder + Vector2((67 - 17 * swing) * scale, (67 - 28 * swing) * scale)
+    _stroke(image, shoulder + Vector2(-22, 3) * scale, left_hand, 17 * scale, shirt)
+    _stroke(image, shoulder + Vector2(22, 3) * scale, right_hand, 17 * scale, shirt)
+    _ellipse(image, left_hand, Vector2(10, 10) * scale, skin)
+    _ellipse(image, right_hand, Vector2(10, 10) * scale, skin)
+    var head := shoulder + Vector2(0, -60 * scale)
+    _ellipse(image, head, Vector2(33, 43) * scale, skin)
+    _ellipse(image, head + Vector2(0, -29) * scale, Vector2(35, 17) * scale, hair)
+    for side in [-1, 1]:
+        _ellipse(image, head + Vector2(side * 13, -4) * scale, Vector2(4, 5) * scale, Color("#ffffff"))
+        _ellipse(image, head + Vector2(side * 13, -4) * scale, Vector2(2, 3) * scale, Color("#192c35"))
+    _stroke(image, head + Vector2(-8, 18) * scale, head + Vector2(8, 18) * scale, 2 * scale, Color("#703c3b"))
+    return image
+
+func _ellipse(img: Image, center: Vector2, radius: Vector2, color: Color) -> void:
+    var rx: float = maxf(1.0, radius.x)
+    var ry: float = maxf(1.0, radius.y)
+    for y in range(maxi(0, floori(center.y - ry)), mini(img.get_height(), ceili(center.y + ry + 1))):
+        for x in range(maxi(0, floori(center.x - rx)), mini(img.get_width(), ceili(center.x + rx + 1))):
+            var dx: float = (x - center.x) / rx
+            var dy: float = (y - center.y) / ry
+            if dx * dx + dy * dy <= 1.0:
+                img.set_pixel(x, y, color)
+
+func _stroke(img: Image, a: Vector2, b: Vector2, thickness: float, color: Color) -> void:
+    var length: int = maxi(1, ceili(a.distance_to(b)))
+    for i in range(length + 1):
+        _ellipse(img, a.lerp(b, float(i) / length), Vector2.ONE * maxf(1.0, thickness * 0.5), color)
