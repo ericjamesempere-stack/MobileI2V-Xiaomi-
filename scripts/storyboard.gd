@@ -262,6 +262,12 @@ func _export_video(destination: String) -> void:
         status.text = "ERREUR : image vide, choisis une autre photo."
         exporting_video = false
         return
+    var quality_gate: RefCounted = load("res://scripts/drawing_quality_gate.gd").new()
+    var quality: Dictionary = quality_gate.inspect(sample)
+    if not bool(quality.get("ok", false)):
+        status.text = "Export bloque : dessin suspect (" + ", ".join(quality.get("issues", [])) + ")."
+        exporting_video = false
+        return
     var first_color: Color = sample.get_pixel(0, 0)
     var distinct: bool = false
     for yy in range(1, 9):
