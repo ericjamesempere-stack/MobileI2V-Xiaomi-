@@ -246,7 +246,7 @@ func _export_video(destination: String) -> void:
         output_path += ".avi"
     var width: int = 480
     var height: int = 640
-    var fps: int = 24
+    var fps: int = 30
     var duration: float = clampf(duration_input.value, 1.0, 60.0)
     var count: int = maxi(1, int(round(duration * fps)))
     var approved_ids: Array[int] = []
@@ -324,7 +324,7 @@ func _export_video(destination: String) -> void:
                 if not motion_cache.has(pair_key):
                     motion_cache[pair_key] = interpolator.estimate_blocks(image, next_image, 40, 8)
                 image = interpolator.blend_blocks(image, next_image, eased, motion_cache[pair_key])
-        var jpg: PackedByteArray = image.save_jpg_to_buffer(0.82)
+        var jpg: PackedByteArray = image.save_jpg_to_buffer(0.94)
         if jpg.is_empty():
             continue
         temp.store_buffer(_avi_chunk("00dc", jpg))
