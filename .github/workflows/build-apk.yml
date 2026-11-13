@@ -3,6 +3,8 @@ name: Build Android APK MobileI2V V50
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -152,7 +154,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MobileI2V_V50_ARM64_FIXED.apk
+          name: MobileI2V_V50_ARM64_FIXED
           path: build/MobileI2V_V50_ARM64_FIXED.apk
           if-no-files-found: error
           retention-days: 30
