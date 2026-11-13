@@ -89,12 +89,11 @@ func _ready() -> void:
     contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     root_box.add_child(contact_sheet)
     _button("5. EXPORTER LA VIDEO (AVI)", _export_video_direct)
-    var advanced := CollapsibleContainer.new()
-    advanced.title = "Options avancees (facultatives)"
-    advanced.folded = true
-    root_box.add_child(advanced)
     var advanced_box := VBoxContainer.new()
-    advanced.add_child(advanced_box)
+    root_box.add_child(advanced_box)
+    var advanced_title := Label.new()
+    advanced_title.text = "OPTIONS AVANCEES (facultatives)"
+    advanced_box.add_child(advanced_title)
     var endpoint_label := Label.new()
     endpoint_label.text = "Serveur IA externe (facultatif)"
     advanced_box.add_child(endpoint_label)
