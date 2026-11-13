@@ -125,7 +125,13 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
         var img: Image = interpolator.blend(image_a, image_b, eased, shift) if index != next_index else image_a.duplicate()
         img.resize(WIDTH, HEIGHT, Image.INTERPOLATE_BILINEAR)
         img.convert(Image.FORMAT_RGBA8)
-        encoder.call("push_frame_rgba", img.get_data())
+        var frame_ok: Variant = encoder.call("push_frame_rgba", img.get_data())
+        if frame_ok is bool and not frame_ok:
+            var reason: String = str(encoder.call("get_last_error"))
+            encoder.call("finish")
+            exporting = false
+            _set_status("Encodage H.264 interrompu a l image %d : %s" % [n + 1, reason])
+            return
         written += 1
         if n % 8 == 0:
             _set_status("MP4 interpole : %d / %d" % [n + 1, total])
