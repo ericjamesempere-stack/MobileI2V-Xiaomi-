@@ -91,7 +91,7 @@ func _ready() -> void:
     _button("DETECTER LE SQUELETTE MEDIAPIPE", _request_pose)
     _button("12 POSES AVEC ARTICULATIONS DETECTEES", _generate_detected_board)
     _button("GENERER NOUVELLES POSES PAR IA (GPU externe)", _request_ai_board)
-    _button("12 poses locales approximatives (sans IA)", _generate_articulated_board)
+    _button("Planche adaptative 2D (sans IA)", _generate_articulated_board)
     _button("Mouvement de camera seulement", _generate_from_photo)
     _button("Planche de demonstration (16 poses)", _prepare)
     _button("Exporter images PNG de la planche", _export_png_sequence)
@@ -614,8 +614,9 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
     accepted.clear()
     var folder := "user://mediapipe_board" if use_detected else "user://articulated_board"
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder))
-    for i in range(12):
-        var phase: float = float(i)/12.0*TAU
+    var count: int = _adaptive_pose_count(action_input.text, float(duration_input.value))
+    for i in range(count):
+        var phase: float = float(i)/float(count)*TAU
         var result: Image = base.duplicate()
         _limb_copy(result,base,shoulder_l,arm_l,0.35*sin(phase),18.0)
         _limb_copy(result,base,shoulder_r,arm_r,-0.35*sin(phase),18.0)
@@ -630,26 +631,40 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
         plan.append(i)
         accepted.append(true)
         if i % 3 == 0:
-            status.text = "Calcul des poses : %d / 12" % [i+1]
+            status.text = "Calcul des poses : %d / %d" % [i+1, count]
             await get_tree().process_frame
     frame_index = 0
     _refresh()
     _save()
     _build_contact_sheet()
-    status.text = "12 poses basees sur MediaPipe (deformation 2D, pas IA generative)." if use_detected else "12 POSES ARTICULEES CREEES : approximation, verifier les bras et jambes."
+    status.text = "%d poses approx. avec articulations detectees; verifier les deformations." % count if use_detected else "%d poses locales approximatives; detection non effectuee." % count
+
+func _adaptive_pose_count(description: String, duration: float) -> int:
+    # More keyframes for transitions and rapid actions, within mobile memory limits.
+    var story: String = description.to_lower()
+    var complexity: int = 0
+    for word in ["cour", "run", "saut", "jump", "tomb", "fall", "trebuch", "chut", "tourne", "rotate", "danse", "dance", "relev", "stand", "puis", "ensuite"]:
+        if story.contains(word):
+            complexity += 1
+    return clampi(8 + int(ceil(duration * 0.75)) + complexity * 3, 12, 48)
 
 func _build_contact_sheet() -> void:
-    if sources.is_empty(): return
+    if sources.is_empty():
+        return
     var thumb_w: int = 144
     var thumb_h: int = 192
-    var board := Image.create(thumb_w*4,thumb_h*3,false,Image.FORMAT_RGBA8)
+    var cols: int = 4
+    var rows: int = int(ceil(float(sources.size()) / float(cols)))
+    var board := Image.create(thumb_w * cols, thumb_h * rows, false, Image.FORMAT_RGBA8)
     board.fill(Color("1a2530"))
-    for i in range(mini(12,sources.size())):
+    for i in range(sources.size()):
         var img: Image = sources[i].get_image()
-        img.resize(thumb_w-8,thumb_h-8,Image.INTERPOLATE_BILINEAR)
-        board.blit_rect(img,Rect2i(0,0,img.get_width(),img.get_height()),Vector2i((i%4)*thumb_w+4,int(i/4)*thumb_h+4))
+        if img == null or img.is_empty():
+            continue
+        img.resize(thumb_w - 8, thumb_h - 8, Image.INTERPOLATE_BILINEAR)
+        board.blit_rect(img, Rect2i(0, 0, img.get_width(), img.get_height()), Vector2i((i % cols) * thumb_w + 4, int(i / cols) * thumb_h + 4))
     contact_sheet.texture = ImageTexture.create_from_image(board)
-    contact_caption.text = "PLANCHE : %d images recues (verifier avant validation)" % mini(12,sources.size())
+    contact_caption.text = "PLANCHE : %d images (verifier avant validation)" % sources.size()
 
 func _generate_from_photo() -> void:
     if imported_path.is_empty():
