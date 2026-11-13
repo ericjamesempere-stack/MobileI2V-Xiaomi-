@@ -654,7 +654,7 @@ func _generate_text_cartoon() -> void:
         var action: String = planner.action_at(motion, seconds) if bool(motion.get("ok", false)) else "danse"
         var speed: float = 1.8 if action == "course" else 1.0
         var phase: float = seconds * speed
-        var image: Image = generator.render(story, phase)
+        var image: Image = generator.render(story, phase, Vector2i(360, 480), action)
         var path: String = project_dir.path_join("drawing_%03d.png" % i)
         if image.save_png(path) != OK:
             status.text = "Erreur de sauvegarde du dessin %d." % i
