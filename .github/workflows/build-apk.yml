@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout project
         uses: actions/checkout@v4
@@ -19,25 +19,20 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Godot 4.3
+      - name: Install Godot 4.3 and templates
         run: |
           set -euo pipefail
           wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
           unzip -q Godot_v4.3-stable_linux.x86_64.zip
           chmod +x Godot_v4.3-stable_linux.x86_64
-
-      - name: Install Android export templates
-        run: |
-          set -euo pipefail
           wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz
           unzip -q Godot_v4.3-stable_export_templates.tpz
           mkdir -p "$HOME/.local/share/godot/export_templates/4.3.stable"
           cp -a templates/. "$HOME/.local/share/godot/export_templates/4.3.stable/"
 
-      - name: Prepare Android SDK and debug signing
+      - name: Prepare Android SDK and export preset
         run: |
           set -euo pipefail
-          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platform-tools' 'platforms;android-34' 'build-tools;34.0.0'
           keytool -genkeypair -keystore "$RUNNER_TEMP/mobilei2v.keystore" -alias mobilei2v -keyalg RSA -keysize 2048 -validity 3650 -storepass mobilei2v -keypass mobilei2v -dname 'CN=MobileI2V, O=Development, C=FR'
@@ -46,13 +41,15 @@ jobs:
           from pathlib import Path
           p = Path('export_presets.cfg')
           s = p.read_text()
+          assert 'name="Android"' in s, 'Android export preset missing'
+          assert 'package/signed=true' in s, 'Signing setting missing'
           s = s.replace('gradle_build/min_sdk="23"\n', '')
           s = s.replace('gradle_build/target_sdk="34"\n', '')
-          assert 'package/signed=true' in s
+          s = s.replace('package/show_as_launcher_app=false', 'package/show_as_launcher_app=true')
           signing = ('package/signed=true\n'
-                     + 'package/keystore/debug="' + str(Path(os.environ['RUNNER_TEMP']) / 'mobilei2v.keystore') + '"\n'
-                     + 'package/keystore/debug_user="mobilei2v"\n'
-                     + 'package/keystore/debug_password="mobilei2v"')
+                     + 'keystore/debug="' + str(Path(os.environ['RUNNER_TEMP']) / 'mobilei2v.keystore') + '"\n'
+                     + 'keystore/debug_user="mobilei2v"\n'
+                     + 'keystore/debug_password="mobilei2v"')
           s = s.replace('package/signed=true', signing, 1)
           p.write_text(s)
           PY
@@ -60,7 +57,7 @@ jobs:
       - name: Import Godot project
         run: |
           set -euo pipefail
-          timeout 90s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --import 2>&1 | tee import.log
+          timeout 120s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --import 2>&1 | tee import.log
           if grep -E 'SCRIPT ERROR|Parse Error|ConfigFile parse error' import.log; then exit 1; fi
 
       - name: Configure Godot Android settings
@@ -76,25 +73,25 @@ jobs:
                   push_error("Godot editor settings unavailable")
                   quit(1)
                   return
-              var sdk_path: String = OS.get_environment("ANDROID_HOME")
-              var keystore_path: String = OS.get_environment("RUNNER_TEMP").path_join("mobilei2v.keystore")
-              settings.set_setting("export/android/android_sdk_path", sdk_path)
-              settings.set_setting("export/android/debug_keystore", keystore_path)
+              settings.set_setting("export/android/android_sdk_path", OS.get_environment("ANDROID_HOME"))
+              settings.set_setting("export/android/debug_keystore", OS.get_environment("RUNNER_TEMP").path_join("mobilei2v.keystore"))
               settings.set_setting("export/android/debug_keystore_user", "mobilei2v")
               settings.set_setting("export/android/debug_keystore_pass", "mobilei2v")
-              print("Android SDK configured: ", sdk_path)
+              settings.save()
+              print("Android SDK configured")
               quit(0)
           GDSCRIPT
-          timeout 30s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --script res://ci/configure_android.gd --quit-after 2 2>&1 | tee configure.log
+          timeout 45s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --script res://ci/configure_android.gd 2>&1 | tee configure.log
           if grep -E 'SCRIPT ERROR|Parse Error|Invalid call' configure.log; then exit 1; fi
 
       - name: Export APK ARM64
         run: |
           set -euo pipefail
           mkdir -p build
-          timeout 180s ./Godot_v4.3-stable_linux.x86_64 --headless --verbose --path . --export-debug Android build/MobileI2V_v50_arm64.apk 2>&1 | tee export.log
+          timeout 300s ./Godot_v4.3-stable_linux.x86_64 --headless --verbose --path . --export-debug Android build/MobileI2V_v50_arm64.apk 2>&1 | tee export.log
           test -s build/MobileI2V_v50_arm64.apk
           unzip -t build/MobileI2V_v50_arm64.apk | tail -2
+          sha256sum build/MobileI2V_v50_arm64.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
