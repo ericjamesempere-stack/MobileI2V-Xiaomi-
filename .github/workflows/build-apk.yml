@@ -40,6 +40,22 @@ jobs:
           test -s "$template_dir/android_release.apk"
           ./Godot_v4.5.2-stable_linux.x86_64 --version
 
+      - name: Build Android H264 MediaCodec plugin
+        run: |
+          set -euo pipefail
+          gradle -p native/mp4exporter assembleDebug --no-daemon
+          mkdir -p addons/mp4exporter
+          cp native/mp4exporter/build/outputs/aar/mp4exporter-debug.aar addons/mp4exporter/mp4exporter.aar
+          test -s addons/mp4exporter/mp4exporter.aar
+          unzip -p addons/mp4exporter/mp4exporter.aar AndroidManifest.xml >/dev/null
+          echo "Native H264 Android AAR compiled"
+
+      - name: Install Android Gradle build template
+        run: |
+          set -euo pipefail
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --install-android-build-template
+          test -f android/build/build.gradle
+
       - name: Prepare Android SDK and debug signing key
         run: |
           set -euo pipefail
