@@ -10,4 +10,7 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 }
-dependencies { compileOnly 'org.godotengine:godot:4.5.2.stable' }
+dependencies {
+    compileOnly 'org.godotengine:godot:4.5.2.stable'
+    compileOnly 'androidx.annotation:annotation:1.9.1'
+}
