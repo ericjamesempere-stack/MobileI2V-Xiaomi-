@@ -152,7 +152,7 @@ func _ready() -> void:
     rig_button.pressed.connect(_go_rig)
     var board_button: Button = _button("Planche / Valider", Vector2(473, 950), Vector2(233, 46))
     board_button.pressed.connect(_open_storyboard)
-    var guided: Button = _button("Photo > Danse V50", Vector2(232, 900), Vector2(270, 44))
+    var guided: Button = _button("Photo > Danse V50", Vector2(12, 840), Vector2(440, 46))
     guided.pressed.connect(_open_guided)
     _render()
 
@@ -252,7 +252,7 @@ func _build_motion_controls() -> void:
     auto_button.pressed.connect(_auto_film)
     var save_auto: Button = _button("Sauver", Vector2(516, 893), Vector2(180, 48))
     save_auto.pressed.connect(_save_project)
-    var mp4_button: Button = _button("Exporter MP4", Vector2(12, 846), Vector2(285, 44))
+    var mp4_button: Button = _button("Exporter MP4", Vector2(12, 780), Vector2(210, 46))
     mp4_button.pressed.connect(_export_mp4)
     motion_button.text = "Photo animee ON" if photo_motion else "Photo animee OFF"
 
@@ -443,9 +443,9 @@ func _toggle_film_mode() -> void:
     _render()
 
 func _build_editor() -> void:
-    edit_button = _button("Montage", Vector2(238, 950), Vector2(208, 46))
+    edit_button = _button("Montage", Vector2(238, 780), Vector2(208, 46))
     edit_button.pressed.connect(_toggle_editor)
-    var save_button: Button = _button("Sauver", Vector2(462, 950), Vector2(230, 46))
+    var save_button: Button = _button("Sauver", Vector2(462, 780), Vector2(230, 46))
     save_button.pressed.connect(_save_project)
     editor_panel = PanelContainer.new()
     editor_panel.position = Vector2(22, 170)
@@ -683,7 +683,7 @@ func _lengthen_shot() -> void:
     _refresh_editor()
 
 func _build_smooth_control() -> void:
-    smooth_button = _button("31 images ON", Vector2(480, 910), Vector2(220, 46))
+    smooth_button = _button("31 images ON", Vector2(470, 840), Vector2(230, 46))
     smooth_button.pressed.connect(_toggle_smooth)
 
 func _toggle_smooth() -> void:
