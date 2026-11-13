@@ -774,10 +774,13 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
         status.text = "Personnage non isole : " + str(separated.get("reason", "fond complexe")) + ". Utilise une image PNG detouree ou un fond uni."
         return
     var cutout: Image = separated["foreground"]
-    base.blit_rect(original, Rect2i(0, 0, fw, fh), Vector2i(int((width-fw)/2), int((height-fh)/2)))
+    # Composite ONLY the segmented character; never paste the original
+    # photo's rectangular background over the animation backdrop.
     var foreground := Image.create(width, height, false, Image.FORMAT_RGBA8)
     foreground.fill(Color(0, 0, 0, 0))
-    foreground.blend_rect(cutout, Rect2i(0, 0, fw, fh), Vector2i(int((width-fw)/2), int((height-fh)/2)))
+    var offset := Vector2i(int((width-fw)/2), int((height-fh)/2))
+    foreground.blend_rect(cutout, Rect2i(0, 0, fw, fh), offset)
+    base.blend_rect(foreground, Rect2i(0, 0, width, height), Vector2i.ZERO)
 
     # Infer approximate rig placement from the actual alpha silhouette,
     # rather than assuming the character fills the entire canvas.
