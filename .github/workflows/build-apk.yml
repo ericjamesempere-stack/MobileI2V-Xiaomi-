@@ -28,17 +28,17 @@ jobs:
       - name: Install Godot 4.3 and export templates
         run: |
           set -euo pipefail
-          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
-          unzip -q Godot_v4.3-stable_linux.x86_64.zip
-          chmod +x Godot_v4.3-stable_linux.x86_64
-          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz
-          unzip -q Godot_v4.3-stable_export_templates.tpz
-          template_dir="$HOME/.local/share/godot/export_templates/4.3.stable"
+          wget -q https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
+          unzip -q Godot_v4.5.2-stable_linux.x86_64.zip
+          chmod +x Godot_v4.5.2-stable_linux.x86_64
+          wget -q https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_export_templates.tpz
+          unzip -q Godot_v4.5.2-stable_export_templates.tpz
+          template_dir="$HOME/.local/share/godot/export_templates/4.5.2.stable"
           mkdir -p "$template_dir"
           cp -a templates/. "$template_dir/"
           test -s "$template_dir/android_debug.apk"
           test -s "$template_dir/android_release.apk"
-          ./Godot_v4.3-stable_linux.x86_64 --version
+          ./Godot_v4.5.2-stable_linux.x86_64 --version
 
       - name: Prepare Android SDK and debug signing key
         run: |
@@ -89,13 +89,13 @@ jobs:
               print("Verified Android SDK, Java, and debug keystore settings")
               quit(0)
           GDSCRIPT
-          timeout 45s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --script res://ci/configure_android.gd 2>&1 | tee configure.log
+          timeout 45s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --script res://ci/configure_android.gd 2>&1 | tee configure.log
           if grep -E 'SCRIPT ERROR|Parse Error|Invalid call' configure.log; then exit 1; fi
 
       - name: Import Godot project
         run: |
           set -euo pipefail
-          timeout 120s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --import 2>&1 | tee import.log
+          timeout 120s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --import 2>&1 | tee import.log
           if grep -E 'SCRIPT ERROR|Parse Error|ConfigFile parse error' import.log; then exit 1; fi
 
       - name: Write explicit Godot 4.3 Android export preset values
@@ -135,7 +135,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build
-          timeout 300s ./Godot_v4.3-stable_linux.x86_64 --headless --verbose --path . \
+          timeout 300s ./Godot_v4.5.2-stable_linux.x86_64 --headless --verbose --path . \
             --export-debug Android build/MobileI2V_V50_ARM64_FIXED.apk 2>&1 | tee export.log
           test -s build/MobileI2V_V50_ARM64_FIXED.apk
           unzip -t build/MobileI2V_V50_ARM64_FIXED.apk | tail -2
