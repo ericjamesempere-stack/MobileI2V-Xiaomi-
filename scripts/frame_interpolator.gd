@@ -44,6 +44,7 @@ func estimate_blocks(a: Image, b: Image, block_size: int = 32, radius: int = 8) 
     var w: int = mini(a.get_width(), b.get_width())
     var h: int = mini(a.get_height(), b.get_height())
     var cell: int = maxi(8, block_size)
+    radius = clampi(radius, 0, 24)
     var cols: int = ceili(float(w) / cell)
     var rows: int = ceili(float(h) / cell)
     var shifts: Array = []
