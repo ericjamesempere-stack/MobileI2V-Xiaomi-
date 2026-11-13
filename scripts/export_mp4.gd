@@ -63,3 +63,44 @@ func export_rig_mp4(rig: Control, current_scene: int, start_clock: float) -> voi
     _set_status(result_text)
     viewport.queue_free()
     exporting = false
+func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> void:
+    if exporting:
+        return
+    if board_images.is_empty() or timeline.is_empty():
+        _set_status("MP4 impossible : planche vide.")
+        return
+    if not Engine.has_singleton("MP4Exporter"):
+        _set_status("Encodeur MP4 Android indisponible. Utilise l'export AVI local.")
+        return
+    exporting = true
+    var encoder: Object = Engine.get_singleton("MP4Exporter")
+    var output: String = "/storage/emulated/0/Movies/MobileI2V_Board_%d.mp4" % int(Time.get_unix_time_from_system())
+    var begin_result: Variant = encoder.call("begin", output, WIDTH, HEIGHT, FPS)
+    if begin_result is bool and not begin_result:
+        _set_status("Echec initialisation de l'encodeur H.264.")
+        exporting = false
+        return
+    var total: int = maxi(1, roundi(clampf(duration, 0.5, 60.0) * float(FPS)))
+    var written: int = 0
+    for n in range(total):
+        var slot: int = mini(timeline.size() - 1, int(float(n) / float(total) * float(timeline.size())))
+        var index: int = int(timeline[slot])
+        if index < 0 or index >= board_images.size():
+            continue
+        var texture: Texture2D = board_images[index] as Texture2D
+        if texture == null:
+            continue
+        var img: Image = texture.get_image()
+        if img == null or img.is_empty():
+            continue
+        img.convert(Image.FORMAT_RGBA8)
+        img.resize(WIDTH, HEIGHT, Image.INTERPOLATE_LANCZOS)
+        encoder.call("push_frame_rgba", img.get_data())
+        written += 1
+        if n % 8 == 0:
+            _set_status("Encodage MP4 : %d / %d" % [n + 1, total])
+            await get_tree().process_frame
+    var result: String = str(encoder.call("finish"))
+    exporting = false
+    _set_status("MP4 : " + result if not result.is_empty() and written == total else "MP4 incomplet : %d/%d images." % [written, total])
+
