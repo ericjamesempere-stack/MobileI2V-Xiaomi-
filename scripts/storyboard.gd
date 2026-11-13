@@ -900,9 +900,12 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
                 leg_angle = 0.02
         var result: Image = base.duplicate()
         _limb_copy(result, foreground, shoulder_l, arm_l, arm_angle * sin(phase) + lean, 18.0)
-        _limb_copy(result, base, shoulder_r, arm_r, -arm_angle * sin(phase) + lean, 18.0)
-        _limb_copy(result, base, hip_l, leg_l, -leg_angle * sin(phase) + lean, 22.0)
-        _limb_copy(result, base, hip_r, leg_r, leg_angle * sin(phase) + lean, 22.0)
+        # Sample every moving limb from the transparent cutout. Sampling
+        # the composited base copied solid studio-background rectangles
+        # into rotated arms and legs.
+        _limb_copy(result, foreground, shoulder_r, arm_r, -arm_angle * sin(phase) + lean, 18.0)
+        _limb_copy(result, foreground, hip_l, leg_l, -leg_angle * sin(phase) + lean, 22.0)
+        _limb_copy(result, foreground, hip_r, leg_r, leg_angle * sin(phase) + lean, 22.0)
         var path: String = "%s/pose_%02d.png" % [folder,i]
         if result.save_png(path) != OK:
             status.text = "Erreur sauvegarde pose."
