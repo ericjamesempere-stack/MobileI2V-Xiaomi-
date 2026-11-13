@@ -10,6 +10,6 @@ func _initialize() -> void:
     assert(still_count >= 12 and still_count <= 48)
     assert(moving_count > still_count, "Complex story should get more poses")
     assert(board.call("_adaptive_pose_count", "Il court puis tombe", 60.0) <= 48)
-    board.free()
     print("ADAPTIVE_STORYBOARD_TESTS_OK")
+    board.queue_free()
     quit(0)
