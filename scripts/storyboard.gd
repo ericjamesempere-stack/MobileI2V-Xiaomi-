@@ -88,7 +88,7 @@ func _ready() -> void:
     contact_sheet.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     root_box.add_child(contact_sheet)
-    _button("5. EXPORTER MP4 (ANDROID)", _export_board_mp4)
+    _button("5. EXPORTER MP4 (SI ENCODEUR INSTALLE)", _export_board_mp4)
     _button("5 bis. EXPORTER AVI (SECOURS)", _export_video_direct)
     var advanced_box := VBoxContainer.new()
     root_box.add_child(advanced_box)
@@ -220,6 +220,9 @@ func _avi_headers(width: int, height: int, fps: int, count: int, max_jpg: int) -
     return _avi_list("hdrl", hdrl)
 
 func _export_board_mp4() -> void:
+    if not Engine.has_singleton("MP4Exporter"):
+        status.text = "MP4 indisponible : plugin Android absent. Utilise EXPORTER AVI."
+        return
     if sources.is_empty():
         status.text = "Cree d'abord une planche."
         return
