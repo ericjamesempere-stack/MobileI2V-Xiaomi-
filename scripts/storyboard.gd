@@ -684,6 +684,7 @@ func _automatic_local_movie() -> void:
     if sources.is_empty():
         status.text = "Aucun dessin genere. Export annule."
         return
+    # Never export stale frames when a generation was rejected or failed.
     status.text = "Etape 2/3 : validation de %d dessins." % sources.size()
     _approve_all()
     if accepted.is_empty():
@@ -717,9 +718,11 @@ func _generate_text_cartoon() -> void:
     paths.clear()
     plan.clear()
     accepted.clear()
-    imported_path = project_dir.path_join("reference.png")
+    # Generated cartoon art is not a user-imported photograph.
+    # Never overwrite the original photo reference with procedural artwork.
+    var cartoon_reference: String = project_dir.path_join("reference.png")
     var initial: Image = generator.render(story, 0.0)
-    if initial.save_png(imported_path) != OK:
+    if initial.save_png(cartoon_reference) != OK:
         status.text = "Impossible de sauvegarder le personnage."
         return
     preview.texture = ImageTexture.create_from_image(initial)
