@@ -29,3 +29,4 @@ jobs:
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_story_motion_planner.gd
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_adaptive_storyboard.gd
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_story_director.gd
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_character_separator.gd
