@@ -705,7 +705,7 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
         sources.append(ImageTexture.create_from_image(result))
         plan.append(i)
         accepted.append(true)
-        if i % 3 == 0:
+        if i % 2 == 0:
             status.text = "Calcul des poses : %d / %d" % [i+1, count]
             await get_tree().process_frame
     frame_index = 0
@@ -726,8 +726,9 @@ func _adaptive_pose_count(description: String, duration: float) -> int:
 func _build_contact_sheet() -> void:
     if sources.is_empty():
         return
-    var thumb_w: int = 144
-    var thumb_h: int = 192
+    # Limit contact-sheet texture memory on mobile (48 poses => <= 576x1536).
+    var thumb_w: int = 96
+    var thumb_h: int = 128
     var cols: int = 4
     var rows: int = int(ceil(float(sources.size()) / float(cols)))
     var board := Image.create(thumb_w * cols, thumb_h * rows, false, Image.FORMAT_RGBA8)
