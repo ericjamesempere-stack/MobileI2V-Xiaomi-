@@ -2,7 +2,7 @@ extends RefCounted
 # Real, fully offline procedural cartoon drawing from text.
 # Not a diffusion model: produces a stylized character sheet, not arbitrary
 # photorealistic or reference-faithful illustrations.
-func render(description: String, phase: float = 0.0, size: Vector2i = Vector2i(360, 480)) -> Image:
+func render(description: String, phase: float = 0.0, size: Vector2i = Vector2i(360, 480), action: String = "danse") -> Image:
     var image: Image = Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
     var sky := Color("#d9e9f1")
     image.fill(sky)
@@ -17,6 +17,24 @@ func render(description: String, phase: float = 0.0, size: Vector2i = Vector2i(3
     _ellipse(image, Vector2(cx, floor_y + 5 * scale), Vector2(85, 12) * scale, Color("#a8c6cf"))
     var swing: float = sin(phase * TAU)
     var lift: float = absf(sin(phase * TAU)) * 6.0 * scale
+    if action == "repos":
+        swing = 0.0
+        lift = 0.0
+    elif action == "marche":
+        swing *= 0.45
+        lift *= 0.4
+    elif action == "course":
+        swing *= 1.6
+        lift *= 1.8
+    elif action == "saut":
+        lift = (10.0 + 58.0 * absf(sin(phase * PI))) * scale
+        swing *= 0.25
+    elif action == "chute" or action == "trebuche":
+        lift = -minf(1.0, phase) * 42.0 * scale
+        swing = minf(1.0, phase) * 1.4
+    elif action == "releve":
+        lift = -(1.0 - minf(1.0, phase)) * 42.0 * scale
+        swing = (1.0 - minf(1.0, phase)) * 1.4
     var hip := Vector2(cx, floor_y - 104 * scale - lift)
     var shoulder := Vector2(cx, floor_y - 210 * scale - lift)
     var left_foot := Vector2(cx - (30 + 18 * swing) * scale, floor_y - maxf(0.0, swing) * 18 * scale)
@@ -32,6 +50,11 @@ func render(description: String, phase: float = 0.0, size: Vector2i = Vector2i(3
     _stroke(image, hip, shoulder, 57 * scale, shirt)
     var left_hand := shoulder + Vector2((-67 - 17 * swing) * scale, (67 + 28 * swing) * scale)
     var right_hand := shoulder + Vector2((67 - 17 * swing) * scale, (67 - 28 * swing) * scale)
+    if action == "salut":
+        right_hand = shoulder + Vector2(63 * scale, (-68 + 12 * swing) * scale)
+    elif action == "saut":
+        left_hand = shoulder + Vector2(-65 * scale, -65 * scale)
+        right_hand = shoulder + Vector2(65 * scale, -65 * scale)
     _stroke(image, shoulder + Vector2(-22, 3) * scale, left_hand, 17 * scale, shirt)
     _stroke(image, shoulder + Vector2(22, 3) * scale, right_hand, 17 * scale, shirt)
     _ellipse(image, left_hand, Vector2(10, 10) * scale, skin)
