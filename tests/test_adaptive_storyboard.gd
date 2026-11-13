@@ -1,0 +1,15 @@
+extends SceneTree
+# godot --headless --path . --script res://tests/test_adaptive_storyboard.gd
+func _initialize() -> void:
+    var script: Script = load("res://scripts/storyboard.gd")
+    assert(script != null, "Storyboard script should load")
+    var board: Control = Control.new()
+    board.set_script(script)
+    var still_count: int = board.call("_adaptive_pose_count", "Il attend", 6.0)
+    var moving_count: int = board.call("_adaptive_pose_count", "Il court puis trébuche puis tombe", 6.0)
+    assert(still_count >= 12 and still_count <= 48)
+    assert(moving_count > still_count, "Complex story should get more poses")
+    assert(board.call("_adaptive_pose_count", "Il court puis tombe", 60.0) <= 48)
+    board.free()
+    print("ADAPTIVE_STORYBOARD_TESTS_OK")
+    quit(0)
