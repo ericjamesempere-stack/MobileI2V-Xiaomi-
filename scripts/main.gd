@@ -132,6 +132,7 @@ func _ready() -> void:
     loop_button = _button("Boucle ON", Vector2(531, 1173), Vector2(175, 76))
     loop_button.pressed.connect(_toggle_loop)
     var film_button: Button = _button("Film / Danse", Vector2(12, 950), Vector2(210, 46))
+    film_button.visible = false
     film_button.pressed.connect(_toggle_film_mode)
     for i in range(SCENE_TIMES.size()):
         custom_durations.append(SCENE_TIMES[i])
@@ -150,10 +151,12 @@ func _ready() -> void:
     add_child(rig)
     rig_button = _button("Squelette 2D", Vector2(232, 950), Vector2(235, 46))
     rig_button.pressed.connect(_go_rig)
-    var board_button: Button = _button("Planche / Valider", Vector2(473, 950), Vector2(233, 46))
+    rig_button.visible = false
+    var board_button: Button = _button("1. PHOTO + HISTOIRE", Vector2(12, 900), Vector2(684, 86))
     board_button.pressed.connect(_open_storyboard)
     var guided: Button = _button("Photo > Danse V50", Vector2(12, 840), Vector2(440, 46))
     guided.pressed.connect(_open_guided)
+    guided.visible = false
     _render()
 
 func _open_guided() -> void:
@@ -248,11 +251,15 @@ func _apply_photo_motion() -> void:
 func _build_motion_controls() -> void:
     motion_button = _button("Photo animee ON", Vector2(12, 893), Vector2(285, 48))
     motion_button.pressed.connect(_toggle_photo_motion)
+    motion_button.visible = false
     var auto_button: Button = _button("Film auto", Vector2(313, 893), Vector2(190, 48))
     auto_button.pressed.connect(_auto_film)
+    auto_button.visible = false
     var save_auto: Button = _button("Sauver", Vector2(516, 893), Vector2(180, 48))
     save_auto.pressed.connect(_save_project)
+    save_auto.visible = false
     var mp4_button: Button = _button("Exporter MP4", Vector2(12, 780), Vector2(210, 46))
+    mp4_button.visible = false
     mp4_button.pressed.connect(_export_mp4)
     motion_button.text = "Photo animee ON" if photo_motion else "Photo animee OFF"
 
@@ -445,8 +452,10 @@ func _toggle_film_mode() -> void:
 func _build_editor() -> void:
     edit_button = _button("Montage", Vector2(238, 780), Vector2(208, 46))
     edit_button.pressed.connect(_toggle_editor)
+    edit_button.visible = false
     var save_button: Button = _button("Sauver", Vector2(462, 780), Vector2(230, 46))
     save_button.pressed.connect(_save_project)
+    save_button.visible = false
     editor_panel = PanelContainer.new()
     editor_panel.position = Vector2(22, 170)
     editor_panel.size = Vector2(676, 700)
@@ -689,6 +698,7 @@ func _lengthen_shot() -> void:
 
 func _build_smooth_control() -> void:
     smooth_button = _button("31 images ON", Vector2(470, 840), Vector2(230, 46))
+    smooth_button.visible = false
     smooth_button.pressed.connect(_toggle_smooth)
 
 func _toggle_smooth() -> void:
