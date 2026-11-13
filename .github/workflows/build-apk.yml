@@ -5,10 +5,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Checkout project
@@ -20,7 +23,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Godot 4.3 and templates
+      - name: Install Godot 4.3 and export templates
         run: |
           set -euo pipefail
           wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
@@ -28,35 +31,31 @@ jobs:
           chmod +x Godot_v4.3-stable_linux.x86_64
           wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz
           unzip -q Godot_v4.3-stable_export_templates.tpz
-          mkdir -p "$HOME/.local/share/godot/export_templates/4.3.stable"
-          cp -a templates/. "$HOME/.local/share/godot/export_templates/4.3.stable/"
+          template_dir="$HOME/.local/share/godot/export_templates/4.3.stable"
+          mkdir -p "$template_dir"
+          cp -a templates/. "$template_dir/"
+          test -s "$template_dir/android_debug.apk"
+          test -s "$template_dir/android_release.apk"
+          ./Godot_v4.3-stable_linux.x86_64 --version
 
-      - name: Prepare Android SDK and export preset
+      - name: Prepare Android SDK and debug signing key
         run: |
           set -euo pipefail
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platform-tools' 'platforms;android-34' 'build-tools;34.0.0' 'ndk;23.2.8568313'
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses </dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            'platform-tools' 'platforms;android-34' 'build-tools;34.0.0' 'ndk;23.2.8568313'
+          test -x "$ANDROID_HOME/build-tools/34.0.0/apksigner"
+          test -x "$ANDROID_HOME/build-tools/34.0.0/aapt"
+          test -d "$ANDROID_HOME/ndk/23.2.8568313"
           mkdir -p "$HOME/.android"
-          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 3650 -storepass android -keypass android -dname 'CN=Android Debug, O=Android, C=US'
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('export_presets.cfg')
-          s = p.read_text()
-          assert 'name="Android"' in s
-          s = s.replace('gradle_build/min_sdk="23"\n', '')
-          s = s.replace('gradle_build/target_sdk="34"\n', '')
-          s = s.replace('package/show_as_launcher_app=false', 'package/show_as_launcher_app=true')
-          s = s.replace('package/signed=true', 'package/signed=true\nkeystore/debug=""\nkeystore/debug_user=""\nkeystore/debug_password=""', 1)
-          p.write_text(s)
-          PY
+          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" \
+            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 3650 \
+            -storepass android -keypass android \
+            -dname 'CN=Android Debug,O=Android,C=US' -noprompt
+          test -s "$HOME/.android/debug.keystore"
 
-      - name: Import Godot project
-        run: |
-          set -euo pipefail
-          timeout 120s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --import 2>&1 | tee import.log
-          if grep -E 'SCRIPT ERROR|Parse Error|ConfigFile parse error' import.log; then exit 1; fi
-
-      - name: Configure Godot Android settings
+      - name: Configure and verify Godot Android export settings
         run: |
           set -euo pipefail
           mkdir -p ci
@@ -65,32 +64,98 @@ jobs:
 
           func _initialize() -> void:
               var settings: EditorSettings = EditorInterface.get_editor_settings()
+              if settings == null:
+                  push_error("Godot EditorSettings unavailable")
+                  quit(1)
+                  return
               settings.set_setting("export/android/android_sdk_path", OS.get_environment("ANDROID_HOME"))
               settings.set_setting("export/android/java_sdk_path", OS.get_environment("JAVA_HOME"))
               settings.set_setting("export/android/debug_keystore", OS.get_environment("HOME").path_join(".android/debug.keystore"))
               settings.set_setting("export/android/debug_keystore_user", "androiddebugkey")
               settings.set_setting("export/android/debug_keystore_pass", "android")
-              print("Android export settings configured")
+              for key in ["export/android/android_sdk_path", "export/android/java_sdk_path"]:
+                  var value: String = str(settings.get_setting(key))
+                  if value.is_empty() or not DirAccess.dir_exists_absolute(value):
+                      push_error("Invalid Android setting %s: %s" % [key, value])
+                      quit(1)
+                      return
+              var keystore: String = str(settings.get_setting("export/android/debug_keystore"))
+              if not FileAccess.file_exists(keystore):
+                  push_error("Debug keystore does not exist: " + keystore)
+                  quit(1)
+                  return
+              print("Verified Android SDK, Java, and debug keystore settings")
               quit(0)
           GDSCRIPT
           timeout 45s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --script res://ci/configure_android.gd 2>&1 | tee configure.log
           if grep -E 'SCRIPT ERROR|Parse Error|Invalid call' configure.log; then exit 1; fi
 
+      - name: Import Godot project
+        run: |
+          set -euo pipefail
+          timeout 120s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --import 2>&1 | tee import.log
+          if grep -E 'SCRIPT ERROR|Parse Error|ConfigFile parse error' import.log; then exit 1; fi
+
+      - name: Write explicit Godot 4.3 Android export preset values
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('export_presets.cfg')
+          text = p.read_text()
+          assert '[preset.0.options]' in text and 'platform="Android"' in text
+          values = {
+              'keystore/debug': str(Path.home() / '.android/debug.keystore'),
+              'keystore/debug_user': 'androiddebugkey',
+              'keystore/debug_password': 'android',
+              'package/show_as_launcher_app': 'true',
+              'architectures/arm64-v8a': 'true',
+              'architectures/armeabi-v7a': 'false',
+              'architectures/x86': 'false',
+              'architectures/x86_64': 'false',
+              'package/unique_name': 'com.ericjamesempere.mobilei2v',
+          }
+          for key, value in values.items():
+              encoded = f'"{value}"' if key.startswith('keystore/') or key == 'package/unique_name' else value
+              pattern = rf'(?m)^{re.escape(key)}=.*$'
+              if re.search(pattern, text):
+                  text = re.sub(pattern, f'{key}={encoded}', text, count=1)
+              else:
+                  text = text.rstrip() + f'\n{key}={encoded}\n'
+          p.write_text(text)
+          print('Resolved export preset:', p.resolve())
+          print('Configured explicit debug signing, launcher activity, package ID, and ARM64-only ABI')
+          PY
+          grep -E '^(keystore/debug|keystore/debug_user|keystore/debug_password|architectures/arm64-v8a|package/unique_name|package/show_as_launcher_app)=' export_presets.cfg
+
       - name: Export APK ARM64
         run: |
           set -euo pipefail
           mkdir -p build
-          timeout 300s ./Godot_v4.3-stable_linux.x86_64 --headless --verbose --path . --export-debug Android build/MobileI2V_v50_arm64.apk 2>&1 | tee export.log
-          test -s build/MobileI2V_v50_arm64.apk
-          unzip -t build/MobileI2V_v50_arm64.apk | tail -2
-          sha256sum build/MobileI2V_v50_arm64.apk
+          timeout 300s ./Godot_v4.3-stable_linux.x86_64 --headless --verbose --path . \
+            --export-debug Android build/MobileI2V_V50_ARM64_FIXED.apk 2>&1 | tee export.log
+          test -s build/MobileI2V_V50_ARM64_FIXED.apk
+          unzip -t build/MobileI2V_V50_ARM64_FIXED.apk | tail -2
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs build/MobileI2V_V50_ARM64_FIXED.apk | tee signing-check.log
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging build/MobileI2V_V50_ARM64_FIXED.apk | tee apk-badging.txt
+          grep -q "package: name='com.ericjamesempere.mobilei2v'" apk-badging.txt
+          grep -q 'launchable-activity:' apk-badging.txt
+          unzip -l build/MobileI2V_V50_ARM64_FIXED.apk | grep -q 'lib/arm64-v8a/libgodot_android.so'
+          if unzip -l build/MobileI2V_V50_ARM64_FIXED.apk | grep -q 'lib/armeabi-v7a/'; then
+            echo 'Unexpected 32-bit ARM libraries in ARM64-only APK' >&2
+            exit 1
+          fi
+          stat -c 'APK size: %s bytes' build/MobileI2V_V50_ARM64_FIXED.apk
+          sha256sum build/MobileI2V_V50_ARM64_FIXED.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MobileI2V_v50_arm64_apk
-          path: build/MobileI2V_v50_arm64.apk
+          name: MobileI2V_V50_ARM64_FIXED.apk
+          path: build/MobileI2V_V50_ARM64_FIXED.apk
           if-no-files-found: error
+          retention-days: 30
 
       - name: Upload diagnostic logs on failure
         if: failure()
@@ -101,5 +166,8 @@ jobs:
             import.log
             configure.log
             export.log
+            signing-check.log
+            apk-badging.txt
+            export_presets.cfg
           if-no-files-found: ignore
-          
+          retention-days: 14
