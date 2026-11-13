@@ -9,6 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
     steps:
       - name: Checkout project
         uses: actions/checkout@v4
@@ -34,23 +35,18 @@ jobs:
         run: |
           set -euo pipefail
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platform-tools' 'platforms;android-34' 'build-tools;34.0.0'
-          keytool -genkeypair -keystore "$RUNNER_TEMP/mobilei2v.keystore" -alias mobilei2v -keyalg RSA -keysize 2048 -validity 3650 -storepass mobilei2v -keypass mobilei2v -dname 'CN=MobileI2V, O=Development, C=FR'
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platform-tools' 'platforms;android-34' 'build-tools;34.0.0' 'ndk;23.2.8568313'
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 3650 -storepass android -keypass android -dname 'CN=Android Debug, O=Android, C=US'
           python3 - <<'PY'
-          import os
           from pathlib import Path
           p = Path('export_presets.cfg')
           s = p.read_text()
-          assert 'name="Android"' in s, 'Android export preset missing'
-          assert 'package/signed=true' in s, 'Signing setting missing'
+          assert 'name="Android"' in s
           s = s.replace('gradle_build/min_sdk="23"\n', '')
           s = s.replace('gradle_build/target_sdk="34"\n', '')
           s = s.replace('package/show_as_launcher_app=false', 'package/show_as_launcher_app=true')
-          signing = ('package/signed=true\n'
-                     + 'keystore/debug="' + str(Path(os.environ['RUNNER_TEMP']) / 'mobilei2v.keystore') + '"\n'
-                     + 'keystore/debug_user="mobilei2v"\n'
-                     + 'keystore/debug_password="mobilei2v"')
-          s = s.replace('package/signed=true', signing, 1)
+          s = s.replace('package/signed=true', 'package/signed=true\nkeystore/debug=""\nkeystore/debug_user=""\nkeystore/debug_password=""', 1)
           p.write_text(s)
           PY
 
@@ -69,28 +65,21 @@ jobs:
 
           func _initialize() -> void:
               var settings: EditorSettings = EditorInterface.get_editor_settings()
-              if settings == null:
-                  push_error("Godot editor settings unavailable")
-                  quit(1)
-                  return
               settings.set_setting("export/android/android_sdk_path", OS.get_environment("ANDROID_HOME"))
               settings.set_setting("export/android/java_sdk_path", OS.get_environment("JAVA_HOME"))
-              settings.set_setting("export/android/debug_keystore", OS.get_environment("RUNNER_TEMP").path_join("mobilei2v.keystore"))
-              settings.set_setting("export/android/debug_keystore_user", "mobilei2v")
-              settings.set_setting("export/android/debug_keystore_pass", "mobilei2v")
-              print("Android SDK configured: ", settings.get_setting("export/android/android_sdk_path"))
-              print("Java SDK configured: ", settings.get_setting("export/android/java_sdk_path"))
+              settings.set_setting("export/android/debug_keystore", OS.get_environment("HOME").path_join(".android/debug.keystore"))
+              settings.set_setting("export/android/debug_keystore_user", "androiddebugkey")
+              settings.set_setting("export/android/debug_keystore_pass", "android")
+              print("Android export settings configured")
               quit(0)
           GDSCRIPT
-          timeout 45s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --script res://ci/configure_android.gd --quit-after 2 2>&1 | tee configure.log
+          timeout 45s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --script res://ci/configure_android.gd 2>&1 | tee configure.log
           if grep -E 'SCRIPT ERROR|Parse Error|Invalid call' configure.log; then exit 1; fi
 
       - name: Export APK ARM64
         run: |
           set -euo pipefail
           mkdir -p build
-          test -d "$JAVA_HOME"
-          test -d "$ANDROID_HOME"
           timeout 300s ./Godot_v4.3-stable_linux.x86_64 --headless --verbose --path . --export-debug Android build/MobileI2V_v50_arm64.apk 2>&1 | tee export.log
           test -s build/MobileI2V_v50_arm64.apk
           unzip -t build/MobileI2V_v50_arm64.apk | tail -2
@@ -113,3 +102,4 @@ jobs:
             configure.log
             export.log
           if-no-files-found: ignore
+          
