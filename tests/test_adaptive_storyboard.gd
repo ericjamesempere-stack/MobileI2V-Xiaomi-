@@ -3,8 +3,7 @@ extends SceneTree
 func _initialize() -> void:
     var script: Script = load("res://scripts/storyboard.gd")
     assert(script != null, "Storyboard script should load")
-    var board: Control = Control.new()
-    board.set_script(script)
+    var board: Control = script.new()
     var still_count: int = board.call("_adaptive_pose_count", "Il attend", 6.0)
     var moving_count: int = board.call("_adaptive_pose_count", "Il court puis trébuche puis tombe", 6.0)
     assert(still_count >= 12 and still_count <= 48)
