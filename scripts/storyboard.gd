@@ -75,12 +75,7 @@ func _ready() -> void:
     duration_input.step = 1
     duration_input.value = 6
     line.add_child(duration_input)
-    _button("CREER AUTOMATIQUEMENT : DESSINS + MOUVEMENTS + VIDEO", _automatic_local_movie)
-    _button("2A. DESSINER DEPUIS LE TEXTE (SANS PHOTO)", _generate_text_cartoon)
-    _button("2A bis. PHOTO : ZOOM ET DEPLACEMENT (LOCAL)", _generate_from_photo)
-    _button("2B. ANIMER MA PHOTO", _generate_articulated_board)
-    _button("3. TOUT VALIDER", _approve_all)
-    _button("4. ENVOYER AU MOTEUR VIDEO", _validate_and_animate)
+    _button("GENERER MA VIDEO", _automatic_local_movie)
     contact_caption = _label("Les poses generees apparaitront ici.", 20)
     contact_sheet = TextureRect.new()
     contact_sheet.custom_minimum_size = Vector2(0, 220)
@@ -88,10 +83,11 @@ func _ready() -> void:
     contact_sheet.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     root_box.add_child(contact_sheet)
-    _button("5. EXPORTER MP4 (SI ENCODEUR INSTALLE)", _export_board_mp4)
-    _button("5 bis. EXPORTER AVI (SECOURS)", _export_video_direct)
+    _button("EXPORTER MP4", _export_board_mp4)
     var advanced_box := VBoxContainer.new()
     root_box.add_child(advanced_box)
+    advanced_box.visible = false
+    _button("OPTIONS AVANCEES : AFFICHER / MASQUER", func() -> void: advanced_box.visible = not advanced_box.visible)
     var advanced_title := Label.new()
     advanced_title.text = "OPTIONS AVANCEES (facultatives)"
     advanced_box.add_child(advanced_title)
@@ -105,6 +101,9 @@ func _ready() -> void:
     _button("Poses avec articulations detectees", _generate_detected_board, advanced_box)
     _button("IA externe (secours facultatif)", _request_ai_board, advanced_box)
     _button("Mouvement de camera sur photo (sans IA)", _generate_from_photo, advanced_box)
+    _button("Dessiner un personnage generique (sans photo)", _generate_text_cartoon, advanced_box)
+    _button("Animation articulee approximative", _generate_articulated_board, advanced_box)
+    _button("Exporter AVI (secours)", _export_video_direct, advanced_box)
     _button("Planche de demonstration", _prepare, advanced_box)
     _button("Exporter les images PNG", _export_png_sequence, advanced_box)
     _button("Tout valider", _approve_all, advanced_box)
@@ -663,8 +662,11 @@ func _automatic_local_movie() -> void:
         status.text = "Decris les mouvements avant de lancer."
         return
     status.text = "Etape 1/3 : creation automatique de la planche."
-    if not imported_path.is_empty() and FileAccess.file_exists(imported_path):
-        _generate_articulated_board()
+    if not imported_path.is_empty():
+        if not FileAccess.file_exists(imported_path):
+            status.text = "Photo introuvable. Reimporte-la avant de generer."
+            return
+        await _generate_from_photo()
     else:
         await _generate_text_cartoon()
     if sources.is_empty():
