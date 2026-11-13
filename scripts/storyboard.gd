@@ -677,7 +677,11 @@ func _automatic_local_movie() -> void:
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(export_dir)) != OK:
         status.text = "Impossible de creer le dossier video."
         return
-    await _export_video(export_dir.path_join("animation_auto.avi"))
+    if Engine.has_singleton("MP4Exporter"):
+        await _export_board_mp4()
+    else:
+        status.text = "Encodeur MP4 absent : export AVI local de secours."
+        await _export_video(export_dir.path_join("animation_auto.avi"))
 
 func _generate_text_cartoon() -> void:
     var story: String = action_input.text.strip_edges()
