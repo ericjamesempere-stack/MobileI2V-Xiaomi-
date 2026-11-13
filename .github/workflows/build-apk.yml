@@ -50,11 +50,37 @@ jobs:
           unzip -p addons/mp4exporter/mp4exporter.aar AndroidManifest.xml >/dev/null
           echo "Native H264 Android AAR compiled"
 
-      - name: Install Android Gradle build template
+      - name: Install Android Gradle build template without launching editor
         run: |
           set -euo pipefail
-          timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --install-android-build-template --quit
-          test -f android/build/build.gradle
+          python3 - <<'PY'
+          import zipfile
+          from pathlib import Path
+          archive = Path("templates/android_source.zip")
+          assert archive.is_file(), f"Missing Android Gradle template: {archive}"
+          root = Path("android/build")
+          with zipfile.ZipFile(archive) as z:
+              entries = [x for x in z.infolist() if not x.is_dir()]
+              candidates = [x for x in entries if x.filename.endswith("build.gradle") and not x.filename.endswith("settings.gradle")]
+              print("Gradle files:", [x.filename for x in candidates[:15]])
+              prefix = ""
+              for c in candidates:
+                  if c.filename.endswith("build/build.gradle"):
+                      prefix = c.filename[:-len("build/build.gradle")]
+                      break
+              for entry in entries:
+                  name = entry.filename
+                  if prefix and not name.startswith(prefix): continue
+                  rel = name[len(prefix):]
+                  if rel.startswith("android/build/"): rel = rel[len("android/build/"):]
+                  elif rel.startswith("build/"): rel = rel[len("build/"):]
+                  if not rel or rel.startswith("/") or ".." in Path(rel).parts: continue
+                  dest = root / rel
+                  dest.parent.mkdir(parents=True, exist_ok=True)
+                  dest.write_bytes(z.read(entry))
+          assert (root / "build.gradle").is_file(), "Android Gradle template layout not found"
+          print("Android Gradle template extracted without editor")
+          PY
 
       - name: Prepare Android SDK and debug signing key
         run: |
