@@ -654,10 +654,6 @@ func _on_photo_selected(path: String) -> void:
     if image_data == null:
         info_label.text = "Photo inaccessible ou format non reconnu"
         return
-    var error: Error = OK
-    if error != OK:
-        info_label.text = "Image non lisible : %d" % error
-        return
     if image_data.get_width() < 16 or image_data.get_height() < 16:
         info_label.text = "Image trop petite"
         return
@@ -665,7 +661,7 @@ func _on_photo_selected(path: String) -> void:
         var factor: float = 1600.0 / float(maxi(image_data.get_width(), image_data.get_height()))
         image_data.resize(maxi(1, int(image_data.get_width() * factor)), maxi(1, int(image_data.get_height() * factor)), Image.INTERPOLATE_LANCZOS)
     var output: String = "user://mobilei2v_photo_%d.png" % photo_slot
-    error = image_data.save_png(output)
+    var error: Error = image_data.save_png(output)
     if error != OK:
         info_label.text = "Impossible de sauvegarder la photo"
         return
