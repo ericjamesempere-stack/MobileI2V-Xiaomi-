@@ -281,6 +281,8 @@ func _export_video(destination: String) -> void:
         status.text = "Impossible de creer le fichier temporaire."
         exporting_video = false
         return
+    var interpolator: RefCounted = load("res://scripts/frame_interpolator.gd").new()
+    var motion_cache: Dictionary = {}
     var index := PackedByteArray()
     var max_jpg: int = 0
     var written: int = 0
@@ -299,8 +301,7 @@ func _export_video(destination: String) -> void:
         var image: Image = sources[source_idx].get_image()
         if image == null or image.is_empty():
             continue
-        # Blend consecutive approved drawings to produce 24 fps output.
-        # This is pixel crossfading, NOT optical flow or motion compensation.
+        # Motion-compensated interpolation with cached pairwise displacement.
         var next_slot: int = mini(plan.size() - 1, slot + 1) if not plan.is_empty() else mini(sources.size() - 1, slot + 1)
         var next_requested: int = plan[next_slot] if not plan.is_empty() else next_slot
         var next_source_idx: int = source_idx
@@ -319,10 +320,10 @@ func _export_video(destination: String) -> void:
                 next_image.resize(width, height, Image.INTERPOLATE_BILINEAR)
                 var progress: float = fposmod(float(n) / float(count) * float(plan.size() if not plan.is_empty() else sources.size()), 1.0)
                 var eased: float = progress * progress * (3.0 - 2.0 * progress)
-                # Blend on CPU only when two distinct frames are present.
-                for yy in range(height):
-                    for xx in range(width):
-                        image.set_pixel(xx, yy, image.get_pixel(xx, yy).lerp(next_image.get_pixel(xx, yy), eased))
+                var pair_key: String = "%d_%d" % [source_idx, next_source_idx]
+                if not motion_cache.has(pair_key):
+                    motion_cache[pair_key] = interpolator.estimate_shift(image, next_image)
+                image = interpolator.blend(image, next_image, eased, motion_cache[pair_key])
         var jpg: PackedByteArray = image.save_jpg_to_buffer(0.82)
         if jpg.is_empty():
             continue
