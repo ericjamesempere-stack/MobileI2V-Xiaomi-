@@ -34,3 +34,4 @@ jobs:
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_board_generation_plan.gd
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_frame_interpolator.gd
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_drawing_quality_gate.gd
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_procedural_cartoon_generator.gd
