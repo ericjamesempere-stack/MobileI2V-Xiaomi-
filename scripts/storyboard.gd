@@ -447,8 +447,10 @@ func _limb_copy(dst: Image, src: Image, a: Vector2, b: Vector2, angle: float, ra
             var sy: int = roundi(a.y-rx*sa+ry*ca)
             if sx < 0 or sy < 0 or sx >= src.get_width() or sy >= src.get_height(): continue
             var pix: Color = src.get_pixel(sx,sy)
-            pix.a *= mask
-            dst.set_pixel(xx, yy, dst.get_pixel(xx, yy).lerp(pix, mask))
+            var strength: float = mask * pix.a
+            if strength <= 0.0: continue
+            pix.a = 1.0
+            dst.set_pixel(xx, yy, dst.get_pixel(xx, yy).lerp(pix, strength))
 
 func _request_pose() -> void:
     if pose_running: return
@@ -634,6 +636,12 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
     var base := Image.create(width,height,false,Image.FORMAT_RGBA8)
     base.fill(Color("25364a"))
     base.blit_rect(original,Rect2i(0,0,fw,fh),Vector2i(int((width-fw)/2),int((height-fh)/2)))
+    # Only isolate artwork with a demonstrably uniform edge background.
+    # Complex photographic scenes must not be silently mis-segmented.
+    var separator: RefCounted = load("res://scripts/character_separator.gd").new()
+    var separated: Dictionary = separator.separate(base)
+    var foreground: Image = separated.get("foreground", base)
+
     var shoulder_l := Vector2(width*0.35,height*0.31)
     var shoulder_r := Vector2(width*0.65,height*0.31)
     var hip_l := Vector2(width*0.43,height*0.60)
@@ -718,7 +726,7 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
                 arm_angle = 0.03
                 leg_angle = 0.02
         var result: Image = base.duplicate()
-        _limb_copy(result, base, shoulder_l, arm_l, arm_angle * sin(phase) + lean, 18.0)
+        _limb_copy(result, foreground, shoulder_l, arm_l, arm_angle * sin(phase) + lean, 18.0)
         _limb_copy(result, base, shoulder_r, arm_r, -arm_angle * sin(phase) + lean, 18.0)
         _limb_copy(result, base, hip_l, leg_l, -leg_angle * sin(phase) + lean, 22.0)
         _limb_copy(result, base, hip_r, leg_r, leg_angle * sin(phase) + lean, 22.0)
@@ -737,7 +745,7 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
     _refresh()
     _save()
     _build_contact_sheet()
-    status.text = "%d poses approx. selon histoire; articulations detectees." % count if use_detected else "%d poses approx. selon histoire; squelette non detecte." % count
+    status.text = ("%d poses approx. Squelette detecte." % count if use_detected else "%d poses approx. Squelette estime." % count) + (" Fond uni isole." if bool(separated.get("ok", false)) else " Fond complexe : isolation non garantie.")
 
 func _adaptive_pose_count(description: String, duration: float) -> int:
     # More keyframes for transitions and rapid actions, within mobile memory limits.
