@@ -39,7 +39,7 @@ func build(story: String, duration_seconds: float, reference_image: String = "")
             frames.append({"frame": frame_number, "phase": phases[k], "asset_id": "scene_%03d_pose_%02d" % [index + 1, k + 1], "status": "pending"})
         scenes.append({
             "id": "scene_%03d" % (index + 1),
-            "source_text": str(step.get("text", story)),
+            "source_text": str(step.get("description", story)),
             "action": action,
             "start_frame": start_frame,
             "end_frame": end_frame,
