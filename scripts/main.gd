@@ -631,7 +631,7 @@ func _build_photo_picker() -> void:
     if OS.get_name() == "Android":
         photo_picker.current_dir = "/storage/emulated/0/Pictures"
     photo_picker.use_native_dialog = true
-    photo_picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp ; Images"])
+    photo_picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp;Images;image/png,image/jpeg,image/webp"])
     photo_picker.file_selected.connect(_on_photo_selected)
     add_child(photo_picker)
 
