@@ -11,14 +11,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java 17 (keystore + Godot Android export)
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
 
       - name: Install Godot 4.3 stable
         run: |
@@ -35,14 +32,13 @@ jobs:
           mv templates/* ~/.local/share/godot/export_templates/
           rmdir templates
 
-      - name: Generate debug keystore (zero cost, test only)
+      - name: Generate debug keystore
         run: |
           keytool -genkeypair -v -keystore debug.keystore -alias mobilei2v \
             -keyalg RSA -keysize 2048 -validity 10000 \
             -storepass mobilei2v -keypass mobilei2v \
             -dname "CN=MobileI2V, OU=Dev, O=ericjamesempere, L=Paris, C=FR"
           sed -i "s|^package/signed=true|package/signed=true\npackage/keystore/debug=../debug.keystore\npackage/keystore/debug_user=mobilei2v\npackage/keystore/debug_password=mobilei2v|" export_presets.cfg
-          grep -n keystore export_presets.cfg
 
       - name: Import project (headless)
         run: |
