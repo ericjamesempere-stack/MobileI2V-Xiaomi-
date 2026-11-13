@@ -322,8 +322,8 @@ func _export_video(destination: String) -> void:
                 var eased: float = progress * progress * (3.0 - 2.0 * progress)
                 var pair_key: String = "%d_%d" % [source_idx, next_source_idx]
                 if not motion_cache.has(pair_key):
-                    motion_cache[pair_key] = interpolator.estimate_shift(image, next_image)
-                image = interpolator.blend(image, next_image, eased, motion_cache[pair_key])
+                    motion_cache[pair_key] = interpolator.estimate_blocks(image, next_image, 40, 8)
+                image = interpolator.blend_blocks(image, next_image, eased, motion_cache[pair_key])
         var jpg: PackedByteArray = image.save_jpg_to_buffer(0.82)
         if jpg.is_empty():
             continue
