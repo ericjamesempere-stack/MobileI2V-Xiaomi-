@@ -367,9 +367,8 @@ func _choose_image() -> void:
     picker.popup_centered_ratio(0.9)
 
 func _image_chosen(path: String) -> void:
-    var img := Image.new()
-    var err: Error = img.load(path)
-    if err != OK or img.is_empty():
+    var img: Image = load("res://scripts/android_image_reader.gd").read_image(path)
+    if img == null or img.is_empty():
         status.text = "ERREUR PHOTO : impossible de lire le fichier. Essaie JPG ou PNG."
         return
     var max_side: int = maxi(img.get_width(), img.get_height())
