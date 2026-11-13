@@ -151,6 +151,15 @@ jobs:
           stat -c 'APK size: %s bytes' build/MobileI2V_V50_ARM64_FIXED.apk
           sha256sum build/MobileI2V_V50_ARM64_FIXED.apk
 
+      - name: Report MP4 plugin packaging status
+        run: |
+          set -euo pipefail
+          if unzip -Z1 build/MobileI2V_V50_ARM64_FIXED.apk | grep -Eiq '(^|/)(MP4Exporter|mp4exporter)(/|\\.|$)'; then
+            echo "MP4 plugin packaging candidate found; Android runtime validation still required." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "MP4Exporter plugin NOT packaged: MP4 unavailable in this APK; AVI fallback only." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
