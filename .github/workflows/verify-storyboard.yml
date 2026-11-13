@@ -1,0 +1,29 @@
+name: Verify 2D Storyboard Godot
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'tests/**'
+      - 'project.godot'
+      - '.github/workflows/verify-storyboard.yml'
+  workflow_dispatch:
+
+jobs:
+  godot-headless:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.3
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.3-stable_linux.x86_64
+      - name: Import project and parse scripts
+        run: |
+          ./Godot_v4.3-stable_linux.x86_64 --headless --editor --path . --import --quit
+      - name: Run movement sequence regression
+        run: |
+          ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_story_motion_planner.gd
