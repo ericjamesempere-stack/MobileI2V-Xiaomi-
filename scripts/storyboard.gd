@@ -615,13 +615,47 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
     var folder := "user://mediapipe_board" if use_detected else "user://articulated_board"
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder))
     var count: int = _adaptive_pose_count(action_input.text, float(duration_input.value))
+    var story_planner: RefCounted = load("res://scripts/story_motion_planner.gd").new()
+    var story_plan: Dictionary = story_planner.plan(action_input.text, float(duration_input.value))
     for i in range(count):
-        var phase: float = float(i)/float(count)*TAU
+        var seconds: float = float(i) / float(count) * float(duration_input.value)
+        var action: String = story_planner.action_at(story_plan, seconds) if bool(story_plan.get("ok", false)) else "marche"
+        var phase: float = seconds * TAU * 1.6
+        var arm_angle: float = 0.22
+        var leg_angle: float = 0.15
+        var lean: float = 0.0
+        match action:
+            "course":
+                arm_angle = 0.65
+                leg_angle = 0.52
+            "danse":
+                arm_angle = 0.7
+                leg_angle = 0.3
+            "saut":
+                arm_angle = 0.8
+                leg_angle = 0.55
+            "trebuche":
+                arm_angle = 1.0
+                leg_angle = 0.65
+                lean = 0.25
+            "chute":
+                arm_angle = 1.1
+                leg_angle = 0.8
+                lean = 0.6
+            "releve":
+                arm_angle = 0.45
+                leg_angle = 0.4
+            "salut":
+                arm_angle = 0.8
+                leg_angle = 0.02
+            "repos":
+                arm_angle = 0.03
+                leg_angle = 0.02
         var result: Image = base.duplicate()
-        _limb_copy(result,base,shoulder_l,arm_l,0.35*sin(phase),18.0)
-        _limb_copy(result,base,shoulder_r,arm_r,-0.35*sin(phase),18.0)
-        _limb_copy(result,base,hip_l,leg_l,-0.22*sin(phase),22.0)
-        _limb_copy(result,base,hip_r,leg_r,0.22*sin(phase),22.0)
+        _limb_copy(result, base, shoulder_l, arm_l, arm_angle * sin(phase) + lean, 18.0)
+        _limb_copy(result, base, shoulder_r, arm_r, -arm_angle * sin(phase) + lean, 18.0)
+        _limb_copy(result, base, hip_l, leg_l, -leg_angle * sin(phase) + lean, 22.0)
+        _limb_copy(result, base, hip_r, leg_r, leg_angle * sin(phase) + lean, 22.0)
         var path: String = "%s/pose_%02d.png" % [folder,i]
         if result.save_png(path) != OK:
             status.text = "Erreur sauvegarde pose."
@@ -637,7 +671,7 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
     _refresh()
     _save()
     _build_contact_sheet()
-    status.text = "%d poses approx. avec articulations detectees; verifier les deformations." % count if use_detected else "%d poses locales approximatives; detection non effectuee." % count
+    status.text = "%d poses approx. selon histoire; articulations detectees." % count if use_detected else "%d poses approx. selon histoire; squelette non detecte." % count
 
 func _adaptive_pose_count(description: String, duration: float) -> int:
     # More keyframes for transitions and rapid actions, within mobile memory limits.
