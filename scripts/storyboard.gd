@@ -76,7 +76,8 @@ func _ready() -> void:
     duration_input.value = 6
     line.add_child(duration_input)
     _button("2. GENERER AUTOMATIQUEMENT", _generate_articulated_board)
-    _button("3. VALIDER ET ANIMER", _validate_and_animate)
+    _button("3. TOUT VALIDER", _approve_all)
+    _button("4. ENVOYER AU MOTEUR VIDEO", _validate_and_animate)
     contact_caption = _label("Les poses generees apparaitront ici.", 20)
     contact_sheet = TextureRect.new()
     contact_sheet.custom_minimum_size = Vector2(0, 220)
@@ -84,7 +85,7 @@ func _ready() -> void:
     contact_sheet.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     root_box.add_child(contact_sheet)
-    _button("4. EXPORTER LA VIDEO (AVI)", _export_video_direct)
+    _button("5. EXPORTER LA VIDEO (AVI)", _export_video_direct)
     var advanced := CollapsibleContainer.new()
     advanced.title = "Options avancees (facultatives)"
     advanced.folded = true
@@ -219,7 +220,8 @@ func _export_video_direct() -> void:
     if sources.is_empty():
         status.text = "Genere d'abord les poses avec le bouton 2."
         return
-    var output_dir: String = imported_path.get_base_dir() if not imported_path.is_empty() else "user://"
+    var output_dir: String = "user://exports"
+    DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(output_dir))
     _export_video(output_dir.path_join("animation.avi"))
 
 func _choose_video_export() -> void:
