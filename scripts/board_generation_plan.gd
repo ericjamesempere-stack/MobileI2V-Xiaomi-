@@ -55,12 +55,27 @@ func make_plan(story: String, reference_images: Array, seconds: float, target_fp
                 "status": "needs_drawing",
                 "image_path": ""
             })
+    # Stable continuity keys make it possible for an image generator to reuse
+    # approved character sheets and backgrounds instead of reinventing them.
+    var continuity: Dictionary = {
+        "character_reference_images": reference_images.duplicate(),
+        "identity_policy": "strict_reference_match",
+        "palette_policy": "locked_across_scene",
+        "line_art_policy": "consistent_line_width_and_style",
+        "background_policy": "reuse_approved_background",
+        "negative_constraints": ["different face", "different clothing", "extra limbs", "missing limbs", "flicker", "color shift", "background jump"]
+    }
+    for board in boards:
+        board["continuity"] = continuity.duplicate(true)
+        board["required_outputs"] = ["color_image", "foreground_alpha", "character_ids", "approval_status"]
+        board["quality_checks"] = ["character_consistency", "anatomy", "palette", "background", "adjacent_frame_motion"]
     return {
         "schema_version": 1,
         "story": story,
         "fps": maxi(1, target_fps),
         "duration_seconds": maxf(0.1, seconds),
         "characters": character_ids,
+        "continuity": continuity,
         "boards": boards,
         "warnings": warnings,
         "intermediate_frames": {"method": "optical_flow_or_motion_interpolation", "target_fps": maxi(1, target_fps), "requires_real_keyframe_images": true},
