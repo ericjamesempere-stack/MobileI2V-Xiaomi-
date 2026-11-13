@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
-      - name: Install Godot 4.3
+      - name: Install Godot 4.5.2
         run: |
           set -euo pipefail
           curl -fL --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
@@ -24,11 +24,39 @@ jobs:
       - name: Import project and parse scripts
         run: |
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --editor --path . --import --quit
-      - name: Run movement sequence regression
+      - name: Test test_story_motion_planner.gd
+        timeout-minutes: 2
         run: |
-          set -euo pipefail
-          for test in test_story_motion_planner.gd test_adaptive_storyboard.gd test_story_director.gd test_character_separator.gd test_continuous_rig.gd test_board_generation_plan.gd test_frame_interpolator.gd test_drawing_quality_gate.gd test_procedural_cartoon_generator.gd; do
-            echo "::group::Godot regression: $test"
-            timeout --signal=TERM --kill-after=10s 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script "res://tests/$test"
-            echo "::endgroup::"
-          done
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_story_motion_planner.gd
+      - name: Test test_adaptive_storyboard.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_adaptive_storyboard.gd
+      - name: Test test_story_director.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_story_director.gd
+      - name: Test test_character_separator.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_character_separator.gd
+      - name: Test test_continuous_rig.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_continuous_rig.gd
+      - name: Test test_board_generation_plan.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_board_generation_plan.gd
+      - name: Test test_frame_interpolator.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_frame_interpolator.gd
+      - name: Test test_drawing_quality_gate.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_drawing_quality_gate.gd
+      - name: Test test_procedural_cartoon_generator.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_procedural_cartoon_generator.gd
