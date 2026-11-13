@@ -74,10 +74,12 @@ jobs:
                   quit(1)
                   return
               settings.set_setting("export/android/android_sdk_path", OS.get_environment("ANDROID_HOME"))
+              settings.set_setting("export/android/java_sdk_path", OS.get_environment("JAVA_HOME"))
               settings.set_setting("export/android/debug_keystore", OS.get_environment("RUNNER_TEMP").path_join("mobilei2v.keystore"))
               settings.set_setting("export/android/debug_keystore_user", "mobilei2v")
               settings.set_setting("export/android/debug_keystore_pass", "mobilei2v")
-              print("Android SDK configured")
+              print("Android SDK configured: ", settings.get_setting("export/android/android_sdk_path"))
+              print("Java SDK configured: ", settings.get_setting("export/android/java_sdk_path"))
               quit(0)
           GDSCRIPT
           timeout 45s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --script res://ci/configure_android.gd --quit-after 2 2>&1 | tee configure.log
@@ -87,6 +89,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build
+          test -d "$JAVA_HOME"
+          test -d "$ANDROID_HOME"
           timeout 300s ./Godot_v4.3-stable_linux.x86_64 --headless --verbose --path . --export-debug Android build/MobileI2V_v50_arm64.apk 2>&1 | tee export.log
           test -s build/MobileI2V_v50_arm64.apk
           unzip -t build/MobileI2V_v50_arm64.apk | tail -2
