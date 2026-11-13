@@ -651,6 +651,11 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
     var leg_l := Vector2(width*0.39,height*0.91)
     var leg_r := Vector2(width*0.61,height*0.91)
     if use_detected:
+        var rig: RefCounted = load("res://scripts/continuous_rig.gd").new()
+        var rig_check: Dictionary = rig.validate_landmarks(detected_landmarks)
+        if not bool(rig_check.get("ok", false)):
+            status.text = "Squelette incomplet : " + str(rig_check.get("error", ""))
+            return
         for joint in [11,12,15,16,23,24,27,28]:
             if not detected_landmarks[joint] is Dictionary or float(detected_landmarks[joint].get("visibility",0.0)) < 0.35:
                 status.text = "Articulation %d peu visible. Utilise une photo du corps entier." % joint
