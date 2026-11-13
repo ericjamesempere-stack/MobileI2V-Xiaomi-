@@ -88,7 +88,8 @@ func _ready() -> void:
     contact_sheet.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     root_box.add_child(contact_sheet)
-    _button("5. EXPORTER LA VIDEO (AVI)", _export_video_direct)
+    _button("5. EXPORTER MP4 (ANDROID)", _export_board_mp4)
+    _button("5 bis. EXPORTER AVI (SECOURS)", _export_video_direct)
     var advanced_box := VBoxContainer.new()
     root_box.add_child(advanced_box)
     var advanced_title := Label.new()
@@ -217,6 +218,30 @@ func _avi_headers(width: int, height: int, fps: int, count: int, max_jpg: int) -
     var hdrl := _avi_chunk("avih", avih)
     hdrl.append_array(_avi_list("strl", stream))
     return _avi_list("hdrl", hdrl)
+
+func _export_board_mp4() -> void:
+    if sources.is_empty():
+        status.text = "Cree d'abord une planche."
+        return
+    var selected: int = 0
+    for accepted_flag in accepted:
+        if accepted_flag:
+            selected += 1
+    if selected == 0:
+        status.text = "Valide les dessins avant l'export MP4."
+        return
+    var exporter: Node = Node.new()
+    exporter.set_script(load("res://scripts/export_mp4.gd"))
+    exporter.set("status_label", status)
+    add_child(exporter)
+    var indices: Array = []
+    for item in plan:
+        indices.append(int(item))
+    if indices.is_empty():
+        for i in range(sources.size()):
+            indices.append(i)
+    await exporter.call("export_board_mp4", sources, indices, float(duration_input.value))
+    exporter.queue_free()
 
 func _export_video_direct() -> void:
     if sources.is_empty():
