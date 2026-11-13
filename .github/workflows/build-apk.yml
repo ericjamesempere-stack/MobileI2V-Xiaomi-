@@ -45,7 +45,7 @@ jobs:
           set -euo pipefail
           gradle -p native/mp4exporter assembleDebug --no-daemon
           mkdir -p addons/mp4exporter
-          cp native/mp4exporter/build/outputs/aar/mp4exporter-debug.aar addons/mp4exporter/mp4exporter.aar
+          find native/mp4exporter/build/outputs/aar -name '*-debug.aar' -print -quit | xargs -r -I '{}' cp '{}' addons/mp4exporter/mp4exporter.aar
           test -s addons/mp4exporter/mp4exporter.aar
           unzip -p addons/mp4exporter/mp4exporter.aar AndroidManifest.xml >/dev/null
           echo "Native H264 Android AAR compiled"
