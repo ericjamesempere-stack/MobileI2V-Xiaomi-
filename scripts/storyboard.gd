@@ -75,7 +75,8 @@ func _ready() -> void:
     duration_input.step = 1
     duration_input.value = 6
     line.add_child(duration_input)
-    _button("2. GENERER AUTOMATIQUEMENT", _generate_articulated_board)
+    _button("2A. DESSINER DEPUIS LE TEXTE (SANS PHOTO)", _generate_text_cartoon)
+    _button("2B. ANIMER MA PHOTO", _generate_articulated_board)
     _button("3. TOUT VALIDER", _approve_all)
     _button("4. ENVOYER AU MOTEUR VIDEO", _validate_and_animate)
     contact_caption = _label("Les poses generees apparaitront ici.", 20)
@@ -624,6 +625,52 @@ func _generate_detected_board() -> void:
         status.text = "Detecte d'abord les articulations MediaPipe."
         return
     await _generate_articulated_board(true)
+
+func _generate_text_cartoon() -> void:
+    var story: String = action_input.text.strip_edges()
+    if story.is_empty():
+        status.text = "Decris le personnage et ses mouvements."
+        return
+    var project_dir: String = "user://projects/cartoon_%d" % Time.get_ticks_usec()
+    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(project_dir)) != OK:
+        status.text = "Impossible de creer le dossier des dessins."
+        return
+    var generator: RefCounted = load("res://scripts/procedural_cartoon_generator.gd").new()
+    var planner: RefCounted = load("res://scripts/story_motion_planner.gd").new()
+    var motion: Dictionary = planner.plan(story, float(duration_input.value))
+    var count: int = clampi(ceili(float(duration_input.value) * 4.0), 12, 120)
+    sources.clear()
+    paths.clear()
+    plan.clear()
+    accepted.clear()
+    imported_path = project_dir.path_join("reference.png")
+    var initial: Image = generator.render(story, 0.0)
+    if initial.save_png(imported_path) != OK:
+        status.text = "Impossible de sauvegarder le personnage."
+        return
+    preview.texture = ImageTexture.create_from_image(initial)
+    for i in range(count):
+        var seconds: float = float(i) / float(count) * float(duration_input.value)
+        var action: String = planner.action_at(motion, seconds) if bool(motion.get("ok", false)) else "danse"
+        var speed: float = 1.8 if action == "course" else 1.0
+        var phase: float = seconds * speed
+        var image: Image = generator.render(story, phase)
+        var path: String = project_dir.path_join("drawing_%03d.png" % i)
+        if image.save_png(path) != OK:
+            status.text = "Erreur de sauvegarde du dessin %d." % i
+            return
+        sources.append(ImageTexture.create_from_image(image))
+        paths.append(path)
+        plan.append(i)
+        accepted.append(true)
+        if i % 4 == 0:
+            status.text = "Dessins en cours : %d/%d" % [i + 1, count]
+            await get_tree().process_frame
+    frame_index = 0
+    _refresh()
+    _save()
+    _build_contact_sheet()
+    status.text = "%d dessins 2D generes hors ligne. Style cartoon simple; IA detaillee non installee." % count
 
 func _generate_articulated_board(use_detected: bool = false) -> void:
     if imported_path.is_empty():
