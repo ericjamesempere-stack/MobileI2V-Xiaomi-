@@ -76,7 +76,7 @@ func _ready() -> void:
     duration_input.value = 6
     line.add_child(duration_input)
     _button("2A. DESSINER DEPUIS LE TEXTE (SANS PHOTO)", _generate_text_cartoon)
-    _button("2A bis. ANIMER LA PHOTO SANS IA (ILLIMITE LOCAL)", _generate_from_photo)
+    _button("2A bis. PHOTO : ZOOM ET DEPLACEMENT (LOCAL)", _generate_from_photo)
     _button("2B. ANIMER MA PHOTO", _generate_articulated_board)
     _button("3. TOUT VALIDER", _approve_all)
     _button("4. ENVOYER AU MOTEUR VIDEO", _validate_and_animate)
@@ -103,7 +103,7 @@ func _ready() -> void:
     _button("Detecter le squelette (serveur externe)", _request_pose, advanced_box)
     _button("Poses avec articulations detectees", _generate_detected_board, advanced_box)
     _button("IA externe (secours facultatif)", _request_ai_board, advanced_box)
-    _button("Animation photo locale (sans IA)", _generate_from_photo, advanced_box)
+    _button("Mouvement de camera sur photo (sans IA)", _generate_from_photo, advanced_box)
     _button("Planche de demonstration", _prepare, advanced_box)
     _button("Exporter les images PNG", _export_png_sequence, advanced_box)
     _button("Tout valider", _approve_all, advanced_box)
