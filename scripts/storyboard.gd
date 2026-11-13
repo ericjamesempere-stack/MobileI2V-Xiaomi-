@@ -229,7 +229,7 @@ func _export_video(destination: String) -> void:
         output_path += ".avi"
     var width: int = 480
     var height: int = 640
-    var fps: int = 12
+    var fps: int = 24
     var duration: float = clampf(duration_input.value, 1.0, 60.0)
     var count: int = maxi(1, int(round(duration * fps)))
     var approved_ids: Array[int] = []
@@ -280,10 +280,31 @@ func _export_video(destination: String) -> void:
                 nearest = d
                 source_idx = candidate
         var image: Image = sources[source_idx].get_image()
-        if image == null:
+        if image == null or image.is_empty():
             continue
+        # Blend consecutive approved drawings to produce 24 fps output.
+        # This is pixel crossfading, NOT optical flow or motion compensation.
+        var next_slot: int = mini(plan.size() - 1, int(float(n + 1) / count * plan.size())) if not plan.is_empty() else mini(sources.size() - 1, int(float(n + 1) / count * sources.size()))
+        var next_requested: int = plan[next_slot] if not plan.is_empty() else next_slot
+        var next_source_idx: int = source_idx
+        var next_distance: int = 999999
+        for candidate in approved_ids:
+            var distance: int = absi(candidate - next_requested)
+            if distance < next_distance:
+                next_distance = distance
+                next_source_idx = candidate
         image.convert(Image.FORMAT_RGB8)
-        image.resize(width, height, Image.INTERPOLATE_LANCZOS)
+        image.resize(width, height, Image.INTERPOLATE_BILINEAR)
+        if next_source_idx != source_idx:
+            var next_image: Image = sources[next_source_idx].get_image()
+            if next_image != null and not next_image.is_empty():
+                next_image.convert(Image.FORMAT_RGB8)
+                next_image.resize(width, height, Image.INTERPOLATE_BILINEAR)
+                var progress: float = fposmod(float(n) / float(count) * float(plan.size() if not plan.is_empty() else sources.size()), 1.0)
+                var eased: float = progress * progress * (3.0 - 2.0 * progress)
+                for yy in range(height):
+                    for xx in range(width):
+                        image.set_pixel(xx, yy, image.get_pixel(xx, yy).lerp(next_image.get_pixel(xx, yy), eased))
         var jpg: PackedByteArray = image.save_jpg_to_buffer(0.82)
         if jpg.is_empty():
             continue
