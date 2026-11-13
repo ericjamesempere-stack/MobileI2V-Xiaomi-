@@ -779,14 +779,34 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
     foreground.fill(Color(0, 0, 0, 0))
     foreground.blend_rect(cutout, Rect2i(0, 0, fw, fh), Vector2i(int((width-fw)/2), int((height-fh)/2)))
 
-    var shoulder_l := Vector2(width*0.35,height*0.31)
-    var shoulder_r := Vector2(width*0.65,height*0.31)
-    var hip_l := Vector2(width*0.43,height*0.60)
-    var hip_r := Vector2(width*0.57,height*0.60)
-    var arm_l := Vector2(width*0.26,height*0.54)
-    var arm_r := Vector2(width*0.74,height*0.54)
-    var leg_l := Vector2(width*0.39,height*0.91)
-    var leg_r := Vector2(width*0.61,height*0.91)
+    # Infer approximate rig placement from the actual alpha silhouette,
+    # rather than assuming the character fills the entire canvas.
+    var min_x: int = width
+    var min_y: int = height
+    var max_x: int = -1
+    var max_y: int = -1
+    for py in range(height):
+        for px in range(width):
+            if foreground.get_pixel(px, py).a > 0.5:
+                min_x = mini(min_x, px)
+                min_y = mini(min_y, py)
+                max_x = maxi(max_x, px)
+                max_y = maxi(max_y, py)
+    if max_x <= min_x or max_y <= min_y:
+        status.text = "Silhouette du personnage vide : animation annulee."
+        return
+    var left: float = float(min_x)
+    var top: float = float(min_y)
+    var sw: float = float(max_x - min_x)
+    var sh: float = float(max_y - min_y)
+    var shoulder_l := Vector2(left + sw * 0.35, top + sh * 0.31)
+    var shoulder_r := Vector2(left + sw * 0.65, top + sh * 0.31)
+    var hip_l := Vector2(left + sw * 0.43, top + sh * 0.60)
+    var hip_r := Vector2(left + sw * 0.57, top + sh * 0.60)
+    var arm_l := Vector2(left + sw * 0.26, top + sh * 0.54)
+    var arm_r := Vector2(left + sw * 0.74, top + sh * 0.54)
+    var leg_l := Vector2(left + sw * 0.39, top + sh * 0.91)
+    var leg_r := Vector2(left + sw * 0.61, top + sh * 0.91)
     if use_detected:
         var rig: RefCounted = load("res://scripts/continuous_rig.gd").new()
         var rig_check: Dictionary = rig.validate_landmarks(detected_landmarks)
