@@ -348,7 +348,14 @@ func _image_chosen(path: String) -> void:
     if max_side > 1200:
         var factor: float = 1200.0 / float(max_side)
         img.resize(maxi(1, int(img.get_width() * factor)), maxi(1, int(img.get_height() * factor)), Image.INTERPOLATE_LANCZOS)
-    var saved_path: String = "user://reference_mobilei2v.png"
+    # Keep every imported reference in a distinct local project folder.
+    # Previously each new image silently overwrote the previous project's photo.
+    var project_id: String = "%d_%d" % [int(Time.get_unix_time_from_system()), Time.get_ticks_usec()]
+    var project_dir: String = "user://projects/" + project_id
+    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(project_dir)) != OK:
+        status.text = "ERREUR : impossible de creer le dossier du projet."
+        return
+    var saved_path: String = project_dir + "/reference.png"
     if img.save_png(saved_path) != OK:
         status.text = "ERREUR : impossible de copier la photo."
         return
@@ -365,7 +372,7 @@ func _image_chosen(path: String) -> void:
     preview.texture = ImageTexture.create_from_image(img)
     status.text = "PHOTO CHARGEE (%d x %d) : preparation..." % [img.get_width(), img.get_height()]
     await get_tree().process_frame
-    _generate_articulated_board()
+    status.text = "Photo conservee. Decris une action puis lance Planche adaptative 2D."
 
 func _texture_for_path(path: String) -> Texture2D:
     if path.begins_with("user://") or path.begins_with("/"):
@@ -612,11 +619,17 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
     paths.clear()
     plan.clear()
     accepted.clear()
-    var folder := "user://mediapipe_board" if use_detected else "user://articulated_board"
+    var folder: String = imported_path.get_base_dir() + ("/mediapipe_board" if use_detected else "/articulated_board")
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder))
+    if action_input.text.strip_edges().is_empty():
+        status.text = "Ecris une action avant de generer la planche."
+        return
     var count: int = _adaptive_pose_count(action_input.text, float(duration_input.value))
     var story_planner: RefCounted = load("res://scripts/story_motion_planner.gd").new()
     var story_plan: Dictionary = story_planner.plan(action_input.text, float(duration_input.value))
+    if not bool(story_plan.get("ok", false)):
+        status.text = "Action non reconnue : essaie courir, tomber, danser, marcher..."
+        return
     for i in range(count):
         var seconds: float = float(i) / float(count) * float(duration_input.value)
         var action: String = story_planner.action_at(story_plan, seconds) if bool(story_plan.get("ok", false)) else "marche"
