@@ -79,6 +79,9 @@ jobs:
                   dest.parent.mkdir(parents=True, exist_ok=True)
                   dest.write_bytes(z.read(entry))
           assert (root / "build.gradle").is_file(), "Android Gradle template layout not found"
+          wrapper = root / "gradlew"
+          assert wrapper.is_file(), "Missing Gradle wrapper"
+          wrapper.chmod(wrapper.stat().st_mode | 0o111)
           (root.parent / ".build_version").write_text("4.5.2.stable" + chr(10))
           (root / ".gdignore").write_text("")
           print("Android Gradle template extracted with Godot 4.5.2 version marker")
