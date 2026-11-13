@@ -87,8 +87,22 @@ func blend_blocks(a: Image, b: Image, t: float, field: Dictionary) -> Image:
     var result: Image = Image.create(w, h, false, Image.FORMAT_RGB8)
     for y in range(h):
         for x in range(w):
-            var idx: int = (y / cell) * cols + (x / cell)
-            var shift: Vector2i = shifts[idx] if idx < shifts.size() else Vector2i.ZERO
+            # Bilinear interpolation of neighboring block motion vectors removes
+            # hard displacement discontinuities at cell boundaries.
+            var gx: float = float(x) / float(cell) - 0.5
+            var gy: float = float(y) / float(cell) - 0.5
+            var x0: int = clampi(floori(gx), 0, cols - 1)
+            var x1: int = clampi(x0 + 1, 0, cols - 1)
+            var rows: int = maxi(1, int(field.get("rows", 1)))
+            var y0: int = clampi(floori(gy), 0, rows - 1)
+            var y1: int = clampi(y0 + 1, 0, rows - 1)
+            var fx: float = clampf(gx - floorf(gx), 0.0, 1.0)
+            var fy: float = clampf(gy - floorf(gy), 0.0, 1.0)
+            var v00: Vector2 = Vector2(shifts[y0 * cols + x0]) if y0 * cols + x0 < shifts.size() else Vector2.ZERO
+            var v10: Vector2 = Vector2(shifts[y0 * cols + x1]) if y0 * cols + x1 < shifts.size() else Vector2.ZERO
+            var v01: Vector2 = Vector2(shifts[y1 * cols + x0]) if y1 * cols + x0 < shifts.size() else Vector2.ZERO
+            var v11: Vector2 = Vector2(shifts[y1 * cols + x1]) if y1 * cols + x1 < shifts.size() else Vector2.ZERO
+            var shift: Vector2 = v00.lerp(v10, fx).lerp(v01.lerp(v11, fx), fy)
             var ax: int = clampi(roundi(x - shift.x * p), 0, w - 1)
             var ay: int = clampi(roundi(y - shift.y * p), 0, h - 1)
             var bx: int = clampi(roundi(x + shift.x * (1.0 - p)), 0, w - 1)
