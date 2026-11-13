@@ -666,7 +666,19 @@ func _automatic_local_movie() -> void:
         if not FileAccess.file_exists(imported_path):
             status.text = "Photo introuvable. Reimporte-la avant de generer."
             return
-        await _generate_from_photo()
+        # Prefer the articulated reference-image pipeline instead of moving
+        # the whole photograph regardless of the requested movement.
+        var request: String = action_input.text.to_lower()
+        var planner: RefCounted = load("res://scripts/story_motion_planner.gd").new()
+        var motion_plan: Dictionary = planner.plan(request, float(duration_input.value))
+        if bool(motion_plan.get("ok", false)):
+            await _generate_articulated_board()
+        elif request.contains("tete") or request.contains("tête") or request.contains("head") or request.contains("visage"):
+            status.text = "Mouvement de tete : articulation du visage non disponible sur une photo seule. Photo conservee; aucune animation generique creee."
+            return
+        else:
+            status.text = "Action non reconnue. Precise marcher, courir, danser, sauter, tomber ou se relever."
+            return
     else:
         await _generate_text_cartoon()
     if sources.is_empty():
