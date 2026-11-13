@@ -101,3 +101,31 @@ def generate(req: GenerateRequest):
                     "reference_used": reference is not None}
         except Exception as exc:
             raise HTTPException(503, f"Generation unavailable: {exc}") from exc
+
+
+class StoryboardRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=2000)
+    image_base64: str | None = None
+    frames: int = Field(default=4, ge=1, le=24)
+    seed: int = Field(default=42, ge=0, le=2147483647)
+    character_description: str = ""
+    scene_description: str = ""
+
+
+@app.post("/generate/storyboard")
+def generate_storyboard(req: StoryboardRequest):
+    # A fixed seed and reference are used for all frames; this is not
+    # sufficient by itself to guarantee consistent motion or anatomy.
+    images = []
+    for index in range(req.frames):
+        frame = generate(GenerateRequest(
+            prompt=f"{req.prompt}. Storyboard pose {index + 1} of {req.frames}, "
+                   f"continuous action phase {index / max(1, req.frames - 1):.3f}",
+            reference_image_base64=req.image_base64,
+            character_description=req.character_description,
+            scene_description=req.scene_description,
+            seed=req.seed,
+        ))
+        images.append(frame["image_base64"])
+    return {"images": images, "count": len(images),
+            "identity_consistency_guaranteed": False}
