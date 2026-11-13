@@ -8,6 +8,21 @@ func separate(source: Image, tolerance: float = 0.12) -> Dictionary:
         return {"ok": false, "reason": "Image too small"}
     var image: Image = source.duplicate()
     image.convert(Image.FORMAT_RGBA8)
+    # Preserve an existing transparent cutout (PNG character asset) without
+    # treating its transparent border as a photographic background.
+    var transparent_count: int = 0
+    var visible_count: int = 0
+    for py in range(h):
+        for px in range(w):
+            if image.get_pixel(px, py).a < 0.1:
+                transparent_count += 1
+            else:
+                visible_count += 1
+    if transparent_count > 0:
+        var alpha_coverage: float = float(visible_count) / float(w * h)
+        if alpha_coverage >= 0.015 and alpha_coverage <= 0.92:
+            return {"ok": true, "foreground": image, "coverage": alpha_coverage, "method": "existing_alpha"}
+        return {"ok": false, "reason": "Transparent image has no reliable character", "coverage": alpha_coverage}
     var corner: Color = image.get_pixel(0, 0)
     var corners: Array[Color] = [corner, image.get_pixel(w - 1, 0), image.get_pixel(0, h - 1), image.get_pixel(w - 1, h - 1)]
     for c in corners:
