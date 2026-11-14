@@ -15,6 +15,7 @@ Do not expose publicly without authentication and HTTPS.
 import base64
 import io
 import os
+import hashlib
 import numpy as np
 
 from flask import Flask, jsonify, request
@@ -102,14 +103,21 @@ def redraw():
         if not prompt:
             return jsonify({"error": "Missing prompt"}), 400
         count = min(4, max(1, int(data.get("num_images", data.get("frames", 1)))))
+        target_poses = data.get("target_poses")
+        if not isinstance(target_poses, list) or len(target_poses) != count or not all(isinstance(p, str) and p.strip() for p in target_poses):
+            return jsonify({"error": "Provide one nonempty target pose per generated image"}), 400
         outputs = []
-        for _ in range(count):
-            generated = _draw_model(prompt=prompt, image=source, strength=0.65,
+        digests = []
+        for target_pose in target_poses:
+            generated = _draw_model(prompt=prompt + ". Body pose: " + target_pose + ". Preserve character face, hair and clothes.", image=source, strength=0.65,
                                     guidance_scale=7.0, num_inference_steps=25).images[0]
             buffer = io.BytesIO()
             generated.save(buffer, format="PNG")
             outputs.append(base64.b64encode(buffer.getvalue()).decode("ascii"))
-        return jsonify({"images": outputs, "model": model_id,
+            digests.append(hashlib.sha256(generated.convert("RGB").tobytes()).hexdigest())
+        if len(set(digests)) < min(2, count):
+            return jsonify({"error": "Identical generated images: pose change not validated"}), 422
+        return jsonify({"images": outputs, "pixel_sha256": digests, "target_poses": target_poses, "model": model_id,
                         "warning": "Image-to-image generation does not guarantee character identity or continuity"})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 503
