@@ -105,7 +105,7 @@ def pose_change_report(first_landmarks, second_landmarks, threshold=0.035):
         hip = (hip_dx ** 2 + hip_dy ** 2) ** 0.5
         return max(shoulder, hip)
     scale_a, scale_b = torso_scale(first_landmarks), torso_scale(second_landmarks)
-    if min(scale_a, scale_b) < 0.01:
+    if min(scale_a, scale_b) < 0.005:
         return {"articulated": False, "reason": "torso_scale_unreliable", "usable_joints": 0}
     displacements = []
     for i in moving:
