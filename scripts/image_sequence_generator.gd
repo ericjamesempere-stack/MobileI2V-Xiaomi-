@@ -72,8 +72,8 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
   var render_phase: float = local_phase
   if action == "course" or action == "marche" or action == "danse":
    render_phase = seconds * (1.8 if action == "course" else 1.0)
-  var guide_generator: RefCounted = load("res://scripts/procedural_cartoon_generator.gd").new()
-  var guide: Image = guide_generator.render(prompt, render_phase, Vector2i(360, 480), action)
+  var guide_generator: RefCounted = load("res://scripts/openpose_guide_generator.gd").new()
+  var guide: Image = guide_generator.render(prompt, render_phase, Vector2i(384, 512), action)
   if guide == null or guide.is_empty():
    http.queue_free()
    return {"ok": false, "error": "Guide de pose impossible a generer", "generated": frames.size()}
