@@ -48,8 +48,8 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     new_fall = 1.0 if action == "fall" else 0.0
     fall_amount = old_fall*(1-smooth) + new_fall*smooth if previous_action else new_fall
     hip = (cx + int(24*fall_amount), floor - int(hip_height*leg_ratio) - bob + int(48*fall_amount))
-    shoulder = (cx + int(115*fall_amount), hip[1] - int(torso_height*torso_ratio*(1-fall_amount)) - int(18*fall_amount))
-    head = (shoulder[0] + int(52*fall_amount), shoulder[1] - int(62*head_ratio*(1-fall_amount)) - int(10*fall_amount))
+    shoulder = (cx + int(70*fall_amount), hip[1] - int(torso_height*torso_ratio*(1-fall_amount)) - int(18*fall_amount))
+    head = (shoulder[0] + int(32*fall_amount), shoulder[1] - int(62*head_ratio*(1-fall_amount)) - int(10*fall_amount))
     pen.line((30, floor, width-30, floor), fill="#799ba0", width=3)
     # Each drawing is freshly rasterized from a new articulated pose.
     foot_spread = 28 + 27*crouch_amount
