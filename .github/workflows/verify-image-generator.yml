@@ -24,5 +24,7 @@ jobs:
         run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --import --quit
       - name: Run universal storyboard tests
         run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_story_studio.gd
+      - name: Test actual image frame ingestion and timeline
+        run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_story_frame_pipeline.gd
       - name: Run motion smoke tests
         run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_motion.gd
