@@ -6,6 +6,7 @@ Use only behind your own HTTPS proxy. Free public Space may queue, rate-limit,
 require authentication, change schema, or be unavailable. Never publish photos.
 """
 import base64
+import logging
 import hmac
 import io
 import os
@@ -22,6 +23,7 @@ MAX_BYTES = 8 * 1024 * 1024
 MAX_PIXELS = 1024 * 1024
 _lock = threading.Lock()
 app = FastAPI(title="MobileI2V AnyPose Bridge")
+logger = logging.getLogger("mobilei2v.anypose")
 
 
 class Request(BaseModel):
@@ -76,7 +78,9 @@ def first_gallery_path(value):
 
 @app.get("/health")
 def health():
-    return {"ready": True, "remote": SPACE, "note": "Remote GPU availability not guaranteed"}
+    configured = bool(os.environ.get("MOBILEI2V_API_TOKEN"))
+    return {"ready": configured, "remote": SPACE, "remote_verified": False,
+            "note": "Local configuration only; remote GPU inference not checked"}
 
 
 @app.post("/generate")
@@ -133,7 +137,11 @@ def generate(req: Request, authorization: str | None = Header(default=None)):
                 data = io.BytesIO()
                 generated.convert("RGB").save(data, format="PNG")
     except Exception as exc:
-        raise HTTPException(503, f"AnyPose unavailable: {type(exc).__name__}: {exc}") from exc
+        # Avoid leaking third-party error strings, paths, or request metadata
+        # to the mobile client. Keep the exception type in server logs.
+        logger.warning("AnyPose request failed: %s", type(exc).__name__)
+        raise HTTPException(503, "AnyPose unavailable; try another generation backend",
+                            headers={"Retry-After": "30"}) from exc
     return {
         "image_base64": base64.b64encode(data.getvalue()).decode("ascii"),
         "frame_index": req.frame_index,
