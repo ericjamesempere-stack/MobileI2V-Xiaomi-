@@ -82,6 +82,14 @@ func _initialize() -> void:
     assert(gait_walk["count"] == 17 and gait_run["count"] == 17)
     assert(gait_walk["frames"][0] is Image)
     assert(gait_run["frames"][8] is Image)
+    var gait_video: Dictionary = {"ok": true, "frames": [], "boundaries": [
+        {"action": "marche", "start_frame": 0, "end_frame": 16},
+        {"action": "course", "start_frame": 17, "end_frame": 33}]}
+    gait_video["frames"].append_array(gait_walk["frames"])
+    gait_video["frames"].append_array(gait_run["frames"])
+    var gait_saved: Dictionary = generic_solver.save_rendered_frames(
+        gait_video, "user://walk_run_preview", 30)
+    assert(gait_saved["ok"] and gait_saved["count"] == 34)
     var connected: Dictionary = generic_solver.render_action_sequence(source, original_pose, [
         {"action": "marche", "frame_count": 30, "keyframes": [
             {"time": 0.0, "pose": original_pose}, {"time": 1.0, "pose": moved_pose}]},
