@@ -81,7 +81,7 @@ def produce(story, output, seconds, fps=24, appearance=None, face_photo=None, fa
     frames_dir = output.parent / (output.stem + "_drawings")
     frames_dir.mkdir(parents=True, exist_ok=True)
     boundaries = []
-    transition_frames = max(1, round(fps * 0.25))
+    transition_frames = max(2, round(fps * 0.25))
     for i, step in enumerate(steps):
         start = (i * count) // len(steps)
         end = ((i+1) * count) // len(steps)
@@ -89,7 +89,9 @@ def produce(story, output, seconds, fps=24, appearance=None, face_photo=None, fa
         for frame in range(start, end):
             # Keep one consistent appearance across all actions.
             previous_action = steps[i-1]["action"] if i else None
-            blend = min(1.0, (frame-start+1)/transition_frames)
+            # First frame of a new action reproduces the preceding pose exactly.
+            # Subsequent frames interpolate to the target with smoothstep in renderer.
+            blend = min(1.0, (frame-start)/(transition_frames-1)) if i else 1.0
             image = drawing.draw_pose(frame-start, end-start, appearance=appearance,
                                       action=step["action"], previous_action=previous_action,
                                       blend=blend, phase_index=frame, face_image=face_image,
