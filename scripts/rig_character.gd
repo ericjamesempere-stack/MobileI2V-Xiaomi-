@@ -182,7 +182,13 @@ func _draw() -> void:
     draw_arc(head + Vector2(0, 15), 30.0, 0.1, PI - 0.1, 18, INK, 12.0, true)
     draw_circle(head + Vector2(-16, -3), 3.5, INK)
     draw_circle(head + Vector2(16, -3), 3.5, INK)
-    draw_arc(head + Vector2(0, 15), 14.0, 0.15, PI - 0.15, 12, INK, 2.8, true)
+    if facial_expression == "surprised":
+        draw_circle(head + Vector2(0, 19), 11.0, INK)
+        draw_circle(head + Vector2(0, 19), 5.0, SKIN)
+    elif facial_expression == "happy":
+        draw_arc(head + Vector2(0, 10), 17.0, 0.1, PI - 0.1, 18, INK, 4.0, true)
+    else:
+        draw_arc(head + Vector2(0, 15), 14.0, 0.15, PI - 0.15, 12, INK, 2.8, true)
     draw_circle(head + Vector2(52, 3), 7.0, Color("e8c77a"))
 
 func update_pose(seconds: float, action: String = "danse") -> void:
