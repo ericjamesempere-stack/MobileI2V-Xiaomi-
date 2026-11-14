@@ -55,6 +55,27 @@ jobs:
           assert report["mp4_verified"] and report["frame_count"] == 72
           assert [s["action"] for s in report["actions"]] == ["walk","run","dance"]
           PY
+      - name: Verify reference-face animated MP4
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          Image.new("RGB",(100,120),"#df8955").save("face_reference.png")
+          PY
+          python3 scripts/karma_one_story_sequence.py face_story.mp4 --story "marche puis court" --seconds 2 --fps 24 --face-photo face_reference.png --face-box 0.1 0.1 0.9 0.9
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path("face_story.story.json").read_text())
+          assert r["mp4_verified"] and r["frame_count"] == 48
+          assert r["reference_face_texture_used"] is True
+          assert r["photo_identity_preserved"] is False
+          PY
+      - name: Publish reference-face animation MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: karma-one-reference-face-story-mp4
+          path: face_story.mp4
+          if-no-files-found: error
       - name: Publish multi-action story MP4
         uses: actions/upload-artifact@v4
         with:
