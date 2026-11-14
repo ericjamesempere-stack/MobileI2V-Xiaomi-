@@ -1,6 +1,9 @@
 name: Verify Visual Backend API
 
 on:
+  push:
+    branches:
+      - karma/storyboard-story-sequence-20261113
   pull_request:
     paths:
       - 'tools/visual_backend.py'
