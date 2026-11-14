@@ -57,6 +57,34 @@ jobs:
       - name: Test painted limb warp
         run: |
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_painted_limb_warp.gd
+      - name: Test generic pose keyframe solver
+        run: |
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_pose_keyframe_solver.gd
+      - name: Encode and verify multi-action character MP4
+        run: |
+          set -euo pipefail
+          MANIFEST="$(find "$HOME/.local/share/godot/app_userdata" -type f -path '*/test_multi_action_frames/sequence_manifest.json' -print -quit)"
+          test -n "$MANIFEST" || { echo "Missing multi-action frame manifest"; exit 1; }
+          FRAMES_DIR="$(dirname "$MANIFEST")"
+          python3 - "$MANIFEST" <<'PY'
+          import json,sys,pathlib
+          p=pathlib.Path(sys.argv[1])
+          m=json.loads(p.read_text())
+          assert m["frame_count"] == 19
+          assert m["fps"] == 30
+          assert len(m["boundaries"]) == 2
+          assert len(list(p.parent.glob("frame_*.png"))) == 19
+          PY
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 -start_number 0 -i "$FRAMES_DIR/frame_%05d.png" -c:v libx264 -pix_fmt yuv420p -movflags +faststart multi_action_character.mp4
+          test -s multi_action_character.mp4
+          N="$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 multi_action_character.mp4)"
+          test "$N" = "19"
+      - name: Upload multi-action character MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobilei2v-multi-action-character-mp4
+          path: multi_action_character.mp4
+          if-no-files-found: error
       - name: Encode hand-painted limb animation
         run: |
           FRAMES_DIR="$(find "$HOME/.local/share/godot/app_userdata" -type d -name painted_warp -print -quit)"
