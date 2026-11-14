@@ -41,11 +41,11 @@ static func render(project: Dictionary, root: String, fps: int = 12) -> Dictiona
     return {"ok": true, "frames": generated, "mode": "offline_procedural_subject_demo", "video_encoded": false}
 
 static func _pose_svg(action: String, t: float, state: Dictionary = {}) -> String:
-    var phase := t * TAU * 2.0
+    var phase := float(state.get("phase", t * TAU * 2.0))
     var stride := sin(phase)
     var swing := cos(phase)
     var torso_angle := 0.0
-    var hip_x := 128.0 + fmod(float(state.get("x", 0.0)), 120.0) - float(state.get("altitude", 0.0)) * 0.0
+    var hip_x := 128.0 + float(state.get("x", 0.0))
     var hip_y := 265.0 + float(state.get("y", 0.0)) - float(state.get("altitude", 0.0))
     var left_arm := -0.35
     var right_arm := 0.35
