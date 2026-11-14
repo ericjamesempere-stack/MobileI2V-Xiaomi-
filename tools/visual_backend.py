@@ -79,6 +79,49 @@ def pose():
         return jsonify({"error": str(exc)}), 503
 
 
+def pose_change_report(first_landmarks, second_landmarks, threshold=0.035):
+    """Compare normalized body geometry, ignoring whole-image translation.
+
+    Expects the 33 MediaPipe landmarks from two ACTUAL detections.
+    This checks motion of joints relative to the torso center; a mere
+    translation of the same cutout does not qualify as articulated motion.
+    """
+    if len(first_landmarks) != 33 or len(second_landmarks) != 33:
+        raise ValueError("Expected 33 landmarks for each pose")
+    torso = (11, 12, 23, 24)
+    moving = (13, 14, 15, 16, 25, 26, 27, 28)
+    def center(points):
+        return (sum(float(points[i]["x"]) for i in torso) / 4,
+                sum(float(points[i]["y"]) for i in torso) / 4)
+    ax, ay = center(first_landmarks)
+    bx, by = center(second_landmarks)
+    displacements = []
+    for i in moving:
+        a, b = first_landmarks[i], second_landmarks[i]
+        if min(float(a.get("visibility", 1)), float(b.get("visibility", 1))) < 0.5:
+            continue
+        dx = (float(b["x"]) - bx) - (float(a["x"]) - ax)
+        dy = (float(b["y"]) - by) - (float(a["y"]) - ay)
+        displacements.append((dx * dx + dy * dy) ** 0.5)
+    if len(displacements) < 3:
+        return {"articulated": False, "reason": "insufficient_visible_joints", "usable_joints": len(displacements)}
+    changed = sum(d >= threshold for d in displacements)
+    return {"articulated": changed >= 2, "changed_joints": changed,
+            "usable_joints": len(displacements), "threshold": threshold}
+
+
+@app.post("/validate/pose-change")
+def validate_pose_change():
+    try:
+        data = request.get_json(force=True)
+        first = data["before_landmarks"]
+        second = data["after_landmarks"]
+        result = pose_change_report(first, second)
+        return jsonify(result), 200 if result["articulated"] else 422
+    except (KeyError, TypeError, ValueError, IndexError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
 @app.post("/generate/storyboard")
 def redraw():
     global _draw_model
