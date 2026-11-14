@@ -27,6 +27,18 @@ class LandmarkTests(unittest.TestCase):
         del data["left_knee"]
         with self.assertRaisesRegex(ValueError,"Missing landmark"):
             m.derive(data)
+    def test_collapsed_shoulder_width_rejected(self):
+        data=skeleton()
+        data["right_shoulder"]=data["left_shoulder"][:]
+        with self.assertRaisesRegex(ValueError,"shoulders or hips"):
+            m.derive(data)
+
+    def test_collapsed_knee_rejected(self):
+        data=skeleton()
+        data["left_knee"]=data["left_hip"][:]
+        with self.assertRaisesRegex(ValueError,"Degenerate limb"):
+            m.derive(data)
+
     def test_invalid_coordinate_rejected(self):
         data=skeleton()
         data["left_knee"]=[-1,.7]
