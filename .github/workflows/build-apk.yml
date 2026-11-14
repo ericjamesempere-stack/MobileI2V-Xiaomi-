@@ -102,6 +102,7 @@ jobs:
           for test in \
             tests/test_story_studio.gd \
             tests/test_story_action_planner.gd \
+            tests/test_motion_continuity.gd \
             tests/test_story_frame_pipeline.gd \
             tests/test_procedural_pose_renderer.gd \
             tests/test_story_sequence_player.gd; do
