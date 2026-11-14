@@ -118,6 +118,27 @@ func _compute_pose(t: float) -> Dictionary:
         ankle_l = Vector2(knee_l.x - 18.0 - 10.0 * s, GROUND_Y)
         ankle_r = Vector2(knee_r.x + 18.0 + 10.0 * s, GROUND_Y)
         head_tilt = 6.0 * s
+    if motion_name == "chute" or motion_name == "saut":
+        var amount: float = clampf(t / 2.0, 0.0, 1.0)
+        var falling: bool = motion_name == "chute"
+        var rotation_angle: float = amount * PI * 0.48 if falling else 0.0
+        var rise: float = 0.0 if falling else -150.0 * sin(PI * amount)
+        var pivot: Vector2 = hip
+        var joints: Array[Vector2] = [hip, chest, shoulder_l, shoulder_r, elbow_l, elbow_r, wrist_l, wrist_r, knee_l, knee_r, ankle_l, ankle_r]
+        for i in range(joints.size()):
+            joints[i] = pivot + (joints[i] - pivot).rotated(rotation_angle) + Vector2(0.0, rise + (155.0 * amount if falling else 0.0))
+        hip = joints[0]
+        chest = joints[1]
+        shoulder_l = joints[2]
+        shoulder_r = joints[3]
+        elbow_l = joints[4]
+        elbow_r = joints[5]
+        wrist_l = joints[6]
+        wrist_r = joints[7]
+        knee_l = joints[8]
+        knee_r = joints[9]
+        ankle_l = joints[10]
+        ankle_r = joints[11]
     return {
         "hip": hip, "chest": chest, "shoulder_l": shoulder_l, "shoulder_r": shoulder_r,
         "elbow_l": elbow_l, "elbow_r": elbow_r, "wrist_l": wrist_l, "wrist_r": wrist_r,
