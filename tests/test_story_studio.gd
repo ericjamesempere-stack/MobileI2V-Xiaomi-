@@ -15,10 +15,13 @@ func _run() -> void:
     assert(project["reference_count"] == 1, "Reference should be preserved")
     assert(is_equal_approx(float(scenes[0]["duration_seconds"]), 5.0))
     assert(scenes[1]["continuity_from"] == "scene_000")
+    assert(scenes[0]["entity_ids"] == scenes[1]["entity_ids"], "Entity identity must persist")
+    assert(scenes[0]["generation_prompt"].contains("manga"), "Style must reach generation prompt")
     project = studio.carry_forward(project, 0, "user://frame.png", {"position": [10, 20], "color": "red"})
     scenes = project["scenes"]
     assert(scenes[1]["reference_previous_frame"] == "user://frame.png")
     assert(scenes[1]["entry_state"]["color"] == "red")
+    assert(project["entities"].size() == 1, "One persistent subject expected")
     assert(studio.classify_subject("un chat saute") == "animal")
     assert(studio.classify_subject("une ville futuriste") == "place")
     assert(studio.storyboard("Un robot danse", 3.0, "cartoon")["style"] == "cartoon")
