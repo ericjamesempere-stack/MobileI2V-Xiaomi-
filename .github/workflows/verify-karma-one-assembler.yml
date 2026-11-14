@@ -5,6 +5,8 @@ on:
       - 'scripts/karma_one_frame_assembler.py'
       - 'scripts/karma_one_pose_drawings.py'
       - 'scripts/karma_one_pipeline.py'
+      - 'scripts/karma_one_photo_palette.py'
+      - 'tests/test_karma_one_photo_palette.py'
       - 'tests/test_karma_one_assembler.py'
       - '.github/workflows/verify-karma-one-assembler.yml'
   workflow_dispatch:
@@ -21,6 +23,8 @@ jobs:
           sudo apt-get install -y -qq ffmpeg
       - name: Test independent drawings, continuity and MP4
         run: python3 -m unittest discover -s tests -p test_karma_one_assembler.py -v
+      - name: Test photo-based color profile
+        run: python3 -m unittest discover -s tests -p test_karma_one_photo_palette.py -v
       - name: End-to-end procedural drawing video
         run: |
           python3 scripts/karma_one_pipeline.py karma_one_demo.mp4 --seconds 3 --fps 24
