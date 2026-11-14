@@ -281,3 +281,22 @@ func auto_stabilize_walk(poses: Array, initial_side: String = "left") -> Diction
         stabilized["support_sides"] = inferred["sides"]
         stabilized["contact_method"] = inferred["method"]
     return stabilized
+
+# End-to-end CPU preview: infer contact, stabilize each pose and render a
+# composited character frame. Caller can feed the returned images to the MP4
+# encoder. Source artwork must already be separated and landmarked.
+func render_stabilized_character_sequence(artwork: Image, source_landmarks: Array, target_poses: Array, limb_half_width: float = 9.0) -> Dictionary:
+    var stance: Dictionary = auto_stabilize_walk(target_poses)
+    if not bool(stance.get("ok", false)):
+        return {"ok": false, "error": str(stance.get("error", "Stance detection failed")), "frames": []}
+    var frames: Array[Image] = []
+    for pose in stance["poses"]:
+        var composite: Dictionary = render_composite_preview(artwork, source_landmarks, pose, limb_half_width)
+        if not bool(composite.get("ok", false)):
+            return {"ok": false, "error": str(composite.get("error", "Character render failed")), "frames": []}
+        frames.append(composite["image"])
+    return {"ok": true, "frames": frames, "count": frames.size(),
+        "support_sides": stance["support_sides"],
+        "status": "stabilized_composite_frames",
+        "limitations": ["requires transparent pre-separated artwork and landmarks",
+            "head and torso only translate", "no automatic pose synthesis", "no video encoding"]}
