@@ -317,3 +317,35 @@ func render_gait_sequence(artwork: Image, neutral_pose: Array,
         "action": gait["action"], "status": "procedural_gait_articulated_frames",
         "limitations": gait["limitations"] +
             ["not photorealistic, no autonomous character segmentation"]}
+
+# Blend the end of a walking cycle into the start of a running cycle.
+# Crossfading joint positions avoids a hard pose jump at the action boundary.
+func generate_walk_to_run(neutral_pose: Array, walk_cycles: int = 2,
+        run_cycles: int = 2, blend_frames: int = 8) -> Dictionary:
+    if blend_frames < 2 or blend_frames > 120:
+        return {"ok": false, "error": "Blend must have 2-120 frames"}
+    var walk: Dictionary = generate_gait_keyframes(neutral_pose, walk_cycles, false)
+    var run: Dictionary = generate_gait_keyframes(neutral_pose, run_cycles, true)
+    if not bool(walk.get("ok", false)):
+        return walk
+    if not bool(run.get("ok", false)):
+        return run
+    var rig: RefCounted = Rig.new()
+    var frames: Array = walk["frames"].duplicate(true)
+    var from_pose: Array = frames[-1]
+    var to_pose: Array = run["frames"][0]
+    for i in range(1, blend_frames + 1):
+        var t: float = float(i) / float(blend_frames + 1)
+        var eased: float = t * t * (3.0 - 2.0 * t)
+        frames.append(rig.interpolate_pose(from_pose, to_pose, eased))
+    frames.append_array(run["frames"])
+    return {"ok": true, "frames": frames, "count": frames.size(),
+        "boundaries": [
+            {"action": "marche", "start_frame": 0,
+                "end_frame": walk["count"] - 1},
+            {"action": "acceleration", "start_frame": walk["count"],
+                "end_frame": walk["count"] + blend_frames - 1},
+            {"action": "course", "start_frame": walk["count"] + blend_frames,
+                "end_frame": frames.size() - 1}],
+        "status": "walk_to_run_joint_blend",
+        "limitations": ["simple procedural 2D blend, not biomechanical acceleration"]}
