@@ -7,6 +7,7 @@ GPU recommended. Expose HTTPS only through a trusted authenticated proxy.
 import base64
 import io
 import os
+import re
 import threading
 from functools import lru_cache
 
@@ -31,6 +32,20 @@ class GenerateRequest(BaseModel):
     loop: bool = False
     reference_strength: float = Field(default=0.85, ge=0.0, le=1.0)
     temporal_position: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+def action_stage(prompt: str, progress: float) -> str:
+    """Split a sequential description into phases for per-frame conditioning."""
+    parts = [
+        part.strip() for part in re.split(
+            r"(?i)\\b(?:puis|ensuite|et puis|then|afterwards|suddenly)\\b|[.;\\n]",
+            prompt,
+        ) if part.strip()
+    ]
+    if not parts:
+        return prompt
+    index = min(len(parts) - 1, int(max(0.0, min(progress, 0.999999)) * len(parts)))
+    return parts[index]
 
 
 def decode_image(encoded: str) -> Image.Image:
@@ -95,8 +110,9 @@ def generate(req: GenerateRequest, authorization: str | None = Header(default=No
     reference_weight = min(0.4, max(0.1, req.reference_strength * 0.35))
     conditioning = Image.blend(previous, reference, reference_weight)
     phase = req.temporal_position
+    stage = action_stage(req.prompt, phase)
     action = (
-        f"{req.prompt}. Animation keyframe {req.frame_index + 1} of "
+        f"Full story: {req.prompt}. Current action: {stage}. Animation keyframe {req.frame_index + 1} of "
         f"{req.total_frames}, temporal progress {phase:.3f}. "
         "Same subject identity, same outfit, consistent anatomy, coherent action, "
         "new pose appropriate to the described movement."
