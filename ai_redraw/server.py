@@ -94,3 +94,6 @@ app.include_router(pose_router)
 
 from .video import router as video_router
 app.include_router(video_router)
+
+from .create_video import router as create_video_router
+app.include_router(create_video_router)
