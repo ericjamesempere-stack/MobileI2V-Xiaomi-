@@ -19,5 +19,12 @@ func _initialize() -> void:
     var local_mid: Image = interpolator.blend_blocks(a, b, 0.5, field)
     assert(local_mid.get_width() == 64)
     assert(local_mid.get_pixel(22, 25).r > 0.3, "Local interpolation should retain the moving color")
+    var transitions: Array[Image] = interpolator.transition_frames(a, b, 6)
+    assert(transitions.size() == 6, "Six intermediate transition frames expected")
+    for frame in transitions:
+        assert(frame.get_size() == a.get_size())
+    assert(interpolator.transition_frames(a, b, 0).is_empty())
+    var wrong_size := Image.create(32, 32, false, Image.FORMAT_RGB8)
+    assert(interpolator.transition_frames(a, wrong_size, 6).is_empty())
     print("FRAME_INTERPOLATOR_TESTS_OK")
     quit(0)
