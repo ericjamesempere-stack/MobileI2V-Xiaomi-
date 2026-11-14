@@ -7,6 +7,9 @@ var reference_head: Texture2D = null
 var photo_puppet: bool = false
 var source_bounds: Rect2 = Rect2(0.0, 0.0, 1.0, 1.0)
 var motion_speed: float = 0.85
+var action_transition: float = 1.0
+var previous_pose: Dictionary = {}
+var motion_time: float = 0.0
 var status_message: String = ""
 
 const INK: Color = Color("172536")
@@ -148,6 +151,14 @@ func _compute_pose(t: float) -> Dictionary:
 
 func _draw() -> void:
     var pose: Dictionary = _compute_pose(phase)
+    if not previous_pose.is_empty() and action_transition < 1.0:
+        var alpha: float = smoothstep(0.0, 1.0, action_transition)
+        for key in pose.keys():
+            if previous_pose.has(key):
+                if pose[key] is Vector2:
+                    pose[key] = (previous_pose[key] as Vector2).lerp(pose[key], alpha)
+                elif pose[key] is float:
+                    pose[key] = lerpf(float(previous_pose[key]), float(pose[key]), alpha)
     var hip: Vector2 = pose["hip"]
     var chest: Vector2 = pose["chest"]
     var shoulder_l: Vector2 = pose["shoulder_l"]
@@ -206,6 +217,11 @@ func _draw() -> void:
     draw_circle(head + Vector2(52, 3), 7.0, Color("e8c77a"))
 
 func update_pose(seconds: float, action: String = "danse") -> void:
+    if motion_name != action:
+        previous_pose = _compute_pose(phase)
+        action_transition = 0.0
+        motion_time = seconds
     motion_name = action
     phase = seconds if action == "chute" or action == "saut" else seconds * motion_speed
+    action_transition = minf(1.0, action_transition + maxf(0.0, seconds - motion_time) * 3.0)
     queue_redraw()
