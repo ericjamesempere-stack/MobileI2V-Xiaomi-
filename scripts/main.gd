@@ -774,7 +774,7 @@ func _load_board_texture(path: String) -> Texture2D:
         return load(path)
     return null
 # Offline image-sequence generator (not an AI photorealistic generator).
-var frame_generator: Node = null
+var frame_generator: FrameGenerator = null
 var generator_status: Label = null
 var generator_prompt: LineEdit = null
 
@@ -793,8 +793,7 @@ func _generate_frames() -> void:
     if frame_generator != null and frame_generator.get("busy"):
         return
     if frame_generator == null:
-        frame_generator = Node.new()
-        frame_generator.set_script(load("res://scripts/frame_generator.gd"))
+        frame_generator = FrameGenerator.new()
         add_child(frame_generator)
         frame_generator.progress.connect(_generator_progress)
         frame_generator.finished.connect(_generator_finished)
