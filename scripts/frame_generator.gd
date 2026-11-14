@@ -43,7 +43,8 @@ func generate(prompt: String, duration: float = 5.0, face: Texture2D = null) -> 
     viewport.add_child(rig)
     if face != null:
         rig.reference_head = face
-    var action := MotionPlanner.action_from_text(prompt)
+    var action: String = MotionPlanner.action_from_text(prompt)
+    var action_start: float = duration * 0.65
     for i in range(count):
         var t := float(i) / float(FPS)
         var frame_action := action
@@ -59,7 +60,13 @@ func generate(prompt: String, duration: float = 5.0, face: Texture2D = null) -> 
             frame_action = "chute"
         elif action == "jump":
             frame_action = "saut"
-        rig.update_pose(t, frame_action)
+        var pose_time: float = t
+        if action == "run_fall" and frame_action == "chute":
+            pose_time = (t - action_start) * 2.0 / maxf(duration - action_start, 0.01)
+        elif action == "fall" or action == "jump":
+            pose_time = t * 2.0 / duration
+        rig.update_pose(pose_time, frame_action)
+        await get_tree().process_frame
         await RenderingServer.frame_post_draw
         var img := viewport.get_texture().get_image()
         if img == null or img.is_empty():
