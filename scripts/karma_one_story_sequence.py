@@ -49,8 +49,10 @@ def produce(story, output, seconds, fps=24, appearance=None, face_photo=None, fa
         raise ValueError("More actions than available frames")
     face_image = None
     if face_photo is not None:
-        if face_box is None or len(face_box) != 4:
-            raise ValueError("A manually selected face box [left,top,right,bottom] is required")
+        if face_box is None:
+            face_box = load("karma_one_face_detector").detect_face_box(face_photo)
+        if len(face_box) != 4:
+            raise ValueError("Face box must have four coordinates")
         l,t,r,b = face_box
         if not (0 <= l < r <= 1 and 0 <= t < b <= 1):
             raise ValueError("Face box must use normalized coordinates in 0..1")
@@ -98,7 +100,7 @@ if __name__ == "__main__":
     parser.add_argument("--appearance", type=Path)
     parser.add_argument("--face-photo", type=Path, help="Reference photo with a visible face")
     parser.add_argument("--color-regions", type=Path, help="JSON regions for skin, hair, shirt and pants sampled from same photo")
-    parser.add_argument("--face-box", type=float, nargs=4, metavar=("LEFT","TOP","RIGHT","BOTTOM"), help="Manual normalized face crop")
+    parser.add_argument("--face-box", type=float, nargs=4, metavar=("LEFT","TOP","RIGHT","BOTTOM"), help="Optional manual normalized face crop; otherwise OpenCV detection")
     args = parser.parse_args()
     appearance = json.loads(args.appearance.read_text(encoding="utf-8")) if args.appearance else None
     color_regions = json.loads(args.color_regions.read_text(encoding="utf-8")) if args.color_regions else None
