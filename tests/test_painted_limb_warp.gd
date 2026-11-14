@@ -154,7 +154,13 @@ func _initialize() -> void:
         var phase: String = "walk" if frame_id < 20 else ("run" if frame_id < 40 else "stop")
         var phase_t: float = float(frame_id % 20) / 20.0
         var gait: float = sin(phase_t * TAU * (1.0 if phase == "walk" else 2.0)) if phase != "stop" else 0.0
+        # Smooth the action amplitude across phase boundaries to avoid a pop.
         var stride: float = 0.65 if phase == "walk" else (1.0 if phase == "run" else 0.0)
+        if frame_id >= 20 and frame_id < 25:
+            stride = lerpf(0.65, 1.0, float(frame_id - 20) / 5.0)
+        elif frame_id >= 40 and frame_id < 46:
+            stride = lerpf(1.0, 0.0, float(frame_id - 40) / 6.0)
+            gait = sin(float(frame_id - 40) / 6.0 * TAU)
         animated_pose[15]["x"] = float(animated_pose[15]["x"]) + 0.10 * gait * stride
         animated_pose[16]["x"] = float(animated_pose[16]["x"]) - 0.10 * gait * stride
         animated_pose[27]["x"] = float(animated_pose[27]["x"]) - 0.08 * gait * stride
