@@ -138,7 +138,7 @@ func build_pose_transitions(project: Dictionary, scene_landmarks: Dictionary) ->
 # Render actual articulated transition images ready for a frame encoder.
 # These frames depict a skeleton; painting the original photographed character
 # requires a separate character-layer/rig mapping step.
-func render_pose_transitions(transition_plan: Dictionary, width: int = 360, height: int = 480) -> Dictionary:
+func render_pose_transitions(transition_plan: Dictionary, width: int = 360, height: int = 480, transparent_background: bool = true) -> Dictionary:
     if not bool(transition_plan.get("ok", false)):
         return {"ok": false, "error": "Invalid transition plan", "frames": []}
     if width < 64 or height < 64 or width > 2048 or height > 2048:
@@ -149,7 +149,7 @@ func render_pose_transitions(transition_plan: Dictionary, width: int = 360, heig
         var images: Array[Image] = []
         for pose in transition.get("poses", []):
             var frame := Image.create(width, height, false, Image.FORMAT_RGBA8)
-            frame.fill(Color("#172033"))
+            frame.fill(Color.TRANSPARENT if transparent_background else Color("#172033"))
             var result: Dictionary = rig.draw_skeleton(frame, pose)
             if not bool(result.get("ok", false)):
                 return {"ok": false, "error": "Invalid landmark frame", "frames": []}
@@ -157,4 +157,4 @@ func render_pose_transitions(transition_plan: Dictionary, width: int = 360, heig
         rendered.append({"from_scene": transition.get("from_scene", ""),
             "to_scene": transition.get("to_scene", ""), "images": images,
             "count": images.size(), "status": "rendered_skeleton"})
-    return {"ok": true, "frames": rendered, "format": "rgba8"}
+    return {"ok": true, "frames": rendered, "format": "rgba8", "transparent_background": transparent_background}
