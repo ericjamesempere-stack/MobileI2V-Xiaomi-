@@ -40,6 +40,21 @@ class ImageBackendStaticTests(unittest.TestCase):
         self.assertIn('MOBILEI2V_API_TOKEN', text)
         self.assertIn("HTTPException(401", text)
 
+    def test_timeline_reaches_final_action(self):
+        module = ast.Module(body=[extract("action_stage")], type_ignores=[])
+        scope = {"re": __import__("re")}
+        exec(compile(ast.fix_missing_locations(module), str(ROOT), "exec"), scope)
+        action = scope["action_stage"]
+        story = "Le personnage marche puis court puis tombe au sol"
+        self.assertEqual(action(story, 0.0), "Le personnage marche")
+        self.assertEqual(action(story, 0.5), "court")
+        self.assertEqual(action(story, 1.0), "tombe au sol")
+
+    def test_client_authentication_and_full_timeline(self):
+        client = (ROOT.parent.parent / "scripts/image_sequence_generator.gd").read_text(encoding="utf-8")
+        self.assertIn("Authorization: Bearer ", client)
+        self.assertIn("count - 1", client)
+
     def test_pipeline_does_not_use_obsolete_safety_checker_parameter(self):
         tree = extract("pipeline")
         for node in ast.walk(tree):
