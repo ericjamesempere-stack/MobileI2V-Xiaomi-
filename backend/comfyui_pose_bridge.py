@@ -116,6 +116,25 @@ def generate(req: Request, authorization: str | None = Header(default=None)):
         if not any(any(token in str(workflow[node_id].get("class_type", "")) for token in pose_control_classes)
                    for node_id in reachable):
             raise ValueError("A ControlNet pose conditioning node must feed the output")
+        # An arbitrary ControlNet node in the output graph is not proof
+        # that the actual pose guide reaches it. Check both graph paths.
+        def descendants_of(source_id):
+            result = {source_id}
+            changed = True
+            while changed:
+                changed = False
+                for target_id, node in workflow.items():
+                    for value in node.get("inputs", {}).values():
+                        if (isinstance(value, list) and len(value) == 2
+                                and str(value[0]) in result and target_id not in result):
+                            result.add(target_id)
+                            changed = True
+            return result
+        pose_path = descendants_of(pose_id)
+        if not any(node_id in pose_path and node_id in reachable
+                   and any(token in str(workflow[node_id].get("class_type", "")) for token in pose_control_classes)
+                   for node_id in workflow):
+            raise ValueError("Pose image must feed the ControlNet conditioning path")
         workflow = copy.deepcopy(workflow)
         workflow[ref_id]["inputs"]["image"] = upload(base, reference, "mobilei2v_ref_" + uuid.uuid4().hex)
         workflow[pose_id]["inputs"]["image"] = upload(base, pose, "mobilei2v_pose_" + uuid.uuid4().hex)
