@@ -19,6 +19,30 @@ static func action_from_text(prompt: String) -> String:
         return "dance"
     return "idle"
 
+# Split simple sequential instructions into ordered actions.
+# Each segment receives a proportional share of the duration.
+static func story_actions(prompt: String) -> Array[String]:
+    var normalized := prompt.to_lower()
+    for separator in [" et puis ", " puis ", " ensuite ", " après ", " apres ", " then ", " and then ", ","]:
+        normalized = normalized.replace(separator, "|")
+    var actions: Array[String] = []
+    for part in normalized.split("|", false):
+        var action := action_from_text(part)
+        if action == "run_fall":
+            actions.append("run")
+            actions.append("fall")
+        else:
+            actions.append(action)
+    if actions.is_empty():
+        actions.append("idle")
+    return actions
+
+static func story_action_at(prompt: String, seconds: float, duration: float) -> Dictionary:
+    var actions := story_actions(prompt)
+    var segment := maxf(duration / float(actions.size()), 0.01)
+    var index := clampi(int(seconds / segment), 0, actions.size() - 1)
+    return {"action": actions[index], "local_time": maxf(0.0, seconds - float(index) * segment), "segment_duration": segment}
+
 static func pose(action: String, t: float, duration: float = 5.0) -> Dictionary:
     var d := maxf(duration, 0.01)
     var phase := clampf(t / d, 0.0, 1.0)
