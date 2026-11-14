@@ -91,6 +91,23 @@ def generate(req: Request, authorization: str | None = Header(default=None)):
             raise ValueError("Reference and pose nodes must be LoadImage")
         if workflow[out_id].get("class_type") != "SaveImage":
             raise ValueError("Output node must be SaveImage")
+        # Reject disconnected templates: a workflow with unused reference or
+        # pose LoadImage nodes could produce an unrelated image while claiming
+        # to preserve the user's identity and follow the requested pose.
+        def upstream(node_id, visited=None):
+            visited = set() if visited is None else visited
+            if node_id in visited:
+                return visited
+            visited.add(node_id)
+            inputs = workflow[node_id].get("inputs", {})
+            for value in inputs.values():
+                if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str):
+                    if value[0] in workflow:
+                        upstream(value[0], visited)
+            return visited
+        reachable = upstream(out_id)
+        if ref_id not in reachable or pose_id not in reachable:
+            raise ValueError("Reference and pose must both feed the output workflow")
         workflow = copy.deepcopy(workflow)
         workflow[ref_id]["inputs"]["image"] = upload(base, reference, "mobilei2v_ref_" + uuid.uuid4().hex)
         workflow[pose_id]["inputs"]["image"] = upload(base, pose, "mobilei2v_pose_" + uuid.uuid4().hex)
