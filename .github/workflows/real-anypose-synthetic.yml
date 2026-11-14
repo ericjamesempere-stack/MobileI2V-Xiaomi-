@@ -24,4 +24,13 @@ jobs:
       - name: Install inference client
         run: python -m pip install -q 'gradio_client>=1.0' pillow fastapi
       - name: Run real inference with two synthetic figures
+        env:
+          MOBILEI2V_TEST_ARTIFACTS: /tmp/mobilei2v_anypose_artifacts
         run: python -m tools.smoke_anypose_synthetic
+      - name: Upload synthetic comparison images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: anypose-synthetic-comparison
+          path: /tmp/mobilei2v_anypose_artifacts/*.png
+          if-no-files-found: warn
