@@ -87,6 +87,38 @@ class VisualBackendContract(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertIn("MOBILEI2V_IMAGE_MODEL", response.json["error"])
 
+    def test_redraw_requires_explicit_poses(self):
+        fake_diffusers = types.SimpleNamespace(AutoPipelineForImage2Image=object)
+        with patch.dict(sys.modules, {"diffusers": fake_diffusers}), patch.dict(
+            os.environ, {"MOBILEI2V_IMAGE_MODEL": "mock"}
+        ):
+            response = self.client.post("/generate/storyboard", json={
+                "image_base64": source_b64(), "prompt": "stand", "num_images": 2
+            })
+        self.assertEqual(response.status_code, 400, response.json)
+        self.assertIn("pose", response.json["error"].lower())
+
+    def test_redraw_rejects_identical_generated_frames(self):
+        class IdenticalPipeline:
+            @classmethod
+            def from_pretrained(cls, *args, **kwargs): return cls()
+            def to(self, device): return self
+            def __call__(self, **kwargs):
+                return types.SimpleNamespace(images=[Image.new("RGB", (64, 64), (10, 20, 30))])
+        fake_diffusers = types.SimpleNamespace(AutoPipelineForImage2Image=IdenticalPipeline)
+        fake_torch = types.SimpleNamespace(
+            cuda=types.SimpleNamespace(is_available=lambda: False),
+            float32="float32", float16="float16")
+        with patch.dict(sys.modules, {"diffusers": fake_diffusers, "torch": fake_torch}), patch.dict(
+            os.environ, {"MOBILEI2V_IMAGE_MODEL": "mock"}
+        ):
+            response = self.client.post("/generate/storyboard", json={
+                "image_base64": source_b64(), "prompt": "character",
+                "num_images": 2, "target_poses": ["crouched", "standing"]
+            })
+        self.assertEqual(response.status_code, 422, response.json)
+        self.assertIn("identical", response.json["error"].lower())
+
     def test_redraw_returns_real_png_bytes_from_stub_pipeline(self):
         class FakePipeline:
             @classmethod
