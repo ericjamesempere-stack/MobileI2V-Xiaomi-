@@ -87,6 +87,24 @@ class VisualBackendContract(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertIn("MOBILEI2V_IMAGE_MODEL", response.json["error"])
 
+    def test_pose_change_rejects_translation(self):
+        before = [{"x": 0.3 + i * 0.01, "y": 0.4 + i * 0.005, "visibility": 1} for i in range(33)]
+        after = [{**p, "x": p["x"] + 0.1, "y": p["y"] + 0.1} for p in before]
+        response = self.client.post("/validate/pose-change", json={
+            "before_landmarks": before, "after_landmarks": after})
+        self.assertEqual(response.status_code, 422, response.json)
+        self.assertFalse(response.json["articulated"])
+
+    def test_pose_change_accepts_joint_motion(self):
+        before = [{"x": 0.3 + i * 0.01, "y": 0.4 + i * 0.005, "visibility": 1} for i in range(33)]
+        after = [dict(p) for p in before]
+        for joint in (15, 16, 27, 28):
+            after[joint]["x"] += 0.12
+        response = self.client.post("/validate/pose-change", json={
+            "before_landmarks": before, "after_landmarks": after})
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertTrue(response.json["articulated"])
+
     def test_redraw_requires_explicit_poses(self):
         fake_diffusers = types.SimpleNamespace(AutoPipelineForImage2Image=object)
         with patch.dict(sys.modules, {"diffusers": fake_diffusers}), patch.dict(
