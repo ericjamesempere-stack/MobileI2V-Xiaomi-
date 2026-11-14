@@ -132,6 +132,7 @@ func _ready() -> void:
     loop_button = _button("Boucle ON", Vector2(531, 1173), Vector2(175, 76))
     loop_button.pressed.connect(_toggle_loop)
     var film_button: Button = _button("Film / Danse", Vector2(12, 950), Vector2(210, 46))
+    film_button.visible = false
     film_button.pressed.connect(_toggle_film_mode)
     for i in range(SCENE_TIMES.size()):
         custom_durations.append(SCENE_TIMES[i])
@@ -151,11 +152,15 @@ func _ready() -> void:
     add_child(rig)
     rig_button = _button("Squelette 2D", Vector2(232, 950), Vector2(235, 46))
     rig_button.pressed.connect(_go_rig)
-    var board_button: Button = _button("Planche / Valider", Vector2(473, 950), Vector2(233, 46))
+    rig_button.visible = false
+    var board_button: Button = _button("1. PHOTO + HISTOIRE", Vector2(12, 900), Vector2(684, 86))
     board_button.pressed.connect(_open_storyboard)
-    var guided: Button = _button("Photo > Danse V50", Vector2(232, 900), Vector2(270, 44))
+    var guided: Button = _button("Photo > Danse V50", Vector2(12, 840), Vector2(440, 46))
     guided.pressed.connect(_open_guided)
+    guided.visible = false
     _render()
+    # Start in the actual creation studio, not the legacy looping demo.
+    _open_storyboard()
 
 func _open_guided() -> void:
     playing = false
@@ -249,11 +254,15 @@ func _apply_photo_motion() -> void:
 func _build_motion_controls() -> void:
     motion_button = _button("Photo animee ON", Vector2(12, 893), Vector2(285, 48))
     motion_button.pressed.connect(_toggle_photo_motion)
+    motion_button.visible = false
     var auto_button: Button = _button("Film auto", Vector2(313, 893), Vector2(190, 48))
     auto_button.pressed.connect(_auto_film)
+    auto_button.visible = false
     var save_auto: Button = _button("Sauver", Vector2(516, 893), Vector2(180, 48))
     save_auto.pressed.connect(_save_project)
-    var mp4_button: Button = _button("Exporter MP4", Vector2(12, 846), Vector2(285, 44))
+    save_auto.visible = false
+    var mp4_button: Button = _button("Exporter MP4", Vector2(12, 780), Vector2(210, 46))
+    mp4_button.visible = false
     mp4_button.pressed.connect(_export_mp4)
     motion_button.text = "Photo animee ON" if photo_motion else "Photo animee OFF"
 
@@ -444,10 +453,12 @@ func _toggle_film_mode() -> void:
     _render()
 
 func _build_editor() -> void:
-    edit_button = _button("Montage", Vector2(238, 950), Vector2(208, 46))
+    edit_button = _button("Montage", Vector2(238, 780), Vector2(208, 46))
     edit_button.pressed.connect(_toggle_editor)
-    var save_button: Button = _button("Sauver", Vector2(462, 950), Vector2(230, 46))
+    edit_button.visible = false
+    var save_button: Button = _button("Sauver", Vector2(462, 780), Vector2(230, 46))
     save_button.pressed.connect(_save_project)
+    save_button.visible = false
     editor_panel = PanelContainer.new()
     editor_panel.position = Vector2(22, 170)
     editor_panel.size = Vector2(676, 700)
@@ -619,8 +630,11 @@ func _build_photo_picker() -> void:
     photo_picker = FileDialog.new()
     photo_picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
     photo_picker.access = FileDialog.ACCESS_FILESYSTEM
+    # Start in shared pictures rather than Android filesystem root.
+    if OS.get_name() == "Android":
+        photo_picker.current_dir = "/storage/emulated/0/Pictures"
     photo_picker.use_native_dialog = true
-    photo_picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp ; Images"])
+    photo_picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp;Images;image/png,image/jpeg,image/webp"])
     photo_picker.file_selected.connect(_on_photo_selected)
     add_child(photo_picker)
 
@@ -634,13 +648,14 @@ func _import_selected_photo() -> void:
             if user_photos[i] == null:
                 photo_slot = i
                 break
+    if OS.get_name() == "Android":
+        OS.request_permissions()
     photo_picker.popup_centered_ratio(0.9)
 
 func _on_photo_selected(path: String) -> void:
-    var image_data: Image = Image.new()
-    var error: Error = image_data.load(path)
-    if error != OK:
-        info_label.text = "Image non lisible : %d" % error
+    var image_data: Image = load("res://scripts/android_image_reader.gd").read_image(path)
+    if image_data == null:
+        info_label.text = "Photo inaccessible ou format non reconnu"
         return
     if image_data.get_width() < 16 or image_data.get_height() < 16:
         info_label.text = "Image trop petite"
@@ -649,7 +664,7 @@ func _on_photo_selected(path: String) -> void:
         var factor: float = 1600.0 / float(maxi(image_data.get_width(), image_data.get_height()))
         image_data.resize(maxi(1, int(image_data.get_width() * factor)), maxi(1, int(image_data.get_height() * factor)), Image.INTERPOLATE_LANCZOS)
     var output: String = "user://mobilei2v_photo_%d.png" % photo_slot
-    error = image_data.save_png(output)
+    var error: Error = image_data.save_png(output)
     if error != OK:
         info_label.text = "Impossible de sauvegarder la photo"
         return
@@ -684,7 +699,8 @@ func _lengthen_shot() -> void:
     _refresh_editor()
 
 func _build_smooth_control() -> void:
-    smooth_button = _button("31 images ON", Vector2(480, 910), Vector2(220, 46))
+    smooth_button = _button("31 images ON", Vector2(470, 840), Vector2(230, 46))
+    smooth_button.visible = false
     smooth_button.pressed.connect(_toggle_smooth)
 
 func _toggle_smooth() -> void:

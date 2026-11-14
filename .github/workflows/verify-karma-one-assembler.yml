@@ -1,0 +1,107 @@
+name: Verify Karma One Drawing Assembly
+on:
+  pull_request:
+    paths:
+      - 'scripts/karma_one_frame_assembler.py'
+      - 'scripts/karma_one_pose_drawings.py'
+      - 'scripts/karma_one_pipeline.py'
+      - 'scripts/karma_one_story_sequence.py'
+      - 'scripts/karma_one_face_detector.py'
+      - 'scripts/karma_one_body_landmarks.py'
+      - 'scripts/karma_one_pose_detector.py'
+      - 'scripts/karma_one_joint_quality.py'
+      - 'tests/test_karma_one_joint_quality.py'
+      - 'tests/test_karma_one_pose_detector.py'
+      - 'tests/test_karma_one_body_landmarks.py'
+      - 'tests/test_karma_one_story.py'
+      - 'scripts/karma_one_photo_palette.py'
+      - 'tests/test_karma_one_photo_palette.py'
+      - 'tests/test_karma_one_assembler.py'
+      - '.github/workflows/verify-karma-one-assembler.yml'
+  workflow_dispatch:
+jobs:
+  validate-drawings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install drawing and video tools
+        run: |
+          python3 -m pip install --user Pillow
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Test independent drawings, continuity and MP4
+        run: python3 -m unittest discover -s tests -p test_karma_one_assembler.py -v
+      - name: Test photo-based color profile
+        run: python3 -m unittest discover -s tests -p test_karma_one_photo_palette.py -v
+      - name: End-to-end procedural drawing video
+        run: |
+          python3 scripts/karma_one_pipeline.py karma_one_demo.mp4 --seconds 3 --fps 24
+          test -s karma_one_demo.mp4
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 karma_one_demo.mp4)" = "72"
+      - name: Test photo-to-palette-to-drawings-to-MP4
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          import json
+          Image.new("RGB", (120, 160), "#734e3b").save("reference_test.png")
+          with open("regions_test.json", "w") as f:
+              json.dump({"skin":[0.1,0.1,0.9,0.9],"hair":[0.1,0.1,0.9,0.9]}, f)
+          PY
+          python3 scripts/karma_one_pipeline.py photo_palette_demo.mp4 --seconds 1 --fps 24 --photo reference_test.png --regions regions_test.json
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 photo_palette_demo.mp4)" = "24"
+      - name: Test joint continuity gate
+        run: python3 -m unittest discover -s tests -p test_karma_one_joint_quality.py -v
+      - name: Test pose detector landmark adapter
+        run: python3 -m unittest discover -s tests -p test_karma_one_pose_detector.py -v
+      - name: Test body landmark geometry
+        run: python3 -m unittest discover -s tests -p test_karma_one_body_landmarks.py -v
+      - name: Test story and articulated drawing regressions
+        run: python3 -m unittest discover -s tests -p test_karma_one_story.py -v
+      - name: Verify multi-action story animation
+        run: |
+          python3 scripts/karma_one_story_sequence.py story_actions.mp4 --story "marche puis court puis danse" --seconds 3 --fps 24
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path("story_actions.story.json").read_text())
+          assert report["mp4_verified"] and report["frame_count"] == 72
+          assert [s["action"] for s in report["actions"]] == ["walk","run","dance"]
+          PY
+      - name: Verify reference-face animated MP4
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          import json
+          Image.new("RGB",(100,120),"#df8955").save("face_reference.png")
+          with open("face_regions.json","w") as f:
+              json.dump({"skin":[0.1,0.1,0.9,0.9],"shirt":[0.1,0.1,0.9,0.9]},f)
+          PY
+          python3 scripts/karma_one_story_sequence.py face_story.mp4 --story "marche puis court" --seconds 2 --fps 24 --face-photo face_reference.png --face-box 0.1 0.1 0.9 0.9 --color-regions face_regions.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path("face_story.story.json").read_text())
+          assert r["mp4_verified"] and r["frame_count"] == 48
+          assert r["reference_face_texture_used"] is True
+          assert r["reference_photo_palette_used"] is True
+          assert r["photo_identity_preserved"] is False
+          PY
+      - name: Publish reference-face animation MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: karma-one-reference-face-story-mp4
+          path: face_story.mp4
+          if-no-files-found: error
+      - name: Publish multi-action story MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: karma-one-multi-action-story-mp4
+          path: story_actions.mp4
+          if-no-files-found: error
+      - name: Publish Karma One drawing animation
+        uses: actions/upload-artifact@v4
+        with:
+          name: karma-one-72-distinct-drawings-mp4
+          path: karma_one_demo.mp4
+          if-no-files-found: error

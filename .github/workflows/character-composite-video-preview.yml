@@ -1,0 +1,78 @@
+name: Character Composite Video Preview
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - karma/storyboard-story-sequence-20261113
+    paths:
+      - 'scripts/painted_limb_warp.gd'
+      - 'scripts/continuous_rig.gd'
+      - 'tests/test_painted_limb_warp.gd'
+      - 'scripts/pose_keyframe_solver.gd'
+      - 'tests/test_pose_keyframe_solver.gd'
+      - '.github/workflows/character-composite-video-preview.yml'
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.5.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o /tmp/godot.zip https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp
+          chmod +x /tmp/Godot_v4.5.2-stable_linux.x86_64
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Render painted character frames
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --quit
+          /tmp/Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_pose_keyframe_solver.gd
+          /tmp/Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_painted_limb_warp.gd
+      - name: Encode and validate MP4
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preview
+          first="$(find "$HOME/.local/share/godot/app_userdata" -type f -path '*/character_preview/frame_000.png' -print -quit)"
+          test -n "$first" || { echo "Missing rendered character frames"; exit 1; }
+          frames="$(dirname "$first")"
+          test "$(find "$frames" -maxdepth 1 -name 'frame_*.png' | wc -l)" -eq 60
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 -i "$frames/frame_%03d.png" -vf "scale=360:360:flags=neighbor,format=yuv420p" -c:v libx264 -movflags +faststart preview/character_composite_preview.mp4
+          ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames,width,height -of default=noprint_wrappers=1 preview/character_composite_preview.mp4 | tee preview/video_metadata.txt
+          test -s preview/character_composite_preview.mp4
+          frame_count="$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 preview/character_composite_preview.mp4)"
+          test "$frame_count" = "60" || { echo "Expected 60 encoded frames, got $frame_count"; exit 1; }
+          duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 preview/character_composite_preview.mp4)"
+          awk -v d="$duration" 'BEGIN { exit !(d >= 1.95 && d <= 2.05) }' || { echo "Unexpected video duration $duration"; exit 1; }
+      - name: Encode multi-action storyboard MP4
+        shell: bash
+        run: |
+          set -euo pipefail
+          first="$(find "$HOME/.local/share/godot/app_userdata" -type f -path '*/test_multi_action_frames/sequence_manifest.json' -print -quit)"
+          test -n "$first" || { echo "Missing multi-action manifest"; exit 1; }
+          frames="$(dirname "$first")"
+          python3 - "$first" <<'PY'
+          import json,sys,pathlib
+          manifest=json.loads(pathlib.Path(sys.argv[1]).read_text())
+          assert manifest["frame_count"] == 66
+          assert manifest["fps"] == 30
+          assert len(manifest["boundaries"]) == 2
+          assert not manifest["mp4_created"]
+          assert len(list(pathlib.Path(sys.argv[1]).parent.glob("frame_*.png"))) == 66
+          PY
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 -start_number 0 -i "$frames/frame_%05d.png" -vf "format=yuv420p" -c:v libx264 -movflags +faststart preview/multi_action_storyboard.mp4
+          test -s preview/multi_action_storyboard.mp4
+          frame_count="$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 preview/multi_action_storyboard.mp4)"
+          test "$frame_count" = "66" || { echo "Expected 66 frames, got $frame_count"; exit 1; }
+          cp "$first" preview/multi_action_manifest.json
+      - name: Upload preview video
+        uses: actions/upload-artifact@v4
+        with:
+          name: character-composite-preview-mp4
+          path: preview/
+          if-no-files-found: error

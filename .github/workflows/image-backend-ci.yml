@@ -1,0 +1,39 @@
+name: MobileI2V image backend CI
+
+on:
+  push:
+    branches:
+      - karma/storyboard-story-sequence-20261113
+    paths:
+      - 'backend/**'
+      - 'scripts/image_sequence_generator.gd'
+      - '.github/workflows/image-backend-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install minimal test dependencies
+        run: python -m pip install 'pillow>=10,<13' 'fastapi>=0.100,<1' 'requests>=2.31,<3'
+      - name: Compile Python modules
+        run: python -m compileall -q backend
+      - name: Execute GPU-independent tests
+        run: python -m unittest discover -s backend -p 'test_*.py' -v
+      - name: Verify Godot image client protocol
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          client = Path('scripts/image_sequence_generator.gd').read_text()
+          for required in ('previous_image_base64','Authorization: Bearer ', 'temporal_position', 'image_base64'):
+              assert required in client, f'Missing: {required}'
+          print('Image client protocol: OK')
+          PY

@@ -1,0 +1,66 @@
+name: Real MediaPipe Pose Inference
+
+on:
+  push:
+    branches:
+      - karma/storyboard-story-sequence-20261113
+    paths:
+      - 'tools/test_real_pose.py'
+      - '.github/workflows/real-pose-inference.yml'
+  workflow_dispatch:
+    inputs:
+      public_image_url:
+        description: 'Optional HTTPS URL to a publicly licensed full-body test image (never private user photos)'
+        required: false
+        type: string
+
+jobs:
+  actual-pose-inference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install real inference runtime
+        run: python -m pip install mediapipe pillow numpy
+      - name: Download official MediaPipe Lite model
+        run: |
+          curl --fail --location --retry 3 --output /tmp/pose_landmarker_lite.task \
+            https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task
+          test -s /tmp/pose_landmarker_lite.task
+      - name: Prepare public test image
+        env:
+          TEST_URL: ${{ inputs.public_image_url }}
+        run: |
+          python - <<'PY'
+          import os, urllib.parse, urllib.request
+          url = os.environ.get("TEST_URL", "").strip()
+          if not url:
+              url = "https://raw.githubusercontent.com/google-ai-edge/mediapipe/master/mediapipe/tasks/testdata/vision/pose.jpg"
+          parsed = urllib.parse.urlsplit(url)
+          if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+              raise SystemExit("Only public HTTPS images are accepted")
+          req = urllib.request.Request(url, headers={"User-Agent": "MobileI2V-PoseTest/1.0"})
+          with urllib.request.urlopen(req, timeout=25) as response:
+              data = response.read(12_000_001)
+          if len(data) > 12_000_000:
+              raise SystemExit("Test image too large")
+          from PIL import Image
+          import io
+          with Image.open(io.BytesIO(data)) as image:
+              image.convert("RGB").save("/tmp/public_pose_test.png")
+          PY
+      - name: Execute actual 33-landmark inference
+        env:
+          MOBILEI2V_POSE_TASK: /tmp/pose_landmarker_lite.task
+        run: |
+          python tools/test_real_pose.py /tmp/public_pose_test.png --out /tmp/pose_validation.png
+      - name: Upload test overlay
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: actual-pose-test-overlay
+          path: /tmp/pose_validation.png
+          if-no-files-found: ignore

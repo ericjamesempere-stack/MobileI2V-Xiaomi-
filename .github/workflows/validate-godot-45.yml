@@ -1,0 +1,24 @@
+name: Validate MobileI2V Godot Project
+on:
+  push:
+    branches:
+      - karma/storyboard-story-sequence-20261113
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Godot 4.5
+        run: |
+          curl -fL --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.5-stable/Godot_v4.5-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.5-stable_linux.x86_64
+      - name: Import project and check scripts
+        run: |
+          ./Godot_v4.5-stable_linux.x86_64 --headless --editor --path . --import --quit
+          ./Godot_v4.5-stable_linux.x86_64 --headless --path . --quit-after 30
+
+      - name: Test generated frame continuity
+        run: ./Godot_v4.5-stable_linux.x86_64 --headless --path . --script res://tests/test_continuity.gd

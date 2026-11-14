@@ -1,0 +1,216 @@
+name: Verify 2D Storyboard Godot
+
+on:
+  push:
+    branches:
+      - karma/storyboard-story-sequence-20261113
+    paths:
+      - ".github/workflows/verify-storyboard.yml"
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'tests/**'
+      - 'project.godot'
+      - '.github/workflows/verify-storyboard.yml'
+  workflow_dispatch:
+
+jobs:
+  godot-headless:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.5.2
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.5.2-stable_linux.x86_64
+      - name: Import project and parse scripts
+        run: |
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --editor --path . --import --quit
+      - name: Install video encoder for visual smoke test
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Render articulated visual smoke test
+        run: |
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_visual_smoke.gd
+          FRAMES_DIR="$(find "$HOME/.local/share/godot/app_userdata" -type d -name visual_smoke -print -quit)"
+          test -n "$FRAMES_DIR"
+          test "$(find "$FRAMES_DIR" -name 'frame_*.png' | wc -l)" -eq 60
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 -i "$FRAMES_DIR/frame_%03d.png" -c:v libx264 -pix_fmt yuv420p -movflags +faststart visual_smoke.mp4
+          ffprobe -v error -show_entries format=duration -of default=nw=1 visual_smoke.mp4
+      - name: Encode layered IK character preview
+        run: |
+          FRAMES_DIR="$(find "$HOME/.local/share/godot/app_userdata" -type d -name layered_preview -print -quit)"
+          test -n "$FRAMES_DIR"
+          test "$(find "$FRAMES_DIR" -name 'frame_*.png' | wc -l)" -eq 60
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 -i "$FRAMES_DIR/frame_%03d.png" -c:v libx264 -pix_fmt yuv420p -movflags +faststart layered_ik_preview.mp4
+      - name: Upload layered IK preview MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobilei2v-layered-ik-preview-mp4
+          path: layered_ik_preview.mp4
+          if-no-files-found: error
+      - name: Upload visual smoke test MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobilei2v-visual-smoke-mp4
+          path: visual_smoke.mp4
+          if-no-files-found: error
+      - name: Test articulated run fall rise drawings
+        run: |
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_articulated_action_frames.gd
+      - name: Test story motion planner (French and English)
+        run: |
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_story_motion_planner.gd
+      - name: Test painted limb warp
+        run: |
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_painted_limb_warp.gd
+      - name: Encode walking and running character preview
+        run: |
+          set -euo pipefail
+          FRAMES_DIR="$(find "$HOME/.local/share/godot/app_userdata" -type d -name walk_run_preview -print -quit)"
+          test -n "$FRAMES_DIR"
+          test "$(find "$FRAMES_DIR" -name 'frame_*.png' | wc -l)" -eq 34
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 -start_number 0 -i "$FRAMES_DIR/frame_%05d.png" -c:v libx264 -pix_fmt yuv420p -movflags +faststart walk_run_preview.mp4
+          N="$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 walk_run_preview.mp4)"
+          test "$N" = "34"
+      - name: Upload walking and running character MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobilei2v-walk-run-preview-mp4
+          path: walk_run_preview.mp4
+          if-no-files-found: error
+      - name: Encode walk-to-run acceleration MP4
+        run: |
+          set -euo pipefail
+          FRAMES_DIR="$(find "$HOME/.local/share/godot/app_userdata" -type d -name walk_run_acceleration -print -quit)"
+          test -n "$FRAMES_DIR"
+          test "$(find "$FRAMES_DIR" -name 'frame_*.png' | wc -l)" -eq 42
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 -start_number 0 -i "$FRAMES_DIR/frame_%05d.png" -c:v libx264 -pix_fmt yuv420p -movflags +faststart walk_run_acceleration.mp4
+          N="$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 walk_run_acceleration.mp4)"
+          test "$N" = "42"
+      - name: Upload walk-to-run acceleration MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobilei2v-walk-run-acceleration-mp4
+          path: walk_run_acceleration.mp4
+          if-no-files-found: error
+      - name: Test generic pose keyframe solver
+        run: |
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_pose_keyframe_solver.gd
+      - name: Encode and verify multi-action character MP4
+        run: |
+          set -euo pipefail
+          MANIFEST="$(find "$HOME/.local/share/godot/app_userdata" -type f -path '*/test_multi_action_frames/sequence_manifest.json' -print -quit)"
+          test -n "$MANIFEST" || { echo "Missing multi-action frame manifest"; exit 1; }
+          FRAMES_DIR="$(dirname "$MANIFEST")"
+          python3 - "$MANIFEST" <<'PY'
+          import json,sys,pathlib
+          p=pathlib.Path(sys.argv[1])
+          m=json.loads(p.read_text())
+          assert m["frame_count"] == 66
+          assert m["fps"] == 30
+          assert len(m["boundaries"]) == 2
+          assert len(list(p.parent.glob("frame_*.png"))) == 66
+          PY
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 -start_number 0 -i "$FRAMES_DIR/frame_%05d.png" -c:v libx264 -pix_fmt yuv420p -movflags +faststart multi_action_character.mp4
+          test -s multi_action_character.mp4
+          N="$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 multi_action_character.mp4)"
+          test "$N" = "66"
+          python3 -m pip install --quiet pillow
+          # Verify the encoded video actually changes pose across frames;
+          # a static image exported as MP4 is not a successful animation.
+          ffmpeg -hide_banner -loglevel error -i multi_action_character.mp4 -f framemd5 multi_action_framemd5.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          rows = [line for line in Path("multi_action_framemd5.txt").read_text().splitlines() if line and not line.startswith("#")]
+          hashes = [row.split(",")[-1].strip() for row in rows]
+          assert len(hashes) == 66, f"Expected 66 decoded frames, got {len(hashes)}"
+          assert len(set(hashes)) >= 8, f"Video is effectively static: {len(set(hashes))} distinct frames"
+          # A video with one moving patch and an otherwise frozen image can
+          # still have many hashes. Check visual changes across spatial regions.
+          import subprocess
+          from PIL import Image, ImageChops, ImageStat
+          import io
+          def frame_at(index):
+              raw = subprocess.check_output(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", "multi_action_character.mp4", "-vf", f"select=eq(n\\,{index})", "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "-"])
+              return Image.open(io.BytesIO(raw)).convert("RGB")
+          sampled = [frame_at(i) for i in (0, 12, 24, 36, 48, 65)]
+          w, h = sampled[0].size
+          changed_regions = set()
+          for a, b in zip(sampled, sampled[1:]):
+              diff = ImageChops.difference(a, b).convert("L")
+              for gy in range(4):
+                  for gx in range(4):
+                      box = (gx*w//4, gy*h//4, (gx+1)*w//4, (gy+1)*h//4)
+                      if ImageStat.Stat(diff.crop(box)).mean[0] > 2.0:
+                          changed_regions.add((gx, gy))
+          assert len(changed_regions) >= 2, f"Motion is confined to {len(changed_regions)} region(s)"
+          print(f"Spatially changing regions: {len(changed_regions)} / 16")
+          print(f"Validated {len(hashes)} decoded frames, {len(set(hashes))} unique visual frames")
+          PY
+      - name: Upload multi-action character MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobilei2v-multi-action-character-mp4
+          path: multi_action_character.mp4
+          if-no-files-found: error
+      - name: Encode hand-painted limb animation
+        run: |
+          FRAMES_DIR="$(find "$HOME/.local/share/godot/app_userdata" -type d -name painted_warp -print -quit)"
+          test -n "$FRAMES_DIR"
+          test "$(find "$FRAMES_DIR" -name 'frame_*.png' | wc -l)" -eq 60
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 -i "$FRAMES_DIR/frame_%03d.png" -c:v libx264 -pix_fmt yuv420p -movflags +faststart painted_limb_animation.mp4
+      - name: Upload hand-painted animation
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobilei2v-painted-limb-animation
+          path: painted_limb_animation.mp4
+          if-no-files-found: error
+      - name: Test two-bone inverse kinematics
+        run: |
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_two_bone_ik.gd
+      - name: Test test_story_motion_planner.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_story_motion_planner.gd
+      - name: Test test_adaptive_storyboard.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_adaptive_storyboard.gd
+      - name: Test test_story_director.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_story_director.gd
+      - name: Test test_character_separator.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_character_separator.gd
+      - name: Test test_continuous_rig.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_continuous_rig.gd
+      - name: Test test_board_generation_plan.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_board_generation_plan.gd
+      - name: Test test_frame_interpolator.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_frame_interpolator.gd
+      - name: Test test_drawing_quality_gate.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_drawing_quality_gate.gd
+      - name: Test test_procedural_cartoon_generator.gd
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_procedural_cartoon_generator.gd
+
+      - name: Test visual routing for transformation story
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_visual_routing.gd

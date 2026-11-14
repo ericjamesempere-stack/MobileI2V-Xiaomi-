@@ -1,0 +1,20 @@
+name: Verify AI Redraw API
+on:
+  push:
+    branches: [karma/storyboard-story-sequence-20261113]
+    paths:
+      - 'ai_redraw/**'
+      - 'scripts/ai_redraw_client.gd'
+      - '.github/workflows/verify-ai-redraw-api.yml'
+  workflow_dispatch:
+jobs:
+  api-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r ai_redraw/requirements-api.txt
+      - run: python -m pytest -q ai_redraw/test_server.py

@@ -1,0 +1,16 @@
+plugins {
+    id 'com.android.library' version '8.5.2'
+}
+android {
+    namespace 'com.mobilei2v.encoder'
+    compileSdk 35
+    defaultConfig { minSdk 24 }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+dependencies {
+    compileOnly 'org.godotengine:godot:4.5.2.stable'
+    compileOnly 'androidx.annotation:annotation:1.9.1'
+}

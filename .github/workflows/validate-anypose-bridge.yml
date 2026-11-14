@@ -1,0 +1,39 @@
+name: Validate AnyPose Bridge
+
+on:
+  push:
+    branches:
+      - karma/storyboard-story-sequence-20261113
+    paths:
+      - "backend/anypose_bridge.py"
+      - "backend/test_anypose_bridge.py"
+      - ".github/workflows/validate-anypose-bridge.yml"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Python syntax without running remote generation
+        run: python3 -m py_compile backend/anypose_bridge.py
+      - name: Check API contract and image decoder
+        run: |
+          python3 -m pip install -q fastapi pillow
+          python3 - <<'PY'
+          import base64
+          import io
+          from PIL import Image
+          from backend.anypose_bridge import Request, decode, first_gallery_path
+          img = Image.new("RGB", (16, 16), "blue")
+          b = io.BytesIO()
+          img.save(b, format="PNG")
+          encoded = base64.b64encode(b.getvalue()).decode()
+          request = Request(image_base64=encoded, pose_image_base64=encoded, prompt="run", frame_index=0, total_frames=2)
+          assert decode(request.image_base64).size == (16, 16)
+          assert first_gallery_path([{"image": {"path": "/tmp/test.png"}}]) == "/tmp/test.png"
+          print("ANYPOSE_BRIDGE_CONTRACT_OK (remote inference not tested)")
+          PY
+      - name: Exercise authenticated bridge with mocked Gradio image output
+        run: python3 -m unittest backend.test_anypose_bridge -v

@@ -3,10 +3,18 @@ name: Build Android APK MobileI2V V50
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# Only the newest commit needs a costly Android build. Cancel superseded
+# runs on the same branch instead of compiling the H.264 plugin repeatedly.
+concurrency:
+  group: mobilei2v-apk-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -26,17 +34,64 @@ jobs:
       - name: Install Godot 4.3 and export templates
         run: |
           set -euo pipefail
-          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
-          unzip -q Godot_v4.3-stable_linux.x86_64.zip
-          chmod +x Godot_v4.3-stable_linux.x86_64
-          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz
-          unzip -q Godot_v4.3-stable_export_templates.tpz
-          template_dir="$HOME/.local/share/godot/export_templates/4.3.stable"
+          wget -q https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
+          unzip -q Godot_v4.5.2-stable_linux.x86_64.zip
+          chmod +x Godot_v4.5.2-stable_linux.x86_64
+          wget -q https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_export_templates.tpz
+          unzip -q Godot_v4.5.2-stable_export_templates.tpz
+          template_dir="$HOME/.local/share/godot/export_templates/4.5.2.stable"
           mkdir -p "$template_dir"
           cp -a templates/. "$template_dir/"
           test -s "$template_dir/android_debug.apk"
           test -s "$template_dir/android_release.apk"
-          ./Godot_v4.3-stable_linux.x86_64 --version
+          ./Godot_v4.5.2-stable_linux.x86_64 --version
+
+      - name: Build Android H264 MediaCodec plugin
+        run: |
+          set -euo pipefail
+          gradle -p native/mp4exporter assembleDebug --no-daemon
+          mkdir -p addons/mp4exporter
+          find native/mp4exporter/build/outputs/aar -name '*-debug.aar' -print -quit | xargs -r -I '{}' cp '{}' addons/mp4exporter/mp4exporter.aar
+          test -s addons/mp4exporter/mp4exporter.aar
+          unzip -p addons/mp4exporter/mp4exporter.aar AndroidManifest.xml >/dev/null
+          echo "Native H264 Android AAR compiled"
+
+      - name: Install Android Gradle build template without launching editor
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import zipfile
+          from pathlib import Path
+          archive = Path("templates/android_source.zip")
+          assert archive.is_file(), f"Missing Android Gradle template: {archive}"
+          root = Path("android/build")
+          with zipfile.ZipFile(archive) as z:
+              entries = [x for x in z.infolist() if not x.is_dir()]
+              candidates = [x for x in entries if x.filename.endswith("build.gradle") and not x.filename.endswith("settings.gradle")]
+              print("Gradle files:", [x.filename for x in candidates[:15]])
+              prefix = ""
+              for c in candidates:
+                  if c.filename.endswith("build/build.gradle"):
+                      prefix = c.filename[:-len("build/build.gradle")]
+                      break
+              for entry in entries:
+                  name = entry.filename
+                  if prefix and not name.startswith(prefix): continue
+                  rel = name[len(prefix):]
+                  if rel.startswith("android/build/"): rel = rel[len("android/build/"):]
+                  elif rel.startswith("build/"): rel = rel[len("build/"):]
+                  if not rel or rel.startswith("/") or ".." in Path(rel).parts: continue
+                  dest = root / rel
+                  dest.parent.mkdir(parents=True, exist_ok=True)
+                  dest.write_bytes(z.read(entry))
+          assert (root / "build.gradle").is_file(), "Android Gradle template layout not found"
+          wrapper = root / "gradlew"
+          assert wrapper.is_file(), "Missing Gradle wrapper"
+          wrapper.chmod(wrapper.stat().st_mode | 0o111)
+          (root.parent / ".build_version").write_text("4.5.2.stable" + chr(10))
+          (root / ".gdignore").write_text("")
+          print("Android Gradle template extracted with Godot 4.5.2 version marker")
+          PY
 
       - name: Prepare Android SDK and debug signing key
         run: |
@@ -87,13 +142,13 @@ jobs:
               print("Verified Android SDK, Java, and debug keystore settings")
               quit(0)
           GDSCRIPT
-          timeout 45s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --script res://ci/configure_android.gd 2>&1 | tee configure.log
+          timeout 45s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --script res://ci/configure_android.gd 2>&1 | tee configure.log
           if grep -E 'SCRIPT ERROR|Parse Error|Invalid call' configure.log; then exit 1; fi
 
       - name: Import Godot project
         run: |
           set -euo pipefail
-          timeout 120s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --import 2>&1 | tee import.log
+          timeout 120s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --import 2>&1 | tee import.log
           if grep -E 'SCRIPT ERROR|Parse Error|ConfigFile parse error' import.log; then exit 1; fi
 
       - name: Write explicit Godot 4.3 Android export preset values
@@ -133,7 +188,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build
-          timeout 300s ./Godot_v4.3-stable_linux.x86_64 --headless --verbose --path . \
+          timeout 300s ./Godot_v4.5.2-stable_linux.x86_64 --headless --verbose --path . \
             --export-debug Android build/MobileI2V_V50_ARM64_FIXED.apk 2>&1 | tee export.log
           test -s build/MobileI2V_V50_ARM64_FIXED.apk
           unzip -t build/MobileI2V_V50_ARM64_FIXED.apk | tail -2
@@ -149,10 +204,33 @@ jobs:
           stat -c 'APK size: %s bytes' build/MobileI2V_V50_ARM64_FIXED.apk
           sha256sum build/MobileI2V_V50_ARM64_FIXED.apk
 
+      - name: Verify APK launch metadata and report plugin presence
+        run: |
+          set -euo pipefail
+          APK=build/MobileI2V_V50_ARM64_FIXED.apk
+          unzip -Z1 "$APK" > build/apk-files.txt
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$APK" | grep -E "^(package:|launchable-activity:|native-code:)" | tee build/apk-runtime-metadata.txt
+          grep -q "launchable-activity:" build/apk-runtime-metadata.txt
+          if grep -Eiq '(^|/)(MP4Exporter|mp4exporter)(/|\.|$)' build/apk-files.txt; then
+            echo "Native MP4 plugin candidate found in packaged APK." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "WARNING: MP4 plugin not detected in APK; native export remains unverified." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "APK launch metadata validated; physical device runtime not tested." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report MP4 plugin packaging status
+        run: |
+          set -euo pipefail
+          if unzip -Z1 build/MobileI2V_V50_ARM64_FIXED.apk | grep -Eiq '(^|/)(MP4Exporter|mp4exporter)(/|\\.|$)'; then
+            echo "MP4 plugin packaging candidate found; Android runtime validation still required." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "MP4Exporter plugin NOT packaged: MP4 unavailable in this APK; AVI fallback only." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MobileI2V_V50_ARM64_FIXED.apk
+          name: MobileI2V_V50_ARM64_FIXED
           path: build/MobileI2V_V50_ARM64_FIXED.apk
           if-no-files-found: error
           retention-days: 30

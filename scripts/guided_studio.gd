@@ -15,6 +15,7 @@ var action := "danse"
 var sequence: Array[String] = []
 var sequence_index := 0
 var loaded_path := ""
+var isolate_mode: CheckBox
 var photo_mode: CheckBox
 var speed_slider: HSlider
 var duration_slider: HSlider
@@ -42,6 +43,10 @@ func _ready() -> void:
     info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     column.add_child(info)
     _add_button(column, "1. Choisir une photo (facultatif)", _choose_photo)
+    isolate_mode = CheckBox.new()
+    isolate_mode.text = "Extraire le sujet (fond uni, experimental)"
+    isolate_mode.button_pressed = false
+    column.add_child(isolate_mode)
     photo_mode = CheckBox.new()
     photo_mode.text = "Mode photo corps entier (experimental)"
     photo_mode.button_pressed = true
@@ -132,6 +137,11 @@ func _photo_selected(path: String) -> void:
     if err != OK:
         status.text = "Image illisible : %s" % error_string(err)
         return
+    if isolate_mode.button_pressed:
+        var extractor = load("res://scripts/subject_extractor.gd")
+        var extracted: Image = extractor.extract(img)
+        if extracted != null:
+            img = extracted
     head_image = img
     loaded_path = path
     img.save_png("user://mobilei2v_v49_photo.png")
@@ -143,23 +153,26 @@ func _photo_selected(path: String) -> void:
         character.set("photo_puppet", false)
     character.queue_redraw()
     var rig_status: String = str(character.get("status_message"))
-    status.text = "Photo chargee. " + rig_status
+    status.text = ("Sujet extrait (fond uni). " if isolate_mode.button_pressed else "Photo chargee. ") + rig_status
 
 func _duration_changed(value: float) -> void:
     duration = value
     duration_label.text = "%d secondes par mouvement" % int(value)
 
 func _generate() -> void:
-    var text_prompt := prompt_field.text.to_lower()
+    var planner = load("res://scripts/story_sequence_planner.gd")
+    var steps: Array[Dictionary] = planner.plan(prompt_field.text, duration)
     sequence.clear()
-    if "danse" in text_prompt or "dance" in text_prompt or "groove" in text_prompt:
-        sequence.append("danse")
-    if "marche" in text_prompt or "walk" in text_prompt:
-        sequence.append("marche")
-    if "salut" in text_prompt or "wave" in text_prompt:
-        sequence.append("salut")
+    var unsupported: Array[String] = []
+    for step in steps:
+        if bool(step["supported"]):
+            sequence.append(str(step["action"]))
+        else:
+            unsupported.append(str(step["action"]))
     if sequence.is_empty():
-        sequence.append("danse")
+        running = false
+        status.text = "Aucun mouvement pris en charge. A developper : " + ", ".join(PackedStringArray(unsupported))
+        return
     if head_image != null:
         character.set("photo_puppet", photo_mode.button_pressed)
         character.queue_redraw()
@@ -167,7 +180,7 @@ func _generate() -> void:
     seconds = 0.0
     running = true
     action = sequence[0]
-    status.text = "Sequence : %s. Articulations independantes. Duree : %.0f s par action." % [", ".join(PackedStringArray(sequence)), duration]
+    status.text = "Sequence : %s. %.0f s/action. Non disponibles : %s" % [", ".join(PackedStringArray(sequence)), duration, ", ".join(PackedStringArray(unsupported))]
     character.call("update_pose", 0.0, action)
 
 func _process(delta: float) -> void:
