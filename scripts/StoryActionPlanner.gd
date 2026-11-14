@@ -11,15 +11,24 @@ const ACTIONS := {
     "dans": "dance", "danc": "dance",
     "salut": "wave", "wave": "wave",
     "roul": "travel", "driv": "travel", "avanc": "travel", "repart": "travel",
-    "vol": "fly", "fly": "fly", "atterr": "land", "land": "land",
-    "arrêt": "stop", "arret": "stop", "stop": "stop"
+    "atterr": "land", "land": "land", "vol": "fly", "fly": "fly",
+    "arrêt": "stop", "arret": "stop", "stop": "stop",
+    "tombe": "fall", "falls": "fall", "court": "run", "runs": "run"
 }
 
 static func action_for(description: String) -> String:
     var lowered := description.to_lower()
+    # Choose the first matching verb in the text, not dictionary order.
+    # Prevents an unrelated later verb from overriding the main action.
+    var best_position := 2147483647
+    var best_action := "unsupported"
     for fragment in ACTIONS.keys():
-        if lowered.contains(str(fragment)):
-            return str(ACTIONS[fragment])
+        var position := lowered.find(str(fragment))
+        if position >= 0 and position < best_position:
+            best_position = position
+            best_action = str(ACTIONS[fragment])
+    if best_position != 2147483647:
+        return best_action
     return "unsupported"
 
 static func beats_for(action: String) -> Array:
