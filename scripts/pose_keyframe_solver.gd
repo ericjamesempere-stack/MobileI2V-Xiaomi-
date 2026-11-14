@@ -37,3 +37,34 @@ func generate(keyframes: Array, frame_count: int = 60) -> Dictionary:
         "status": "articulated_keyframe_interpolation",
         "limitations": ["requires supplied poses", "no automatic action understanding",
             "no inverse kinematics, collision or physics"]}
+
+# Check 2D bone lengths between adjacent poses. This flags implausible
+# stretching before artwork is warped, without claiming full-body physics.
+func validate_bone_lengths(frames: Array, max_relative_change: float = 0.20) -> Dictionary:
+    if frames.size() < 2:
+        return {"ok": false, "error": "At least two poses required"}
+    var rig: RefCounted = Rig.new()
+    var violations: Array = []
+    var baseline: Dictionary = {}
+    for frame_id in range(frames.size()):
+        var pose: Array = frames[frame_id]
+        var check: Dictionary = rig.validate_landmarks(pose)
+        if not bool(check.get("ok", false)):
+            return {"ok": false, "error": "Invalid pose at frame %d" % frame_id}
+        for bone in rig.BONES:
+            var a: Dictionary = pose[bone[0]]
+            var z: Dictionary = pose[bone[1]]
+            var dx: float = float(a["x"]) - float(z["x"])
+            var dy: float = float(a["y"]) - float(z["y"])
+            var length: float = sqrt(dx * dx + dy * dy)
+            var key: String = "%d_%d" % [bone[0], bone[1]]
+            if not baseline.has(key):
+                baseline[key] = length
+            elif float(baseline[key]) > 0.001:
+                var relative_change: float = absf(length - float(baseline[key])) / float(baseline[key])
+                if relative_change > max_relative_change:
+                    violations.append({"frame": frame_id, "bone": key, "change": relative_change})
+    return {"ok": violations.is_empty(), "violations": violations,
+        "status": "bone_length_checked",
+        "limitations": ["2D projection can change apparent bone length",
+            "does not enforce collisions, joint angles or dynamics"]}
