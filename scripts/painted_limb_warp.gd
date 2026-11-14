@@ -51,3 +51,28 @@ func draw_segment(dst: Image, artwork: Image, source_a: Vector2, source_b: Vecto
             var opacity: float = weighted_alpha * clampf(half_width + 0.5 - absf(side), 0.0, 1.0)
             var original: Color = dst.get_pixel(x, y)
             dst.set_pixel(x, y, original.lerp(Color(pigment_rgb.x, pigment_rgb.y, pigment_rgb.z, 1.0), opacity))
+
+# Covers the tiny gap between two independently warped segments with
+# artwork sampled around their original joint. No synthetic flat color.
+func draw_joint(dst: Image, artwork: Image, source_joint: Vector2, target_joint: Vector2, radius: float) -> void:
+    if radius <= 0.0:
+        return
+    var left: int = maxi(0, floori(target_joint.x - radius - 1.0))
+    var right: int = mini(dst.get_width() - 1, ceili(target_joint.x + radius + 1.0))
+    var top: int = maxi(0, floori(target_joint.y - radius - 1.0))
+    var bottom: int = mini(dst.get_height() - 1, ceili(target_joint.y + radius + 1.0))
+    for y in range(top, bottom + 1):
+        for x in range(left, right + 1):
+            var offset := Vector2(float(x), float(y)) - target_joint
+            var distance: float = offset.length()
+            if distance > radius + 0.5:
+                continue
+            var sx: int = roundi(source_joint.x + offset.x)
+            var sy: int = roundi(source_joint.y + offset.y)
+            if sx < 0 or sy < 0 or sx >= artwork.get_width() or sy >= artwork.get_height():
+                continue
+            var pigment: Color = artwork.get_pixel(sx, sy)
+            if pigment.a <= 0.001:
+                continue
+            var alpha: float = pigment.a * clampf(radius + 0.5 - distance, 0.0, 1.0)
+            dst.set_pixel(x, y, dst.get_pixel(x, y).lerp(Color(pigment.r, pigment.g, pigment.b, 1.0), alpha))
