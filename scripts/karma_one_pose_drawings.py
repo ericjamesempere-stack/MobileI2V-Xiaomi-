@@ -54,8 +54,13 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     pen.line((30, floor, width-30, floor), fill="#799ba0", width=3)
     # Each drawing is freshly rasterized from a new articulated pose.
     foot_spread = 28 + 27*crouch_amount
-    left_foot = (int(cx-foot_spread-27*step+10*fall_amount), floor-int(13*max(0,step)))
-    right_foot = (int(cx+foot_spread-27*step+10*fall_amount), floor-int(13*max(0,-step)))
+    # Opposite leg phases: stance foot remains planted while swing foot lifts.
+    # Non-locomotion actions keep both feet on the ground.
+    gait = max(0.0, min(1.0, speed / 1.8))
+    left_lift = max(0.0, math.sin(phase)) * 16 * gait
+    right_lift = max(0.0, -math.sin(phase)) * 16 * gait
+    left_foot = (int(cx-foot_spread-27*step+10*fall_amount), floor-int(left_lift))
+    right_foot = (int(cx+foot_spread+27*step+10*fall_amount), floor-int(right_lift))
     left_knee = (int((hip[0]+left_foot[0])/2-15), min(floor,int((hip[1]+left_foot[1])/2)))
     right_knee = (int((hip[0]+right_foot[0])/2+15), min(floor,int((hip[1]+right_foot[1])/2)))
     for knee, foot in [(left_knee,left_foot),(right_knee,right_foot)]:
@@ -63,8 +68,8 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
         pen.ellipse((foot[0]-14,foot[1]-6,foot[0]+14,foot[1]+6),fill=pants_color)
     pen.line((hip,shoulder),fill=shirt_color,width=46)
     for direction in [-1,1]:
-        hand=(int(cx+direction*(60*arm_ratio+20*step)+115*fall_amount),int(shoulder[1]+85*arm_ratio-direction*18*step+20*fall_amount))
-        elbow=(int(cx+direction*42*arm_ratio+115*fall_amount),int(shoulder[1]+40*arm_ratio+10*fall_amount))
+        hand=(int(cx+direction*(60*arm_ratio+20*step)+70*fall_amount),int(shoulder[1]+85*arm_ratio-direction*18*step+20*fall_amount))
+        elbow=(int(cx+direction*42*arm_ratio+70*fall_amount),min(floor-6,int(shoulder[1]+40*arm_ratio+10*fall_amount)))
         hand=(hand[0],min(floor-9,hand[1]))
         pen.line((shoulder,elbow,hand),fill=shirt_color,width=15,joint="curve")
         pen.ellipse((hand[0]-9,hand[1]-9,hand[0]+9,hand[1]+9),fill=skin_color)
