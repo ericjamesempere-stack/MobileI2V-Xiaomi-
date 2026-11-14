@@ -49,13 +49,26 @@ func draw_frame(width: int, height: int, time: float) -> Image:
     var pants := Color("b64c52")
     var shirt := Color("dce6ef")
     var skin := Color("e7b28e")
+    # Each trouser leg is an original transparent painted layer,
+    # deformed independently along the thigh and shin IK bones.
+    var painter = preload("res://scripts/painted_limb_warp.gd").new()
+    var trousers := Image.create(42, 90, false, Image.FORMAT_RGBA8)
+    trousers.fill(Color(0, 0, 0, 0))
+    for py in range(4, 86):
+        for px in range(4, 38):
+            var trouser_radius := 15.0 if py < 45 else 12.0
+            if absf(float(px) - 21.0) <= trouser_radius:
+                var fabric := 0.035 * sin(float(py) * 0.43 + float(px) * 0.71)
+                trousers.set_pixel(px, py, Color(0.70 + fabric, 0.28 + fabric, 0.32 + fabric, 1.0))
     for chain in [left_leg, right_leg]:
-        _capsule(image, chain["root"], chain["middle"], 15.0 * scale, pants)
-        _capsule(image, chain["middle"], chain["end"], 12.0 * scale, pants)
-        _capsule(image, chain["end"], chain["end"] + Vector2(13, 1) * scale, 8.0 * scale, Color("222936"))
+        var thigh_root: Vector2 = chain["root"]
+        var knee: Vector2 = chain["middle"]
+        var ankle: Vector2 = chain["end"]
+        painter.draw_segment(image, trousers, Vector2(21, 4), Vector2(21, 45), thigh_root, knee, 15.0 * scale)
+        painter.draw_segment(image, trousers, Vector2(21, 45), Vector2(21, 85), knee, ankle, 12.0 * scale)
+        _capsule(image, ankle, ankle + Vector2(13, 1) * scale, 8.0 * scale, Color("222936"))
     # Painted sleeve pixels are warped along both IK bones. Each segment
     # is a separate transparent layer, preserving original artwork detail.
-    var painter = preload("res://scripts/painted_limb_warp.gd").new()
     var sleeve := Image.create(36, 80, false, Image.FORMAT_RGBA8)
     sleeve.fill(Color(0, 0, 0, 0))
     for py in range(5, 75):
