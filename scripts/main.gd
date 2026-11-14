@@ -788,7 +788,7 @@ func _build_generator_controls() -> void:
     generate_button.pressed.connect(_generate_frames)
     generator_status = _label(Vector2(12, 804), 16, Color("d0e5f4"))
     generator_status.text = "Mode 2D provisoire : pas encore de generation universelle"
-    var storyboard_button: Button = _button("Storyboard BD", Vector2(492, 814), Vector2(214, 46))
+    var storyboard_button: Button = _button("Storyboard BD", Vector2(492, 856), Vector2(214, 40))
     storyboard_button.pressed.connect(_create_storyboard)
 
 func _create_storyboard() -> void:
