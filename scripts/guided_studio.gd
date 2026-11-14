@@ -150,16 +150,19 @@ func _duration_changed(value: float) -> void:
     duration_label.text = "%d secondes par mouvement" % int(value)
 
 func _generate() -> void:
-    var text_prompt := prompt_field.text.to_lower()
+    var planner = load("res://scripts/story_sequence_planner.gd")
+    var steps: Array[Dictionary] = planner.plan(prompt_field.text, duration)
     sequence.clear()
-    if "danse" in text_prompt or "dance" in text_prompt or "groove" in text_prompt:
-        sequence.append("danse")
-    if "marche" in text_prompt or "walk" in text_prompt:
-        sequence.append("marche")
-    if "salut" in text_prompt or "wave" in text_prompt:
-        sequence.append("salut")
+    var unsupported: Array[String] = []
+    for step in steps:
+        if bool(step["supported"]):
+            sequence.append(str(step["action"]))
+        else:
+            unsupported.append(str(step["action"]))
     if sequence.is_empty():
-        sequence.append("danse")
+        running = false
+        status.text = "Aucun mouvement pris en charge. A developper : " + ", ".join(PackedStringArray(unsupported))
+        return
     if head_image != null:
         character.set("photo_puppet", photo_mode.button_pressed)
         character.queue_redraw()
@@ -167,7 +170,7 @@ func _generate() -> void:
     seconds = 0.0
     running = true
     action = sequence[0]
-    status.text = "Sequence : %s. Articulations independantes. Duree : %.0f s par action." % [", ".join(PackedStringArray(sequence)), duration]
+    status.text = "Sequence : %s. %.0f s/action. Non disponibles : %s" % [", ".join(PackedStringArray(sequence)), duration, ", ".join(PackedStringArray(unsupported))]
     character.call("update_pose", 0.0, action)
 
 func _process(delta: float) -> void:
