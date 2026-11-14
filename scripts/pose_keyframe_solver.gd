@@ -218,3 +218,34 @@ func render_action_sequence(artwork: Image, source_pose: Array,
         "status": "multi_action_articulated_frames",
         "limitations": ["requires supplied artwork and approved action keyframes",
             "does not infer motion from text or encode MP4"]}
+
+# Persist rendered frames as a numbered PNG sequence for an actual video encoder.
+# This deliberately does not label a PNG sequence as an MP4.
+func save_rendered_frames(rendered: Dictionary, directory: String = "user://action_frames",
+        fps: int = 30) -> Dictionary:
+    if not bool(rendered.get("ok", false)) or fps < 1 or fps > 120:
+        return {"ok": false, "error": "Invalid render or frame rate"}
+    var frames: Array = rendered.get("frames", [])
+    if frames.is_empty():
+        return {"ok": false, "error": "No rendered frames"}
+    if not directory.begins_with("user://"):
+        return {"ok": false, "error": "Output must be inside user://"}
+    var folder_error: Error = DirAccess.make_dir_recursive_absolute(
+        ProjectSettings.globalize_path(directory))
+    if folder_error != OK:
+        return {"ok": false, "error": "Cannot create output directory", "code": folder_error}
+    var files: Array = []
+    for i in range(frames.size()):
+        if not frames[i] is Image:
+            return {"ok": false, "error": "Invalid image at frame %d" % i}
+        var filename: String = directory.path_join("frame_%05d.png" % i)
+        var save_error: Error = frames[i].save_png(filename)
+        if save_error != OK:
+            return {"ok": false, "error": "PNG write failed at frame %d" % i,
+                "code": save_error, "written": files.size()}
+        files.append(filename)
+    return {"ok": true, "directory": directory, "files": files,
+        "count": files.size(), "fps": fps,
+        "duration_seconds": float(files.size()) / float(fps),
+        "status": "png_sequence_ready_for_encoder",
+        "mp4_created": false}
