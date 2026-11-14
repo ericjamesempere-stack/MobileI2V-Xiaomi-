@@ -89,9 +89,25 @@ static func _pose_svg(action: String, t: float) -> String:
     var right_hand := shoulder + Vector2(sin(right_arm + 0.4) * 65.0 + 15.0, cos(right_arm + 0.4) * 65.0)
     var left_foot := hip + Vector2(-15.0 + sin(left_leg) * 75.0, cos(left_leg) * 85.0)
     var right_foot := hip + Vector2(15.0 + sin(right_leg) * 75.0, cos(right_leg) * 85.0)
-    var lines := ""
-    for endpoints in [[shoulder, hip], [shoulder, left_hand], [shoulder, right_hand], [hip, left_foot], [hip, right_foot]]:
+    # Filled costume and articulated limbs, not the old five-line stick figure.
+    var outline := "#18263c"
+    var art := ""
+    for endpoints in [[hip + Vector2(-10, 0), left_foot], [hip + Vector2(10, 0), right_foot]]:
         var a: Vector2 = endpoints[0]
         var b: Vector2 = endpoints[1]
-        lines += '<line x1="%.2f" y1="%.2f" x2="%.2f" y2="%.2f" stroke="#172f52" stroke-width="11" stroke-linecap="round"/>' % [a.x, a.y, b.x, b.y]
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="448" viewBox="0 0 256 448"><rect width="256" height="448" fill="#f5f3ed"/><path d="M0 365H256" stroke="#b5b8bc" stroke-width="3"/>' + lines + '<circle cx="%.2f" cy="%.2f" r="23" fill="#edbc91" stroke="#172f52" stroke-width="4"/></svg>' % [head.x, head.y]
+        art += '<line x1="%.2f" y1="%.2f" x2="%.2f" y2="%.2f" stroke="%s" stroke-width="23" stroke-linecap="round"/>' % [a.x, a.y, b.x, b.y, outline]
+        art += '<line x1="%.2f" y1="%.2f" x2="%.2f" y2="%.2f" stroke="#293e61" stroke-width="18" stroke-linecap="round"/>' % [a.x, a.y, b.x, b.y]
+        art += '<ellipse cx="%.2f" cy="%.2f" rx="18" ry="9" fill="#202a3a"/>' % [b.x, b.y + 4.0]
+    for endpoints in [[shoulder + Vector2(-12, 8), left_hand], [shoulder + Vector2(12, 8), right_hand]]:
+        var a: Vector2 = endpoints[0]
+        var b: Vector2 = endpoints[1]
+        art += '<line x1="%.2f" y1="%.2f" x2="%.2f" y2="%.2f" stroke="%s" stroke-width="20" stroke-linecap="round"/>' % [a.x, a.y, b.x, b.y, outline]
+        art += '<line x1="%.2f" y1="%.2f" x2="%.2f" y2="%.2f" stroke="#db554a" stroke-width="15" stroke-linecap="round"/>' % [a.x, a.y, b.x, b.y]
+        art += '<circle cx="%.2f" cy="%.2f" r="10" fill="#e9b78e" stroke="%s" stroke-width="2"/>' % [b.x, b.y, outline]
+    art += '<line x1="%.2f" y1="%.2f" x2="%.2f" y2="%.2f" stroke="%s" stroke-width="43" stroke-linecap="round"/>' % [shoulder.x, shoulder.y + 14.0, hip.x, hip.y - 8.0, outline]
+    art += '<line x1="%.2f" y1="%.2f" x2="%.2f" y2="%.2f" stroke="#e76b55" stroke-width="36" stroke-linecap="round"/>' % [shoulder.x, shoulder.y + 14.0, hip.x, hip.y - 8.0]
+    art += '<circle cx="%.2f" cy="%.2f" r="24" fill="#edbc91" stroke="%s" stroke-width="3"/>' % [head.x, head.y, outline]
+    art += '<path d="M%.2f %.2f Q%.2f %.2f %.2f %.2f" fill="none" stroke="%s" stroke-width="9" stroke-linecap="round"/>' % [head.x - 19.0, head.y - 10.0, head.x, head.y - 38.0, head.x + 19.0, head.y - 11.0, outline]
+    art += '<circle cx="%.2f" cy="%.2f" r="2.5" fill="%s"/><circle cx="%.2f" cy="%.2f" r="2.5" fill="%s"/>' % [head.x - 8.0, head.y, outline, head.x + 8.0, head.y, outline]
+    art += '<path d="M%.2f %.2f Q%.2f %.2f %.2f %.2f" fill="none" stroke="%s" stroke-width="2"/>' % [head.x - 7.0, head.y + 10.0, head.x, head.y + 15.0, head.x + 7.0, head.y + 10.0, outline]
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="448" viewBox="0 0 256 448"><rect width="256" height="448" fill="#e9edf3"/><path d="M0 365H256" stroke="#c1cad5" stroke-width="3"/>' + art + '</svg>'
