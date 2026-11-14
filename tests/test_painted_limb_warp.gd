@@ -140,6 +140,10 @@ func _initialize() -> void:
     var first_preview: Image = null
     var visibly_changed: bool = false
     var transparent_preview_frames: Array = []
+    var wrist_min: float = INF
+    var wrist_max: float = -INF
+    var ankle_min: float = INF
+    var ankle_max: float = -INF
     for frame_id in range(60):
         var t: float = float(frame_id) / 59.0
         var travel: Dictionary = painter.translate_body_landmarks(original_pose, 0.12 * t, 0.03 * sin(t * TAU), 0.015 * sin(t * TAU * 2.0))
@@ -151,6 +155,10 @@ func _initialize() -> void:
         animated_pose[16]["x"] = float(animated_pose[16]["x"]) - 0.10 * gait
         animated_pose[27]["x"] = float(animated_pose[27]["x"]) - 0.08 * gait
         animated_pose[28]["x"] = float(animated_pose[28]["x"]) + 0.08 * gait
+        wrist_min = minf(wrist_min, float(animated_pose[15]["x"]))
+        wrist_max = maxf(wrist_max, float(animated_pose[15]["x"]))
+        ankle_min = minf(ankle_min, float(animated_pose[27]["x"]))
+        ankle_max = maxf(ankle_max, float(animated_pose[27]["x"]))
         animated_pose[15]["y"] = float(animated_pose[15]["y"]) - 0.03 * absf(gait)
         animated_pose[16]["y"] = float(animated_pose[16]["y"]) - 0.03 * absf(gait)
         var preview: Dictionary = painter.render_composite_preview(source, original_pose, animated_pose, 8.0)
@@ -176,6 +184,8 @@ func _initialize() -> void:
             quit(1)
             return
     assert(visibly_changed, "Composite preview has no visible movement between frames 0 and 30")
+    assert(wrist_max - wrist_min > 0.12, "Arm is not articulated enough")
+    assert(ankle_max - ankle_min > 0.10, "Leg is not articulated enough")
     var export_preflight: Dictionary = painter.validate_character_sequence(transparent_preview_frames)
     if not bool(export_preflight.get("ok", false)):
         push_error("Character video quality preflight failed: " + str(export_preflight))
