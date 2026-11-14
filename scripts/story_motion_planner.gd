@@ -42,10 +42,13 @@ func plan(story: String, seconds: float = 6.0) -> Dictionary:
     for part in normalized.split("|", false):
         var phrase: String = part.strip_edges()
         var action: String = _action_for(phrase)
-        if action != "inconnu":
-            recognized.append({"action": action, "description": phrase})
+        if not phrase.is_empty():
+            # Never discard an instruction simply because the offline catalog lacks it.
+            # Unknown actions remain visible and must be resolved by a generator.
+            recognized.append({"action": action, "description": phrase,
+                "needs_generation": action == "inconnu"})
     if recognized.is_empty():
-        return {"ok": false, "error": "Aucun mouvement reconnu", "steps": []}
+        return {"ok": false, "error": "Scénario vide", "steps": []}
     var total: float = maxf(0.5, seconds)
     var weights: Array[float] = []
     var sum_weights: float = 0.0
@@ -57,7 +60,9 @@ func plan(story: String, seconds: float = 6.0) -> Dictionary:
     var steps: Array[Dictionary] = []
     for i in range(recognized.size()):
         var end: float = total if i == recognized.size() - 1 else cursor + total * weights[i] / sum_weights
-        steps.append({"action": recognized[i]["action"], "description": recognized[i]["description"], "start": cursor, "end": end})
+        steps.append({"action": recognized[i]["action"], "description": recognized[i]["description"],
+            "needs_generation": recognized[i]["needs_generation"],
+            "start": cursor, "end": end})
         cursor = end
     return {"ok": true, "duration": total, "steps": steps}
 
