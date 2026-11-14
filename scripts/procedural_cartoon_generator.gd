@@ -37,6 +37,17 @@ func render(description: String, phase: float = 0.0, size: Vector2i = Vector2i(3
         swing = (1.0 - minf(1.0, phase)) * 1.4
     var hip := Vector2(cx, floor_y - 104 * scale - lift)
     var shoulder := Vector2(cx, floor_y - 210 * scale - lift)
+    # A fall must actually rotate the torso toward the ground.
+    # Previously only vertical offsets changed: the figure remained standing.
+    var fall_progress: float = 0.0
+    if action == "chute" or action == "trebuche":
+        fall_progress = clampf(phase, 0.0, 1.0)
+    elif action == "releve":
+        fall_progress = 1.0 - clampf(phase, 0.0, 1.0)
+    var fallen_hip := Vector2(cx - 34.0 * scale, floor_y - 35.0 * scale)
+    var fallen_shoulder := Vector2(cx + 92.0 * scale, floor_y - 38.0 * scale)
+    hip = hip.lerp(fallen_hip, fall_progress)
+    shoulder = shoulder.lerp(fallen_shoulder, fall_progress)
     var left_foot := Vector2(cx - (30 + 18 * swing) * scale, floor_y - maxf(0.0, swing) * 18 * scale)
     var right_foot := Vector2(cx + (30 - 18 * swing) * scale, floor_y - maxf(0.0, -swing) * 18 * scale)
     var left_knee := hip.lerp(left_foot, 0.52) + Vector2(-12 * scale, -12 * scale)
@@ -59,7 +70,8 @@ func render(description: String, phase: float = 0.0, size: Vector2i = Vector2i(3
     _stroke(image, shoulder + Vector2(22, 3) * scale, right_hand, 17 * scale, shirt)
     _ellipse(image, left_hand, Vector2(10, 10) * scale, skin)
     _ellipse(image, right_hand, Vector2(10, 10) * scale, skin)
-    var head := shoulder + Vector2(0, -60 * scale)
+    # Head follows the torso rotation instead of floating above it.
+    var head := shoulder + Vector2(0, -60 * scale).lerp(Vector2(49 * scale, -3 * scale), fall_progress)
     _ellipse(image, head, Vector2(33, 43) * scale, skin)
     _ellipse(image, head + Vector2(0, -29) * scale, Vector2(35, 17) * scale, hair)
     for side in [-1, 1]:
