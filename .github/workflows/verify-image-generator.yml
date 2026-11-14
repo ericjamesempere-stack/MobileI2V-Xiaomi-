@@ -27,6 +27,8 @@ jobs:
         run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_story_studio.gd
       - name: Test actual image frame ingestion and timeline
         run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_story_frame_pipeline.gd
+      - name: Test action-beat planning
+        run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_story_action_planner.gd
       - name: Test actual sequence playback
         run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_story_sequence_player.gd
       - name: Run motion smoke tests
