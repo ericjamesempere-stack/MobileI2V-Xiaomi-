@@ -54,6 +54,16 @@ func render(description: String, phase: float = 0.0, size: Vector2i = Vector2i(3
     var right_foot := Vector2(cx + (30 - 18 * swing) * scale, floor_y - maxf(0.0, -swing) * 18 * scale)
     left_foot = left_foot.lerp(Vector2(cx - 118.0 * scale, floor_y - 9.0 * scale), fall_progress)
     right_foot = right_foot.lerp(Vector2(cx - 70.0 * scale, floor_y - 9.0 * scale), fall_progress)
+    # A run is not merely a waving torso: move knees and feet in opposite
+    # phases and visibly lift the swinging leg off the ground.
+    if action == "course" or action == "marche":
+        var stride_length: float = 47.0 if action == "course" else 23.0
+        var foot_lift: float = 42.0 if action == "course" else 15.0
+        var cycle: float = phase * TAU
+        left_foot = Vector2(cx - 18.0 * scale + sin(cycle) * stride_length * scale,
+            floor_y - maxf(0.0, cos(cycle)) * foot_lift * scale)
+        right_foot = Vector2(cx + 18.0 * scale - sin(cycle) * stride_length * scale,
+            floor_y - maxf(0.0, -cos(cycle)) * foot_lift * scale)
     var left_knee := hip.lerp(left_foot, 0.52) + Vector2(-12 * scale, -12 * scale)
     var right_knee := hip.lerp(right_foot, 0.52) + Vector2(12 * scale, -12 * scale)
     _stroke(image, hip + Vector2(-13, 0) * scale, left_knee, 19 * scale, pants)
