@@ -8,6 +8,8 @@ on:
       - 'scripts/karma_one_story_sequence.py'
       - 'scripts/karma_one_face_detector.py'
       - 'scripts/karma_one_body_landmarks.py'
+      - 'scripts/karma_one_pose_detector.py'
+      - 'tests/test_karma_one_pose_detector.py'
       - 'tests/test_karma_one_body_landmarks.py'
       - 'tests/test_karma_one_story.py'
       - 'scripts/karma_one_photo_palette.py'
@@ -46,6 +48,8 @@ jobs:
           PY
           python3 scripts/karma_one_pipeline.py photo_palette_demo.mp4 --seconds 1 --fps 24 --photo reference_test.png --regions regions_test.json
           test "$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 photo_palette_demo.mp4)" = "24"
+      - name: Test pose detector landmark adapter
+        run: python3 -m unittest discover -s tests -p test_karma_one_pose_detector.py -v
       - name: Test body landmark geometry
         run: python3 -m unittest discover -s tests -p test_karma_one_body_landmarks.py -v
       - name: Test story and articulated drawing regressions
