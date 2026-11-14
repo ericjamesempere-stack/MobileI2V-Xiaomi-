@@ -125,11 +125,19 @@ func _generate() -> void:
         status.text = "Erreur de planification"
         return
     project = plan["project"]
-    # Never pretend procedural silhouettes reproduce an uploaded reference.
-    if not selected_photo.is_empty():
-        status.text = "La photo est chargee, mais le moteur de dessin fidele a la photo n'est pas encore disponible. Aucun faux resultat genere."
-        return
     project_root = "user://storyboards/quick_%d" % Time.get_ticks_msec()
+    if not selected_photo.is_empty():
+        var inspected := ReferenceSceneAnalyzer.analyze(selected_photo, project_root)
+        if not inspected.get("ok", false):
+            status.text = "Analyse de la photo impossible : " + str(inspected.get("error", "inconnue"))
+            return
+        project["scene_reference_profile"] = inspected["profile_path"]
+        var file := FileAccess.open(project_root + "/storyboard.json", FileAccess.WRITE)
+        if file != null:
+            file.store_string(JSON.stringify(project, "  "))
+            file.close()
+        status.text = "Photo et ambiance conservees dans le projet. Analyse des objets et generation fidele encore indisponibles."
+        return
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(project_root)) != OK:
         status.text = "Impossible de creer le dossier."
         return
