@@ -100,6 +100,7 @@ func _ready() -> void:
     _button("Detecter le squelette (serveur externe)", _request_pose, advanced_box)
     _button("Poses avec articulations detectees", _generate_detected_board, advanced_box)
     _button("IA externe (secours facultatif)", _request_ai_board, advanced_box)
+    _button("Generer images successives (moteur HTTPS)", _generate_image_sequence, advanced_box)
     _button("Mouvement de camera sur photo (sans IA)", _generate_from_photo, advanced_box)
     _button("Dessiner un personnage generique (sans photo)", _generate_text_cartoon, advanced_box)
     _button("DEMO : planches personnage articule", _generate_layered_demo, advanced_box)
@@ -559,6 +560,65 @@ func _pose_completed(result: int, code: int, _headers: PackedStringArray, body: 
     detected_landmarks = points.duplicate(true)
     _show_skeleton_preview()
     status.text = "MediaPipe : 33 points detectes. Squelette affiche ci-dessus. Verifie puis lance les poses."
+
+func _generate_image_sequence() -> void:
+    if ai_running:
+        status.text = "Generation deja en cours."
+        return
+    if imported_path.is_empty() or not FileAccess.file_exists(imported_path):
+        status.text = "Importe d'abord l'image de depart."
+        return
+    var original := Image.new()
+    if original.load(imported_path) != OK or original.is_empty():
+        status.text = "Image source illisible."
+        return
+    var endpoint: String = ai_endpoint.text.strip_edges()
+    var generator := Node.new()
+    generator.set_script(load("res://scripts/image_sequence_generator.gd"))
+    add_child(generator)
+    generator.progress.connect(func(index: int, total: int) -> void:
+        status.text = "Images generees : %d / %d" % [index, total]
+    )
+    ai_running = true
+    var count: int = clampi(ceili(float(duration_input.value) * 4.0), 2, 120)
+    var result: Dictionary = await generator.call("generate", original, action_input.text, endpoint, count, false)
+    ai_running = false
+    generator.queue_free()
+    if not bool(result.get("ok", false)):
+        status.text = "Generation impossible : " + str(result.get("error", "erreur inconnue"))
+        return
+    var images: Array = result["frames"]
+    var continuity = load("res://scripts/frame_continuity_check.gd")
+    var report: Dictionary = continuity.inspect(images)
+    if not bool(report.get("ok", false)) or float(report.get("average_difference", 0.0)) < 0.003:
+        status.text = "Images refusees : sequence immobile ou invalide."
+        return
+    var folder := "user://generated_image_sequence"
+    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
+        status.text = "Impossible de creer le dossier des images."
+        return
+    var new_sources: Array[Texture2D] = []
+    var new_paths: Array[String] = []
+    for i in range(images.size()):
+        var img: Image = images[i]
+        var file_path: String = "%s/frame_%04d.png" % [folder, i]
+        if img.save_png(file_path) != OK:
+            status.text = "Sauvegarde impossible a l'image %d." % i
+            return
+        new_sources.append(ImageTexture.create_from_image(img))
+        new_paths.append(file_path)
+    sources = new_sources
+    paths = new_paths
+    plan.clear()
+    accepted.clear()
+    for i in range(sources.size()):
+        plan.append(i)
+        accepted.append(false)
+    frame_index = 0
+    _refresh()
+    _build_contact_sheet()
+    _save()
+    status.text = "%d images produites. Verifie la planche avant export MP4." % sources.size()
 
 func _request_ai_board() -> void:
     if ai_running: return
