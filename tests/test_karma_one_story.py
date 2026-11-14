@@ -17,6 +17,22 @@ class StoryTests(unittest.TestCase):
         m=load("karma_one_story_sequence")
         self.assertEqual([s["action"] for s in m.plan("marche puis court puis danse")],
                          ["walk","run","dance"])
+    def test_getting_up_after_fall_in_both_languages(self):
+        story=load("karma_one_story_sequence")
+        self.assertEqual([x["action"] for x in story.plan("tombe puis se relève")],
+                         ["fall","stand"])
+        self.assertEqual([x["action"] for x in story.plan("falls then gets up")],
+                         ["fall","stand"])
+
+    def test_fall_ground_contact_keeps_hands_above_floor(self):
+        draw=load("karma_one_pose_drawings")
+        image=draw.draw_pose(0,24,action="fall",phase_index=0)
+        floor=int(image.height*.86)
+        skin=(185,135,102)
+        pixels=image.load()
+        self.assertFalse(any(pixels[x,y]==skin for y in range(floor+1,image.height)
+                             for x in range(image.width)))
+
     def test_fall_is_recognized_and_joint_geometry_transitions(self):
         story=load("karma_one_story_sequence")
         draw=load("karma_one_pose_drawings")
