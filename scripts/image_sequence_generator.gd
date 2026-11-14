@@ -43,8 +43,20 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
   var action: String = "danse"
   if bool(motion_plan.get("ok", false)):
    action = load("res://scripts/story_motion_planner.gd").new().action_at(motion_plan, float(index) / float(maxi(1, count - 1)) * float(count))
+  # Normalize movement progress INSIDE each story action. Absolute frame
+  # indices caused falls to snap instantly and later steps to inherit
+  # unrelated phases.
+  var seconds: float = float(index) / float(maxi(1, count - 1)) * float(count)
+  var local_phase: float = 0.0
+  var steps: Array = motion_plan.get("steps", [])
+  for step in steps:
+   if seconds < float(step.get("end", 0.0)) or step == steps.back():
+    var start_time: float = float(step.get("start", 0.0))
+    var end_time: float = float(step.get("end", start_time + 1.0))
+    local_phase = clampf((seconds - start_time) / maxf(0.001, end_time - start_time), 0.0, 1.0)
+    break
   var guide_generator: RefCounted = load("res://scripts/procedural_cartoon_generator.gd").new()
-  var guide: Image = guide_generator.render(prompt, float(index) * 0.5, Vector2i(360, 480), action)
+  var guide: Image = guide_generator.render(prompt, local_phase, Vector2i(360, 480), action)
   if guide == null or guide.is_empty():
    http.queue_free()
    return {"ok": false, "error": "Guide de pose impossible a generer", "generated": frames.size()}
