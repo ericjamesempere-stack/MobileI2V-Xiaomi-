@@ -17,5 +17,17 @@ func _initialize() -> void:
     assert(lower.b > lower.r, "Painted lower sleeve lost its original blue pixels")
     var outside: Color = destination.get_pixel(50, 10)
     assert(outside.b < 0.5, "Background outside limb was overwritten")
+    # Produce an actual sequence of painted-limb frames, not just one pose.
+    DirAccess.make_dir_recursive_absolute("user://painted_warp")
+    for frame in range(60):
+        var picture := Image.create(100, 100, false, Image.FORMAT_RGBA8)
+        picture.fill(Color("25364a"))
+        var theta: float = sin(float(frame) / 60.0 * TAU) * 0.7
+        var end_point := Vector2(50.0 + 59.0 * sin(theta), 20.0 + 59.0 * cos(theta))
+        painter.draw_segment(picture, source, Vector2(50, 20), Vector2(50, 79), Vector2(50, 20), end_point, 8.0)
+        if picture.save_png("user://painted_warp/frame_%03d.png" % frame) != OK:
+            push_error("Could not export painted frame")
+            quit(1)
+            return
     print("PAINTED_LIMB_WARP_OK")
     quit(0)
