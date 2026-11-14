@@ -28,3 +28,26 @@ def test_empty_model_result_is_rejected():
     renderer = VideoModelStoryboardRenderer(provider=lambda *_: [])
     with pytest.raises(RuntimeError, match="sequence"):
         renderer(make_request(0))
+
+def test_scene_change_reanchors_to_original_reference():
+    colors = []
+    def provider(source, *_):
+        colors.append(source.getpixel((0, 0)))
+        return [Image.new("RGB", (128, 128), "blue"),
+                Image.new("RGB", (128, 128), "green")]
+    renderer = VideoModelStoryboardRenderer(provider=provider, batch_size=2)
+    renderer(make_request(0, 0))
+    renderer(make_request(1, 0))
+    renderer(make_request(2, 1))
+    assert colors[0] == (255, 0, 0)
+    assert colors[1] == (255, 0, 0)
+
+def test_batch_size_is_respected():
+    calls = []
+    def provider(source, *_):
+        calls.append(1)
+        return [Image.new("RGB", (128, 128), (i, 0, 0)) for i in range(8)]
+    renderer = VideoModelStoryboardRenderer(provider=provider, batch_size=2)
+    for i in range(5):
+        renderer(make_request(i))
+    assert len(calls) == 3
