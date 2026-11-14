@@ -27,6 +27,8 @@ func build(story: String, duration_seconds: float, reference_image: String = "")
     var total_frames: int = maxi(1, roundi(duration * FPS))
     if steps.is_empty():
         warnings.append("Aucune action reconnue : le dessin et les mouvements demandent une interpretation humaine ou un modele de langage.")
+    var previous_scene_id: String = ""
+    var previous_action: String = ""
     for index in range(steps.size()):
         var step: Dictionary = steps[index]
         var action: String = str(step.get("action", "repos"))
@@ -60,8 +62,11 @@ func build(story: String, duration_seconds: float, reference_image: String = "")
             "keyframes": frames,
             "background": "preserve",
             "character_id": "main",
+            "continuity": {"from_scene": previous_scene_id, "previous_action": previous_action, "same_character": true, "preserve_last_pose": index > 0, "transition_frames": mini(6, maxi(0, end_frame - start_frame - 1)) if index > 0 else 0},
             "status": "needs_motion_implementation" if not supported_motion else ("needs_reference_redraw" if needs_reference_redraw else "pending_draw")
         })
+        previous_scene_id = "scene_%03d" % (index + 1)
+        previous_action = action
     return {
         "schema_version": SCHEMA_VERSION,
         "fps": FPS,
