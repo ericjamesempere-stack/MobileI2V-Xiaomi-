@@ -7,7 +7,8 @@ def inspect(samples, max_step=65.0):
         raise ValueError("max_step must be positive")
     if not samples:
         raise ValueError("No joint samples")
-    required={"hip","shoulder","head","left_foot","right_foot"}
+    required={"hip","shoulder","head","left_foot","right_foot",
+              "left_knee","right_knee","left_elbow","right_elbow","left_hand","right_hand"}
     for i, sample in enumerate(samples):
         if not required.issubset(sample):
             raise ValueError(f"Missing joints in frame {i}: {sorted(required-set(sample))}")
