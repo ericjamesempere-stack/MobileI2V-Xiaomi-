@@ -166,3 +166,20 @@ func render_composite_preview(artwork: Image, source_landmarks: Array, target_la
     result.blend_rect(limbs, Rect2i(Vector2i.ZERO, limbs.get_size()), Vector2i.ZERO)
     return {"ok": true, "image": result, "status": "static_head_torso_moving_limbs_preview",
         "limitations": ["head and torso remain static", "source character must be pre-separated", "no occlusion ordering"]}
+
+# Simple hierarchical body sway: hips anchor the torso, shoulders and head
+# follow a common translation. This preview is intentionally 2D only.
+func translate_body_landmarks(source_landmarks: Array, dx: float, dy: float, head_sway: float = 0.0) -> Dictionary:
+    var rig: RefCounted = load("res://scripts/continuous_rig.gd").new()
+    if not bool(rig.validate_landmarks(source_landmarks).get("ok", false)):
+        return {"ok": false, "error": "Invalid source landmarks"}
+    var shifted: Array = []
+    for i in range(source_landmarks.size()):
+        var point: Dictionary = source_landmarks[i].duplicate()
+        var horizontal: float = dx
+        if i <= 10:
+            horizontal += head_sway
+        point["x"] = clampf(float(point["x"]) + horizontal, 0.0, 1.0)
+        point["y"] = clampf(float(point["y"]) + dy, 0.0, 1.0)
+        shifted.append(point)
+    return {"ok": true, "landmarks": shifted, "type": "body_translation_with_head_sway"}
