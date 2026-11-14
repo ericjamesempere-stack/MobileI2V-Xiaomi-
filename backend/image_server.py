@@ -102,6 +102,8 @@ def generate(req: GenerateRequest, authorization: str | None = Header(default=No
         raise HTTPException(401, "Unauthorized")
     if req.frame_index >= req.total_frames:
         raise HTTPException(400, "frame_index exceeds total_frames")
+    if abs(req.temporal_position - req.frame_index / max(1, req.total_frames - 1)) > 0.02:
+        raise HTTPException(400, "temporal_position inconsistent with frame_index")
     reference = fit(decode_image(req.image_base64))
     previous = fit(decode_image(req.previous_image_base64)) if req.previous_image_base64 else reference
     if previous.size != reference.size:
@@ -109,7 +111,8 @@ def generate(req: GenerateRequest, authorization: str | None = Header(default=No
     # Reference anchoring limits drift, but does not guarantee identity preservation.
     reference_weight = min(0.4, max(0.1, req.reference_strength * 0.35))
     conditioning = Image.blend(previous, reference, reference_weight)
-    phase = req.temporal_position
+    # Derive progress from the actual frame number; do not trust an inconsistent client value.
+    phase = req.frame_index / max(1, req.total_frames - 1)
     stage = action_stage(req.prompt, phase)
     action = (
         f"Full story: {req.prompt}. Current action: {stage}. Animation keyframe {req.frame_index + 1} of "
