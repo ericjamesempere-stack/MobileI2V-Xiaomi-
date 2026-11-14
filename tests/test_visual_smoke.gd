@@ -67,5 +67,15 @@ func _initialize() -> void:
         push_error("Animation is frozen or nearly unchanged: %d changed sampled pixels" % changed)
         quit(1)
         return
+    # Additional preview with an independent layered IK rig. This is a
+    # procedural character, not a reconstructed photo.
+    var layered = load("res://scripts/articulated_preview.gd").new()
+    DirAccess.make_dir_recursive_absolute("user://layered_preview")
+    for frame in range(60):
+        var output: Image = layered.draw_frame(width, height, float(frame) / 30.0)
+        if output.save_png("user://layered_preview/frame_%03d.png" % frame) != OK:
+            push_error("Layered rig frame export failed")
+            quit(1)
+            return
     print("VISUAL_SMOKE_OK user://visual_smoke 60 frames changed_pixels=", changed)
     quit(0)
