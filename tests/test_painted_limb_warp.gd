@@ -90,6 +90,20 @@ func _initialize() -> void:
     var gait_saved: Dictionary = generic_solver.save_rendered_frames(
         gait_video, "user://walk_run_preview", 30)
     assert(gait_saved["ok"] and gait_saved["count"] == 34)
+    var acceleration: Dictionary = generic_solver.generate_walk_to_run(
+        original_pose, 2, 2, 8)
+    assert(acceleration["ok"] and acceleration["count"] == 42)
+    var accelerated_images: Array = []
+    for pose in acceleration["frames"]:
+        var composite: Dictionary = warp.render_composite_preview(
+            source, original_pose, pose, 8.0)
+        assert(composite["ok"], "Acceleration frame must render")
+        accelerated_images.append(composite["image"])
+    var acceleration_saved: Dictionary = generic_solver.save_rendered_frames(
+        {"ok": true, "frames": accelerated_images,
+            "boundaries": acceleration["boundaries"]},
+        "user://walk_run_acceleration", 30)
+    assert(acceleration_saved["ok"] and acceleration_saved["count"] == 42)
     var connected: Dictionary = generic_solver.render_action_sequence(source, original_pose, [
         {"action": "marche", "frame_count": 30, "keyframes": [
             {"time": 0.0, "pose": original_pose}, {"time": 1.0, "pose": moved_pose}]},
