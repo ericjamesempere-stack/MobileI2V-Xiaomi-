@@ -1,0 +1,31 @@
+name: Verify Reference Story Pipeline
+on:
+  push:
+    branches:
+      - karma/storyboard-story-sequence-20261113
+    paths:
+      - 'scripts/reference_appearance_palette.gd'
+      - 'scripts/reference_guided_cartoon_renderer.gd'
+      - 'scripts/reference_story_pipeline.gd'
+      - 'tests/test_reference_appearance_palette.gd'
+      - 'tests/test_reference_guided_cartoon_renderer.gd'
+      - 'tests/test_reference_story_pipeline.gd'
+      - '.github/workflows/verify-reference-story-pipeline.yml'
+  workflow_dispatch:
+jobs:
+  reference-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.5.2
+        run: |
+          curl -fL --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.5.2-stable_linux.x86_64
+      - name: Run reference appearance tests
+        run: |
+          set -e
+          for test in tests/test_reference_appearance_palette.gd tests/test_reference_guided_cartoon_renderer.gd tests/test_reference_story_pipeline.gd; do
+            timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script "res://$test"
+          done
