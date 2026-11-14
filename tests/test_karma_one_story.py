@@ -1,6 +1,7 @@
 import importlib.util
 import unittest
 from pathlib import Path
+from PIL import Image
 
 def load(name):
     path = Path(__file__).resolve().parents[1] / "scripts" / (name + ".py")
@@ -28,6 +29,13 @@ class StoryTests(unittest.TestCase):
         a=m.draw_pose(2,24,appearance={"shirt":"#ff00ff"},action="walk")
         b=m.draw_pose(2,24,appearance={"shirt":"#00ff00"},action="walk")
         self.assertNotEqual(a.tobytes(), b.tobytes())
+    def test_photo_face_texture_changes_articulated_drawing(self):
+        m=load("karma_one_pose_drawings")
+        photo=Image.new("RGB",(80,100),"#ff5500")
+        plain=m.draw_pose(3,24,action="walk")
+        textured=m.draw_pose(3,24,action="walk",face_image=photo)
+        self.assertNotEqual(plain.tobytes(),textured.tobytes())
+
     def test_unsupported_draw_action_rejected(self):
         m=load("karma_one_pose_drawings")
         with self.assertRaises(ValueError):
