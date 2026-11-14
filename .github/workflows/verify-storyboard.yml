@@ -108,3 +108,8 @@ jobs:
         timeout-minutes: 2
         run: |
           timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_procedural_cartoon_generator.gd
+
+      - name: Test visual routing for transformation story
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_visual_routing.gd
