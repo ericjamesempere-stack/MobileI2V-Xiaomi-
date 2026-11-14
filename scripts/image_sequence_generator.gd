@@ -15,7 +15,12 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
  if count < 2 or count > 120:
   return {"ok": false, "error": "Nombre d'images hors limites (2-120)"}
  cancel_requested = false
- var source_png: PackedByteArray = source.save_png_to_buffer()
+ var reference := source.duplicate()
+ var limit := 1024.0
+ if reference.get_width() > 1024 or reference.get_height() > 1024:
+  var ratio: float = minf(limit / float(reference.get_width()), limit / float(reference.get_height()))
+  reference.resize(maxi(1, roundi(reference.get_width() * ratio)), maxi(1, roundi(reference.get_height() * ratio)), Image.INTERPOLATE_LANCZOS)
+ var source_png: PackedByteArray = reference.save_png_to_buffer()
  if source_png.is_empty():
   return {"ok": false, "error": "Impossible d'encoder l'image source"}
  var reference_b64: String = Marshalls.raw_to_base64(source_png)
@@ -52,7 +57,7 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
   var img := Image.new()
   if img.load_png_from_buffer(raw) != OK or img.is_empty():
    return {"ok": false, "error": "PNG invalide", "generated": frames.size()}
-  if img.get_width() > 2048 or img.get_height() > 2048:
+  if img.get_width() > 1024 or img.get_height() > 1024:
    return {"ok": false, "error": "Image trop grande", "generated": frames.size()}
   frames.append(img)
   previous_b64 = str(data["image_base64"])
