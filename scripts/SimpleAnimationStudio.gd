@@ -19,6 +19,8 @@ var preview_button: Button
 var approve_button: Button
 var video_button: Button
 var photo_button: Button
+var sheet_button: Button
+var contact_sheet_path := ""
 
 func _ready() -> void:
     var bg := ColorRect.new()
@@ -60,6 +62,7 @@ func _ready() -> void:
     settings.add_child(duration)
     _button(layout, "2. Generer les dessins", _generate)
     preview_button = _button(layout, "3. Voir les mouvements en grand", _play)
+    sheet_button = _button(layout, "Voir la planche de dessins", _show_contact_sheet)
     approve_button = _button(layout, "4. Valider cette sequence", _approve)
     video_button = _button(layout, "5. Creer la video", _export)
     status = Label.new()
@@ -86,6 +89,7 @@ func _button(parent: Node, title: String, action: Callable) -> Button:
 
 func _set_stage(has_frames: bool) -> void:
     preview_button.disabled = not has_frames
+    sheet_button.disabled = not has_frames
     approve_button.disabled = not has_frames
     video_button.disabled = not approved
 
@@ -110,6 +114,7 @@ func _generate() -> void:
     generated = false
     approved = false
     frames.clear()
+    contact_sheet_path = ""
     _set_stage(false)
     var story := prompt.text.strip_edges()
     if story.is_empty():
@@ -164,6 +169,9 @@ func _generate() -> void:
         return
     for i in range(int(exported["frame_count"])):
         frames.append("%s/sequence/frame_%06d.png" % [project_root, i])
+    var sheet_result := AnimationContactSheet.build(frames, project_root + "/planche.png")
+    if sheet_result.get("ok", false):
+        contact_sheet_path = str(sheet_result["path"])
     generated = true
     _set_stage(true)
     _show_frame(0)
@@ -175,6 +183,16 @@ func _show_frame(index: int) -> void:
     var img := Image.new()
     if img.load(frames[index]) == OK:
         preview.texture = ImageTexture.create_from_image(img)
+
+func _show_contact_sheet() -> void:
+    if contact_sheet_path.is_empty():
+        status.text = "Planche indisponible"
+        return
+    playing = false
+    var img := Image.new()
+    if img.load(contact_sheet_path) == OK:
+        preview.texture = ImageTexture.create_from_image(img)
+        status.text = "Planche des poses generees. Valide apres inspection."
 
 func _play() -> void:
     if not generated:
