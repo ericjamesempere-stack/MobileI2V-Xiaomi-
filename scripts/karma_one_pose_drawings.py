@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""Karma One offline drawing renderer: distinct pose-based drawings, not photo warping.
+Demonstration only: does NOT reconstruct a real person's likeness.
+"""
+import argparse
+import math
+from pathlib import Path
+from PIL import Image, ImageDraw
+
+def draw_pose(index: int, count: int, width: int = 360, height: int = 480):
+    phase = 2 * math.pi * (index / 12.0)
+    speed = 1.0 if index < count // 2 else 1.8
+    step = math.sin(phase) * speed
+    image = Image.new("RGB", (width, height), "#e7f0f4")
+    pen = ImageDraw.Draw(image)
+    cx, floor = width // 2, int(height * 0.86)
+    bob = int(5 * abs(math.sin(phase)))
+    hip = (cx, floor - 100 - bob)
+    shoulder = (cx, floor - 205 - bob)
+    head = (cx, floor - 267 - bob)
+    pen.line((30, floor, width-30, floor), fill="#799ba0", width=3)
+    left_foot = (int(cx-28-27*step), floor-int(13*max(0,step)))
+    right_foot = (int(cx+28-27*step), floor-int(13*max(0,-step)))
+    left_knee = (int((hip[0]+left_foot[0])/2-15), int((hip[1]+left_foot[1])/2))
+    right_knee = (int((hip[0]+right_foot[0])/2+15), int((hip[1]+right_foot[1])/2))
+    for knee, foot in [(left_knee,left_foot),(right_knee,right_foot)]:
+        pen.line((hip,knee,foot), fill="#25354b", width=19, joint="curve")
+        pen.ellipse((foot[0]-14,foot[1]-6,foot[0]+14,foot[1]+6),fill="#25354b")
+    pen.line((hip,shoulder),fill="#386eaa",width=46)
+    for direction in [-1,1]:
+        hand=(int(cx+direction*(60+20*step)),int(shoulder[1]+85-direction*18*step))
+        elbow=(int(cx+direction*42),int(shoulder[1]+40))
+        pen.line((shoulder,elbow,hand),fill="#386eaa",width=15,joint="curve")
+        pen.ellipse((hand[0]-9,hand[1]-9,hand[0]+9,hand[1]+9),fill="#b98766")
+    pen.ellipse((head[0]-32,head[1]-42,head[0]+32,head[1]+42),fill="#b98766",outline="#483c37",width=3)
+    pen.pieslice((head[0]-34,head[1]-47,head[0]+34,head[1]+4),180,360,fill="#332725")
+    for dx in (-12,12):
+        pen.ellipse((head[0]+dx-3,head[1]-6,head[0]+dx+3,head[1]),fill="#20242c")
+    pen.arc((head[0]-12,head[1]+8,head[0]+12,head[1]+23),0,180,fill="#51322d",width=2)
+    return image
+
+def render(folder: Path, seconds: int, fps: int):
+    if seconds < 1 or seconds > 300 or fps not in (24,30):
+        raise ValueError("Duration 1..300 seconds; fps 24 or 30")
+    folder.mkdir(parents=True,exist_ok=True)
+    count=seconds*fps
+    for i in range(count):
+        draw_pose(i,count).save(folder / f"frame_{i:06d}.png")
+    return count
+
+if __name__ == "__main__":
+    p=argparse.ArgumentParser()
+    p.add_argument("folder",type=Path)
+    p.add_argument("--seconds",type=int,default=3)
+    p.add_argument("--fps",type=int,default=24)
+    args=p.parse_args()
+    print(f"Generated {render(args.folder,args.seconds,args.fps)} distinct pose drawings")
