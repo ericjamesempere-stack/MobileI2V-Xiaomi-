@@ -83,10 +83,22 @@ static func export_png_sequence(project: Dictionary, directory: String, fps: int
     # produce a slideshow, not the user-requested character animation.
     var scenes: Array = project.get("scenes", [])
     for scene in scenes:
-        var source_count: int = scene.get("frame_paths", []).size()
+        var source_paths: Array = scene.get("frame_paths", [])
+        var source_count: int = source_paths.size()
         var expected_count := maxi(1, roundi(float(scene["duration_seconds"]) * float(fps)))
         if source_count < expected_count:
             return {"ok": false, "error": "insufficient_motion_frames", "scene_id": scene.get("id", ""), "available": source_count, "required": expected_count}
+        # Many different filenames can contain exactly the same still image.
+        # Detect this before claiming a motion sequence is ready.
+        if source_count > 1:
+            var first_hash := FileAccess.get_sha256(str(source_paths[0]))
+            var changed := false
+            for source_path in source_paths.slice(1):
+                if FileAccess.get_sha256(str(source_path)) != first_hash:
+                    changed = true
+                    break
+            if not changed:
+                return {"ok": false, "error": "identical_still_frames", "scene_id": scene.get("id", "")}
     for i in range(frame_paths.size()):
         var source_path: String = str(frame_paths[i])
         if not FileAccess.file_exists(source_path):
