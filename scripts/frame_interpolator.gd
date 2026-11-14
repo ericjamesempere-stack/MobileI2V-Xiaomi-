@@ -110,3 +110,20 @@ func blend_blocks(a: Image, b: Image, t: float, field: Dictionary) -> Image:
             var by: int = clampi(roundi(y + shift.y * (1.0 - p)), 0, h - 1)
             result.set_pixel(x, y, a.get_pixel(ax, ay).lerp(b.get_pixel(bx, by), p))
     return result
+
+# Create real in-between raster frames for a scene boundary, without duplicating
+# the source or destination pose. This is pixel interpolation, not skeletal IK.
+func transition_frames(last_pose: Image, next_pose: Image, count: int = 6) -> Array[Image]:
+    var frames: Array[Image] = []
+    if last_pose.is_empty() or next_pose.is_empty():
+        return frames
+    if last_pose.get_size() != next_pose.get_size():
+        return frames
+    var n: int = clampi(count, 0, 30)
+    if n == 0:
+        return frames
+    var shift: Vector2i = estimate_shift(last_pose, next_pose)
+    for i in range(n):
+        var t: float = float(i + 1) / float(n + 1)
+        frames.append(blend(last_pose, next_pose, t, shift))
+    return frames
