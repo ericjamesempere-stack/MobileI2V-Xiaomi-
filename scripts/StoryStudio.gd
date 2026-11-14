@@ -19,18 +19,18 @@ static func classify_subject(description: String) -> String:
     return "unknown"
 
 static func storyboard(prompt: String, duration: float = 15.0, style: String = "manga", references: Array = []) -> Dictionary:
-    var selected_style := style if STYLES.has(style) else "manga"
+    var selected_style: String = style if STYLES.has(style) else "manga"
     var normalized := prompt.strip_edges()
     var parts := normalized.to_lower()
     for sep in [" et puis ", " puis ", " ensuite ", " après ", " apres ", " then ", " and then ", " et ", ","]:
         parts = parts.replace(sep, "|")
-    var descriptions := parts.split("|", false)
+    var descriptions: PackedStringArray = parts.split("|", false)
     if descriptions.is_empty():
-        descriptions = PackedStringArray(["scene immobile"])
+        descriptions.append("scene immobile")
     var scenes: Array[Dictionary] = []
     var count := descriptions.size()
     var scene_length := maxf(duration, 0.1) / float(count)
-    var subject_type := classify_subject(normalized)
+    var subject_type: String = classify_subject(normalized)
     var reference_ids: Array[String] = []
     for index in range(references.size()):
         reference_ids.append("reference_%d" % index)
