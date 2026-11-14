@@ -59,16 +59,16 @@ jobs:
           python3 - "$first" <<'PY'
           import json,sys,pathlib
           manifest=json.loads(pathlib.Path(sys.argv[1]).read_text())
-          assert manifest["frame_count"] == 19
+          assert manifest["frame_count"] == 66
           assert manifest["fps"] == 30
           assert len(manifest["boundaries"]) == 2
           assert not manifest["mp4_created"]
-          assert len(list(pathlib.Path(sys.argv[1]).parent.glob("frame_*.png"))) == 19
+          assert len(list(pathlib.Path(sys.argv[1]).parent.glob("frame_*.png"))) == 66
           PY
           ffmpeg -hide_banner -loglevel error -y -framerate 30 -start_number 0 -i "$frames/frame_%05d.png" -vf "format=yuv420p" -c:v libx264 -movflags +faststart preview/multi_action_storyboard.mp4
           test -s preview/multi_action_storyboard.mp4
           frame_count="$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 preview/multi_action_storyboard.mp4)"
-          test "$frame_count" = "19" || { echo "Expected 19 frames, got $frame_count"; exit 1; }
+          test "$frame_count" = "66" || { echo "Expected 66 frames, got $frame_count"; exit 1; }
           cp "$first" preview/multi_action_manifest.json
       - name: Upload preview video
         uses: actions/upload-artifact@v4
