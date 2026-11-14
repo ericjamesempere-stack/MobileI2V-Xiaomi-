@@ -40,8 +40,8 @@ def decode_image(data):
 def pose():
     global _pose_model
     try:
-        import mediapipe as mp
         image = decode_image(request.get_json(force=True)["image_base64"])
+        import mediapipe as mp
         task_path = os.environ.get("MOBILEI2V_POSE_TASK", "").strip()
         if task_path:
             if not os.path.isfile(task_path):
