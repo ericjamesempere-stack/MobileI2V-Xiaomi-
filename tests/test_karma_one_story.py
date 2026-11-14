@@ -17,6 +17,25 @@ class StoryTests(unittest.TestCase):
         m=load("karma_one_story_sequence")
         self.assertEqual([s["action"] for s in m.plan("marche puis court puis danse")],
                          ["walk","run","dance"])
+    def test_crouch_transition_interpolates_geometry(self):
+        draw=load("karma_one_pose_drawings")
+        first=draw.draw_pose(0,24,action="crouch",previous_action="stand",blend=0,phase_index=0)
+        middle=draw.draw_pose(0,24,action="crouch",previous_action="stand",blend=.5,phase_index=0)
+        last=draw.draw_pose(0,24,action="crouch",previous_action="stand",blend=1,phase_index=0)
+        self.assertNotEqual(first.tobytes(),middle.tobytes())
+        self.assertNotEqual(middle.tobytes(),last.tobytes())
+        standing=draw.draw_pose(0,24,action="stand",phase_index=0)
+        self.assertEqual(first.tobytes(),standing.tobytes())
+
+    def test_crouch_transition_reverses(self):
+        draw=load("karma_one_pose_drawings")
+        start=draw.draw_pose(0,24,action="stand",previous_action="crouch",blend=0,phase_index=0)
+        end=draw.draw_pose(0,24,action="stand",previous_action="crouch",blend=1,phase_index=0)
+        crouch=draw.draw_pose(0,24,action="crouch",phase_index=0)
+        standing=draw.draw_pose(0,24,action="stand",phase_index=0)
+        self.assertEqual(start.tobytes(),crouch.tobytes())
+        self.assertEqual(end.tobytes(),standing.tobytes())
+
     def test_crouching_is_distinct_pose(self):
         story=load("karma_one_story_sequence")
         draw=load("karma_one_pose_drawings")
