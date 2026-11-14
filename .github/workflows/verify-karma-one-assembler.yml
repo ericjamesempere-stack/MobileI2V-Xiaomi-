@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'scripts/karma_one_frame_assembler.py'
+      - 'scripts/karma_one_pose_drawings.py'
+      - 'scripts/karma_one_pipeline.py'
       - 'tests/test_karma_one_assembler.py'
       - '.github/workflows/verify-karma-one-assembler.yml'
   workflow_dispatch:
@@ -19,3 +21,14 @@ jobs:
           sudo apt-get install -y -qq ffmpeg
       - name: Test independent drawings, continuity and MP4
         run: python3 -m unittest discover -s tests -p test_karma_one_assembler.py -v
+      - name: End-to-end procedural drawing video
+        run: |
+          python3 scripts/karma_one_pipeline.py karma_one_demo.mp4 --seconds 3 --fps 24
+          test -s karma_one_demo.mp4
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 karma_one_demo.mp4)" = "72"
+      - name: Publish Karma One drawing animation
+        uses: actions/upload-artifact@v4
+        with:
+          name: karma-one-72-distinct-drawings-mp4
+          path: karma_one_demo.mp4
+          if-no-files-found: error
