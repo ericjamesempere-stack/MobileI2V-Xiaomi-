@@ -134,3 +134,27 @@ func build_pose_transitions(project: Dictionary, scene_landmarks: Dictionary) ->
             "poses": result["frames"], "count": result["count"],
             "status": "ready_for_skeleton_render"})
     return {"ok": errors.is_empty(), "transitions": transitions, "errors": errors}
+
+# Render actual articulated transition images ready for a frame encoder.
+# These frames depict a skeleton; painting the original photographed character
+# requires a separate character-layer/rig mapping step.
+func render_pose_transitions(transition_plan: Dictionary, width: int = 360, height: int = 480) -> Dictionary:
+    if not bool(transition_plan.get("ok", false)):
+        return {"ok": false, "error": "Invalid transition plan", "frames": []}
+    if width < 64 or height < 64 or width > 2048 or height > 2048:
+        return {"ok": false, "error": "Invalid render dimensions", "frames": []}
+    var rig: RefCounted = load("res://scripts/continuous_rig.gd").new()
+    var rendered: Array = []
+    for transition in transition_plan.get("transitions", []):
+        var images: Array[Image] = []
+        for pose in transition.get("poses", []):
+            var frame := Image.create(width, height, false, Image.FORMAT_RGBA8)
+            frame.fill(Color("#172033"))
+            var result: Dictionary = rig.draw_skeleton(frame, pose)
+            if not bool(result.get("ok", false)):
+                return {"ok": false, "error": "Invalid landmark frame", "frames": []}
+            images.append(frame)
+        rendered.append({"from_scene": transition.get("from_scene", ""),
+            "to_scene": transition.get("to_scene", ""), "images": images,
+            "count": images.size(), "status": "rendered_skeleton"})
+    return {"ok": true, "frames": rendered, "format": "rgba8"}
