@@ -21,6 +21,7 @@ func build(story: String, duration_seconds: float, reference_image: String = "")
     var parser: RefCounted = load("res://scripts/story_motion_planner.gd").new()
     var parsed: Dictionary = parser.plan(story, duration)
     var steps: Array = parsed.get("steps", [])
+    var router: RefCounted = load("res://scripts/visual_engine_router.gd").new()
     var scenes: Array = []
     var warnings: Array[String] = []
     var total_frames: int = maxi(1, roundi(duration * FPS))
@@ -30,6 +31,9 @@ func build(story: String, duration_seconds: float, reference_image: String = "")
         var step: Dictionary = steps[index]
         var action: String = str(step.get("action", "repos"))
         var spec: Dictionary = ACTIONS.get(action, ACTIONS["repos"])
+        var visual: Dictionary = router.select_engine(action, not reference_image.is_empty())
+        if not bool(visual["implemented"]):
+            warnings.append("Scene %d : moteur %s non disponible." % [index + 1, visual["engine"]])
         var start_frame: int = clampi(roundi(float(step.get("start", 0.0)) * FPS), 0, total_frames - 1)
         var end_frame: int = clampi(roundi(float(step.get("end", duration)) * FPS), start_frame + 1, total_frames)
         var phases: Array = spec["keyframes"]
@@ -43,7 +47,10 @@ func build(story: String, duration_seconds: float, reference_image: String = "")
             "action": action,
             "start_frame": start_frame,
             "end_frame": end_frame,
-            "rig_motion": spec["rig"],
+            "rig_motion": spec["rig"] if bool(visual["implemented"]) else "none",
+            "visual_engine": visual["engine"],
+            "visual_engine_status": visual["status"],
+            "requires_visual_generation": not bool(visual["implemented"]),
             "keyframes": frames,
             "background": "preserve",
             "character_id": "main",
