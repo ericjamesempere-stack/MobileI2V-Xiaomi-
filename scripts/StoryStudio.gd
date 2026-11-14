@@ -110,3 +110,26 @@ static func image_request(project: Dictionary, scene_index: int) -> Dictionary:
         "output_type": "image",
         "status": "requires_image_model"
     }
+
+# Persist one machine-readable generation request per scene. A model can
+# consume these files without re-parsing the original story.
+static func export_requests(project: Dictionary, directory: String) -> Dictionary:
+    if not directory.begins_with("user://"):
+        return {"ok": false, "error": "output_must_be_user_directory"}
+    var err: int = DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(directory))
+    if err != OK:
+        return {"ok": false, "error": "cannot_create_directory"}
+    var scenes: Array = project.get("scenes", [])
+    var paths: Array[String] = []
+    for i in range(scenes.size()):
+        var request: Dictionary = image_request(project, i)
+        if request.has("error"):
+            return {"ok": false, "error": request["error"]}
+        var path := "%s/scene_%03d_request.json" % [directory, i]
+        var file := FileAccess.open(path, FileAccess.WRITE)
+        if file == null:
+            return {"ok": false, "error": "cannot_write_request", "scene": i}
+        file.store_string(JSON.stringify(request, "  "))
+        file.close()
+        paths.append(path)
+    return {"ok": true, "requests": paths, "count": paths.size()}
