@@ -42,6 +42,10 @@ jobs:
           ffmpeg -hide_banner -loglevel error -y -framerate 30 -i "$frames/frame_%03d.png" -vf "scale=360:360:flags=neighbor,format=yuv420p" -c:v libx264 -movflags +faststart preview/character_composite_preview.mp4
           ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames,width,height -of default=noprint_wrappers=1 preview/character_composite_preview.mp4 | tee preview/video_metadata.txt
           test -s preview/character_composite_preview.mp4
+          frame_count="$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 preview/character_composite_preview.mp4)"
+          test "$frame_count" = "60" || { echo "Expected 60 encoded frames, got $frame_count"; exit 1; }
+          duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 preview/character_composite_preview.mp4)"
+          awk -v d="$duration" 'BEGIN { exit !(d >= 1.95 && d <= 2.05) }' || { echo "Unexpected video duration $duration"; exit 1; }
       - name: Upload preview video
         uses: actions/upload-artifact@v4
         with:
