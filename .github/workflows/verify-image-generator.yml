@@ -28,3 +28,14 @@ jobs:
         run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_story_frame_pipeline.gd
       - name: Run motion smoke tests
         run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_motion.gd
+
+      - name: Encode and validate a real H264 MP4 sample
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mobilei2v-frames
+          ffmpeg -hide_banner -loglevel error -f lavfi -i "testsrc2=size=128x128:rate=12:duration=1" -frames:v 12 -start_number 0 /tmp/mobilei2v-frames/frame_%06d.png
+          python3 -c 'import json;open("/tmp/mobilei2v-frames/manifest.json","w").write(json.dumps({"fps":12,"frame_count":12,"video_encoded":False}))'
+          python3 tools/encode_sequence.py /tmp/mobilei2v-frames /tmp/mobilei2v-sample.mp4
+          test -s /tmp/mobilei2v-sample.mp4
+          codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 /tmp/mobilei2v-sample.mp4)
+          test "$codec" = "h264"
