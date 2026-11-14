@@ -525,7 +525,12 @@ func _request_pose() -> void:
         return
     var photo: PackedByteArray = FileAccess.get_file_as_bytes(imported_path)
     if photo.is_empty(): return
-    var url: String = endpoint.trim_suffix("/generate") + "/pose"
+    var base_url: String = endpoint.trim_suffix("/")
+    if base_url.ends_with("/generate/storyboard"):
+        base_url = base_url.trim_suffix("/generate/storyboard")
+    elif base_url.ends_with("/generate"):
+        base_url = base_url.trim_suffix("/generate")
+    var url: String = base_url + "/pose"
     var payload: String = JSON.stringify({"image_base64":Marshalls.raw_to_base64(photo)})
     pose_running = true
     detected_landmarks.clear()
@@ -568,7 +573,7 @@ func _request_ai_board() -> void:
     if bytes.is_empty():
         status.text = "Impossible de lire la photo."
         return
-    var payload := {"image_base64": Marshalls.raw_to_base64(bytes), "prompt": action_input.text, "frames": 4, "seed": 42}
+    var payload := {"image_base64": Marshalls.raw_to_base64(bytes), "prompt": action_input.text, "frames": 4, "num_images": 4, "seed": 42}
     ai_running = true
     status.text = "Generation SDXL avec reference en cours (serveur GPU requis)..."
     var err: Error = ai_http.request(url, ["Content-Type: application/json"], HTTPClient.METHOD_POST, JSON.stringify(payload))
