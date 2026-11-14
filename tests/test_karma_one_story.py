@@ -13,6 +13,25 @@ def load(name):
     return mod
 
 class StoryTests(unittest.TestCase):
+    def test_repeated_story_generation_clears_old_frames(self):
+        import tempfile
+        story=load("karma_one_story_sequence")
+        with tempfile.TemporaryDirectory() as tmp:
+            output=Path(tmp)/"story.mp4"
+            drawings=Path(tmp)/"story_drawings"
+            drawings.mkdir()
+            stale=drawings/"frame_999999.png"
+            Image.new("RGB",(360,480)).save(stale)
+            # The real pipeline is exercised by CI; here verify the cleanup
+            # through the complete short render when ffmpeg is installed.
+            import shutil
+            if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
+                self.skipTest("ffmpeg unavailable")
+            report=story.produce("marche",output,seconds=1,fps=24)
+            self.assertFalse(stale.exists())
+            self.assertEqual(len(list(drawings.glob("frame_*.png"))),24)
+            self.assertEqual(report["frame_count"],24)
+
     def test_quintic_transition_has_gentle_endpoints(self):
         draw=load("karma_one_pose_drawings")
         def hip(blend):
