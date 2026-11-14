@@ -23,6 +23,18 @@ class BackendContractTests(unittest.TestCase):
         self.assertIn('"image_base64": base64.b64encode', SOURCE)
         self.assertIn('AutoPipelineForImage2Image', SOURCE)
 
+    def test_pose_payload_is_not_silently_ignored(self):
+        # A backend without ControlNet / AnyPose must reject pose requests.
+        self.assertIn('pose_image_base64: str | None = None', SOURCE)
+        self.assertIn('pose_action: str | None = None', SOURCE)
+        self.assertIn('if req.pose_image_base64 is not None:', SOURCE)
+        self.assertIn('raise HTTPException(501,', SOURCE)
+
+    def test_pose_rejection_precedes_diffusion(self):
+        reject = SOURCE.index('if req.pose_image_base64 is not None:')
+        conditioning = SOURCE.index('conditioning = Image.blend(')
+        self.assertLess(reject, conditioning)
+
     def test_aspect_ratio_preserved_in_code(self):
         self.assertIn("min(512 / image.width, 512 / image.height)", SOURCE)
 
