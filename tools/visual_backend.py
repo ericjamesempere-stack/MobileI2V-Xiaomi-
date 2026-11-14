@@ -49,7 +49,7 @@ def pose():
             return jsonify({"error": "No reliable human pose detected"}), 422
         points = [{"x": float(p.x), "y": float(p.y), "z": float(p.z),
                    "visibility": float(p.visibility)} for p in result.pose_landmarks.landmark]
-        return jsonify({"landmarks": points, "model": "mediapipe_pose"})
+        return jsonify({"detected": True, "landmarks": points, "model": "mediapipe_pose"})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 503
 
@@ -85,7 +85,7 @@ def redraw():
             buffer = io.BytesIO()
             generated.save(buffer, format="PNG")
             outputs.append(base64.b64encode(buffer.getvalue()).decode("ascii"))
-        return jsonify({"images_base64": outputs, "model": model_id,
+        return jsonify({"images": outputs, "model": model_id,
                         "warning": "Image-to-image generation does not guarantee character identity or continuity"})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 503
