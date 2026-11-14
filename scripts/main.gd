@@ -877,7 +877,19 @@ func _generator_finished(directory: String, frames: int) -> void:
 func _generator_failed(reason: String) -> void:
     generator_status.text = "Erreur : " + reason
 
+func _restore_latest_storyboard() -> void:
+    if not latest_storyboard_directory.is_empty():
+        return
+    var latest_file := FileAccess.open("user://latest_storyboard.txt", FileAccess.READ)
+    if latest_file == null:
+        return
+    var candidate := latest_file.get_as_text().strip_edges()
+    latest_file.close()
+    if candidate.begins_with("user://storyboards/") and FileAccess.file_exists(candidate + "/storyboard.json"):
+        latest_storyboard_directory = candidate
+
 func _import_storyboard_frames() -> void:
+    _restore_latest_storyboard()
     if latest_storyboard_directory.is_empty():
         generator_status.text = "Cree d'abord un storyboard dans cette session"
         return
@@ -912,6 +924,7 @@ func _import_storyboard_frames() -> void:
     generator_status.text = "%d scenes importees, %d images de sequence (MP4 non encode)" % [int(result["imported"]), int(exported["frame_count"])]
 
 func _preview_storyboard_animation() -> void:
+    _restore_latest_storyboard()
     if latest_storyboard_directory.is_empty():
         generator_status.text = "Aucune animation a lire"
         return
