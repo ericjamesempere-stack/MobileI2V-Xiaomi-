@@ -27,17 +27,21 @@ func _ready() -> void:
     bg.color = Color("#101923")
     bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     add_child(bg)
+    var scroll := ScrollContainer.new()
+    scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    add_child(scroll)
     var layout := VBoxContainer.new()
-    layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     layout.add_theme_constant_override("separation", 8)
-    add_child(layout)
+    scroll.add_child(layout)
     var header := Label.new()
     header.text = "STUDIO ANIMATION"
     header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     header.add_theme_font_size_override("font_size", 26)
     layout.add_child(header)
     preview = TextureRect.new()
-    preview.custom_minimum_size = Vector2(0, 560)
+    preview.custom_minimum_size = Vector2(0, 380)
     preview.size_flags_vertical = Control.SIZE_EXPAND_FILL
     preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -68,7 +72,7 @@ func _ready() -> void:
     status = Label.new()
     status.text = "Ajoute une image ou decris un mouvement."
     status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    status.custom_minimum_size.y = 70
+    status.custom_minimum_size.y = 55
     layout.add_child(status)
     _set_stage(false)
     photo_picker = FileDialog.new()
@@ -81,8 +85,8 @@ func _ready() -> void:
 func _button(parent: Node, title: String, action: Callable) -> Button:
     var b := Button.new()
     b.text = title
-    b.custom_minimum_size.y = 60
-    b.add_theme_font_size_override("font_size", 21)
+    b.custom_minimum_size.y = 48
+    b.add_theme_font_size_override("font_size", 18)
     b.pressed.connect(action)
     parent.add_child(b)
     return b
