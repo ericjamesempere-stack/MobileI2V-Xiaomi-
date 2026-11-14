@@ -779,6 +779,7 @@ var generator_status: Label = null
 var generator_prompt: LineEdit = null
 var storyboard_style: OptionButton = null
 var storyboard_duration: SpinBox = null
+var latest_storyboard_directory: String = ""
 
 func _build_generator_controls() -> void:
     generator_prompt = LineEdit.new()
@@ -807,6 +808,8 @@ func _build_generator_controls() -> void:
     add_child(storyboard_duration)
     var storyboard_button: Button = _button("Storyboard BD", Vector2(492, 856), Vector2(214, 40))
     storyboard_button.pressed.connect(_create_storyboard)
+    var import_button: Button = _button("Importer scenes PNG", Vector2(492, 903), Vector2(214, 40))
+    import_button.pressed.connect(_import_storyboard_frames)
 
 func _create_storyboard() -> void:
     var prompt_text: String = generator_prompt.text.strip_edges()
@@ -846,6 +849,7 @@ func _create_storyboard() -> void:
         return
     file.store_string(JSON.stringify(project, "  "))
     file.close()
+    latest_storyboard_directory = save_dir
     var scenes: Array = project["scenes"]
     generator_status.text = "%d scenes, %d references, %d demandes image pretes (pas encore generees)" % [scenes.size(), refs.size(), int(request_export["count"])]
 
@@ -870,3 +874,34 @@ func _generator_finished(directory: String, frames: int) -> void:
 
 func _generator_failed(reason: String) -> void:
     generator_status.text = "Erreur : " + reason
+
+func _import_storyboard_frames() -> void:
+    if latest_storyboard_directory.is_empty():
+        generator_status.text = "Cree d'abord un storyboard dans cette session"
+        return
+    var json_path := latest_storyboard_directory + "/storyboard.json"
+    var source := FileAccess.open(json_path, FileAccess.READ)
+    if source == null:
+        generator_status.text = "Storyboard introuvable"
+        return
+    var parsed: Variant = JSON.parse_string(source.get_as_text())
+    source.close()
+    if not parsed is Dictionary:
+        generator_status.text = "Storyboard JSON invalide"
+        return
+    var result: Dictionary = StoryFramePipeline.import_rendered_scenes(parsed, latest_storyboard_directory)
+    if not result.get("ok", false):
+        generator_status.text = "Images absentes ou invalides : " + str(result.get("error", "inconnue"))
+        return
+    var project: Dictionary = result["project"]
+    var exported: Dictionary = StoryFramePipeline.export_png_sequence(project, latest_storyboard_directory + "/sequence", 12)
+    if not exported.get("ok", false):
+        generator_status.text = "Erreur sequence : " + str(exported.get("error", "inconnue"))
+        return
+    var target := FileAccess.open(json_path, FileAccess.WRITE)
+    if target == null:
+        generator_status.text = "Sequence creee mais sauvegarde du projet impossible"
+        return
+    target.store_string(JSON.stringify(project, "  "))
+    target.close()
+    generator_status.text = "%d scenes importees, %d images de sequence (MP4 non encode)" % [int(result["imported"]), int(exported["frame_count"])]
