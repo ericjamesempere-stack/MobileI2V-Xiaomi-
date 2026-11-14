@@ -102,3 +102,35 @@ func validate_for_animation(project: Dictionary) -> Dictionary:
     if project.get("scenes", []).is_empty():
         problems.append("Aucune scene.")
     return {"ok": problems.is_empty(), "errors": problems}
+
+# Connect the planner's scene boundary to the articulated pose interpolator.
+# The caller supplies actual detected/approved landmark arrays for each scene.
+# Missing poses are reported; no fabricated human detection is performed.
+func build_pose_transitions(project: Dictionary, scene_landmarks: Dictionary) -> Dictionary:
+    var scenes: Array = project.get("scenes", [])
+    var rig: RefCounted = load("res://scripts/continuous_rig.gd").new()
+    var transitions: Array = []
+    var errors: Array[String] = []
+    for i in range(1, scenes.size()):
+        var previous_scene: Dictionary = scenes[i - 1]
+        var current_scene: Dictionary = scenes[i]
+        var previous_id: String = str(previous_scene.get("id", ""))
+        var current_id: String = str(current_scene.get("id", ""))
+        var previous_data: Dictionary = scene_landmarks.get(previous_id, {})
+        var current_data: Dictionary = scene_landmarks.get(current_id, {})
+        var ending: Array = previous_data.get("end", [])
+        var starting: Array = current_data.get("start", [])
+        var continuity: Dictionary = current_scene.get("continuity", {})
+        if str(continuity.get("from_scene", "")) != previous_id:
+            errors.append("Scene %s: continuity link missing" % current_id)
+            continue
+        var count: int = int(continuity.get("transition_frames", 0))
+        var result: Dictionary = rig.transition_between_actions(ending, starting, count)
+        if not bool(result.get("ok", false)):
+            errors.append("Scene %s: %s" % [current_id, str(result.get("error", "invalid pose"))])
+            continue
+        transitions.append({"from_scene": previous_id, "to_scene": current_id,
+            "start_frame": int(current_scene.get("start_frame", 0)),
+            "poses": result["frames"], "count": result["count"],
+            "status": "ready_for_skeleton_render"})
+    return {"ok": errors.is_empty(), "transitions": transitions, "errors": errors}
