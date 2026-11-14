@@ -13,6 +13,17 @@ def load(name):
     return mod
 
 class StoryTests(unittest.TestCase):
+    def test_tracked_joints_are_identical_to_rendered_frame_geometry(self):
+        draw=load("karma_one_pose_drawings")
+        image, joints=draw.draw_pose(3,24,action="run",phase_index=3,
+                                     proportions={"leg_length":1.2},
+                                     return_joints=True)
+        measured=draw.joint_positions(3,24,action="run",phase_index=3,
+                                      proportions={"leg_length":1.2})
+        self.assertEqual(joints,measured)
+        self.assertEqual(image.size,(360,480))
+        self.assertEqual(set(joints),{"hip","shoulder","head","left_foot","right_foot"})
+
     def test_transition_reaches_target_even_for_two_frame_action(self):
         story=load("karma_one_story_sequence")
         self.assertEqual(story.transition_blend(0,2),0.0)
