@@ -8,37 +8,15 @@ import math
 from pathlib import Path
 from PIL import Image, ImageDraw
 
-def joint_positions(index, count, action="walk", previous_action=None, blend=1.0, phase_index=None, proportions=None):
-    """Compute tracked 2D joints using the same geometric parameters as the renderer."""
-    speeds={"walk":0.8,"run":1.8,"dance":1.2,"stand":0.0,"crouch":0.0,"fall":0.0,"stumble":0.5}
-    if action not in speeds:
-        raise ValueError(f"Unsupported action: {action}")
-    t=max(0.0,min(1.0,blend))
-    smooth=t*t*(3-2*t)
-    speed=speeds.get(previous_action,speeds[action])*(1-smooth)+speeds[action]*smooth
-    phase=2*math.pi*((index if phase_index is None else phase_index)/12.0)
-    p=proportions or {}
-    leg=float(p.get("leg_length",1))
-    torso=float(p.get("torso_length",1))
-    if not (0.5<=leg<=1.5 and 0.5<=torso<=1.5):
-        raise ValueError("Invalid body proportions")
-    crouch=(1-smooth)*(previous_action=="crouch")+smooth*(action=="crouch") if previous_action else float(action=="crouch")
-    fall_levels={"fall":1.0,"stumble":0.35}
-    fall=(1-smooth)*fall_levels.get(previous_action,0)+smooth*fall_levels.get(action,0) if previous_action else fall_levels.get(action,0)
-    floor=int(480*.86)
-    bob=int(3*abs(math.sin(phase))+7*min(1,speed/1.8)*max(0,math.cos(2*phase)))
-    sway=int(7*min(1,speed/1.8)*math.sin(phase))
-    hip=(180+sway+int(24*fall),floor-int((100-45*crouch)*leg)-bob+int(48*fall))
-    shoulder=(180+int(70*fall),hip[1]-int((105-25*crouch)*torso*(1-fall))-int(18*fall))
-    head=(shoulder[0]+int(32*fall),shoulder[1]-int(62*float(p.get("head_size",1))*(1-fall))-int(10*fall))
-    step=math.sin(phase)*speed
-    gait=max(0,min(1,speed/1.8))
-    spread=28+27*crouch
-    left=(int(180-spread-27*step+10*fall),floor-int(max(0,math.sin(phase))*16*gait))
-    right=(int(180+spread+27*step+10*fall),floor-int(max(0,-math.sin(phase))*16*gait))
-    return {"hip":hip,"shoulder":shoulder,"head":head,"left_foot":left,"right_foot":right}
+def joint_positions(index, count, action="walk", previous_action=None, blend=1.0, phase_index=None, proportions=None, width=360, height=480):
+    """Return joints measured from the exact same geometry used to paint the frame."""
+    _, joints = draw_pose(index, count, width=width, height=height, action=action,
+                          previous_action=previous_action, blend=blend,
+                          phase_index=phase_index, proportions=proportions,
+                          return_joints=True)
+    return joints
 
-def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appearance=None, action="walk", previous_action=None, blend=1.0, phase_index=None, face_image=None, proportions=None):
+def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appearance=None, action="walk", previous_action=None, blend=1.0, phase_index=None, face_image=None, proportions=None, return_joints=False):
     appearance = appearance or {}
     shirt_color = appearance.get("shirt", "#386eaa")
     pants_color = appearance.get("pants", "#25354b")
@@ -125,6 +103,9 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
         for dx in (-12,12):
             pen.ellipse((head[0]+dx-3,head[1]-6,head[0]+dx+3,head[1]),fill="#20242c")
         pen.arc((head[0]-12,head[1]+8,head[0]+12,head[1]+23),0,180,fill="#51322d",width=2)
+    if return_joints:
+        return image, {"hip":hip, "shoulder":shoulder, "head":head,
+                       "left_foot":left_foot, "right_foot":right_foot}
     return image
 
 def render(folder: Path, seconds: int, fps: int, appearance=None, action="walk"):
