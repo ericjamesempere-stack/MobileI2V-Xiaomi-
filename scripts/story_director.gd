@@ -79,6 +79,18 @@ func validate_for_animation(project: Dictionary) -> Dictionary:
         for pose in scene.get("keyframes", []):
             if str(pose.get("status", "")) != "approved":
                 problems.append(str(pose.get("asset_id", "unknown")) + " non validee")
+            if str(pose.get("image_path", "")).is_empty():
+                problems.append(str(pose.get("asset_id", "unknown")) + " image manquante")
+            if str(pose.get("pixel_sha256", "")).is_empty():
+                problems.append(str(pose.get("asset_id", "unknown")) + " empreinte visuelle manquante")
+        if bool(scene.get("requires_visual_generation", false)):
+            var hashes: Dictionary = {}
+            for pose in scene.get("keyframes", []):
+                var digest: String = str(pose.get("pixel_sha256", ""))
+                if not digest.is_empty():
+                    hashes[digest] = true
+            if hashes.size() < 2:
+                problems.append(str(scene.get("id", "scene")) + " : aucun changement de posture visuel prouve")
     if project.get("scenes", []).is_empty():
         problems.append("Aucune scene.")
     return {"ok": problems.is_empty(), "errors": problems}
