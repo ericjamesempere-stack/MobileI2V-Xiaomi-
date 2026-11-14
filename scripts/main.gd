@@ -812,6 +812,8 @@ func _build_generator_controls() -> void:
     import_button.pressed.connect(_import_storyboard_frames)
     var preview_button: Button = _button("Lire animation", Vector2(492, 950), Vector2(214, 40))
     preview_button.pressed.connect(_preview_storyboard_animation)
+    var demo_button: Button = _button("Demo gestes 2D", Vector2(492, 997), Vector2(214, 40))
+    demo_button.pressed.connect(_render_procedural_demo)
 
 func _create_storyboard() -> void:
     var prompt_text: String = generator_prompt.text.strip_edges()
@@ -948,3 +950,37 @@ func _preview_storyboard_animation() -> void:
     )
     if not player.open_sequence(directory):
         player.queue_free()
+
+func _render_procedural_demo() -> void:
+    _restore_latest_storyboard()
+    if latest_storyboard_directory.is_empty():
+        generator_status.text = "Cree d'abord un storyboard"
+        return
+    var path := latest_storyboard_directory + "/storyboard.json"
+    var file := FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        generator_status.text = "Storyboard introuvable"
+        return
+    var parsed: Variant = JSON.parse_string(file.get_as_text())
+    file.close()
+    if not parsed is Dictionary:
+        generator_status.text = "Storyboard invalide"
+        return
+    var planned: Dictionary = StoryActionPlanner.plan(parsed, 12)
+    if not planned.get("ok", false):
+        generator_status.text = "Planification impossible"
+        return
+    var project: Dictionary = planned["project"]
+    var rendered: Dictionary = ProceduralPoseRenderer.render(project, latest_storyboard_directory, 12)
+    if not rendered.get("ok", false):
+        generator_status.text = "Demo indisponible : " + str(rendered.get("error", "inconnue"))
+        return
+    var imported: Dictionary = StoryFramePipeline.import_rendered_scenes(project, latest_storyboard_directory)
+    if not imported.get("ok", false):
+        generator_status.text = "Import impossible : " + str(imported.get("error", "inconnue"))
+        return
+    var exported: Dictionary = StoryFramePipeline.export_png_sequence(imported["project"], latest_storyboard_directory + "/sequence", 12)
+    if not exported.get("ok", false):
+        generator_status.text = "Sequence impossible : " + str(exported.get("error", "inconnue"))
+        return
+    generator_status.text = "Demo 2D : %d dessins crees. Appuie sur Lire animation." % int(rendered["frames"])
