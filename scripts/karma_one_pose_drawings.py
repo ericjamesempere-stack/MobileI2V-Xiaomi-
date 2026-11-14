@@ -15,7 +15,7 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     skin_color = appearance.get("skin", "#b98766")
     hair_color = appearance.get("hair", "#332725")
     phase = 2 * math.pi * ((index if phase_index is None else phase_index) / 12.0)
-    speeds = {"walk": 0.8, "run": 1.8, "dance": 1.2, "stand": 0.0, "crouch": 0.0, "fall": 0.0}
+    speeds = {"walk": 0.8, "run": 1.8, "dance": 1.2, "stand": 0.0, "crouch": 0.0, "fall": 0.0, "stumble": 0.5}
     if action not in speeds:
         raise ValueError(f"Unsupported action: {action}")
     target_speed = speeds[action]
@@ -44,8 +44,9 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     crouch_amount = old_crouch*(1-smooth) + new_crouch*smooth if previous_action else new_crouch
     hip_height = 100 - 45*crouch_amount
     torso_height = 105 - 25*crouch_amount
-    old_fall = 1.0 if previous_action == "fall" else 0.0
-    new_fall = 1.0 if action == "fall" else 0.0
+    fall_levels = {"fall": 1.0, "stumble": 0.35}
+    old_fall = fall_levels.get(previous_action, 0.0)
+    new_fall = fall_levels.get(action, 0.0)
     fall_amount = old_fall*(1-smooth) + new_fall*smooth if previous_action else new_fall
     hip = (cx + int(24*fall_amount), floor - int(hip_height*leg_ratio) - bob + int(48*fall_amount))
     shoulder = (cx + int(70*fall_amount), hip[1] - int(torso_height*torso_ratio*(1-fall_amount)) - int(18*fall_amount))
@@ -102,7 +103,7 @@ if __name__ == "__main__":
     p.add_argument("--seconds",type=int,default=3)
     p.add_argument("--fps",type=int,default=24)
     p.add_argument("--appearance", type=Path, help="Optional JSON character palette; manual, not photo extraction")
-    p.add_argument("--action", choices=["walk", "run", "dance", "stand", "crouch", "fall"], default="walk")
+    p.add_argument("--action", choices=["walk", "run", "dance", "stand", "crouch", "fall", "stumble"], default="walk")
     args=p.parse_args()
     appearance=json.loads(args.appearance.read_text(encoding="utf-8")) if args.appearance else None
     print(f"Generated {render(args.folder,args.seconds,args.fps,appearance,args.action)} distinct pose drawings")
