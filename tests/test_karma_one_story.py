@@ -13,6 +13,21 @@ def load(name):
     return mod
 
 class StoryTests(unittest.TestCase):
+    def test_wave_and_jump_are_articulated_and_parsed(self):
+        story=load("karma_one_story_sequence")
+        draw=load("karma_one_pose_drawings")
+        self.assertEqual([step["action"] for step in
+                          story.plan("marche puis salue puis saute")],
+                         ["walk","wave","jump"])
+        standing=draw.joint_positions(6,24,action="stand",phase_index=6)
+        waving=draw.joint_positions(6,24,action="wave",phase_index=6)
+        jumping=draw.joint_positions(6,24,action="jump",phase_index=6)
+        self.assertLess(waving["right_hand"][1],standing["right_hand"][1])
+        self.assertLess(jumping["hip"][1],standing["hip"][1])
+        self.assertLess(jumping["left_foot"][1],standing["left_foot"][1])
+        self.assertNotEqual(draw.draw_pose(6,24,action="wave").tobytes(),
+                            draw.draw_pose(6,24,action="stand").tobytes())
+
     def test_repeated_story_generation_clears_old_frames(self):
         import tempfile
         story=load("karma_one_story_sequence")
