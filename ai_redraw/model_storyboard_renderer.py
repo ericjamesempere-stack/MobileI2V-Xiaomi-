@@ -32,16 +32,14 @@ class VideoModelStoryboardRenderer:
         if request.scene_index != self._scene:
             self._scene = request.scene_index
             self._batch = []
-            # A new scene reanchors on the original image rather than
-            # allowing identity drift to accumulate indefinitely.
-            self._previous = None
+            # Keep previous accepted frame across scene boundaries.
         if self._reference is None:
             self._reference = request.reference.copy()
         if not self._batch:
             # First batch is conditioned on original image. Subsequent batches
             # use last accepted frame for local motion continuity.
             source = self._reference if self._previous is None else self._previous
-            prompt = request.scene_instruction
+            prompt = request.scene_instruction + (". Preserve the original subject, clothing, markings, proportions, colors and drawing style. Maintain pose and movement continuity between scenes.")
             batch = self.provider(source, prompt, self.style,
                                   self.seed + request.frame_index)
             if not isinstance(batch, (list, tuple)) or len(batch) < 2:
