@@ -154,7 +154,8 @@ func _initialize() -> void:
     var ankle_max: float = -INF
     for frame_id in range(60):
         var t: float = float(frame_id) / 59.0
-        var travel: Dictionary = painter.translate_body_landmarks(original_pose, 0.12 * t, 0.03 * sin(t * TAU), 0.015 * sin(t * TAU * 2.0))
+        var moving_t: float = minf(float(frame_id), 40.0) / 59.0
+        var travel: Dictionary = painter.translate_body_landmarks(original_pose, 0.12 * moving_t, 0.03 * sin(moving_t * TAU), 0.015 * sin(moving_t * TAU * 2.0))
         assert(travel["ok"])
         # Move arm and leg joints independently: a translated still image is not animation.
         var animated_pose: Array = travel["landmarks"]
@@ -166,12 +167,10 @@ func _initialize() -> void:
         var stride: float = 0.65 if phase == "walk" else (1.0 if phase == "run" else 0.0)
         if frame_id >= 20 and frame_id < 25:
             stride = lerpf(0.65, 1.0, float(frame_id - 20) / 5.0)
-        elif frame_id >= 40 and frame_id < 46:
-            stride = lerpf(1.0, 0.0, float(frame_id - 40) / 6.0)
-            gait = sin(float(frame_id - 40) / 6.0 * TAU)
-        animated_pose[15]["x"] = float(animated_pose[15]["x"]) + 0.10 * gait * stride
+        # The stop is a genuine held pose, not an oscillation that expands the silhouette.
+        animated_pose[15]["x"] = float(animated_pose[15]["x"]) + 0.07 * gait * stride
         animated_pose[16]["x"] = float(animated_pose[16]["x"]) - 0.10 * gait * stride
-        animated_pose[27]["x"] = float(animated_pose[27]["x"]) - 0.08 * gait * stride
+        animated_pose[27]["x"] = float(animated_pose[27]["x"]) - 0.06 * gait * stride
         animated_pose[28]["x"] = float(animated_pose[28]["x"]) + 0.08 * gait * stride
         wrist_min = minf(wrist_min, float(animated_pose[15]["x"]))
         wrist_max = maxf(wrist_max, float(animated_pose[15]["x"]))
