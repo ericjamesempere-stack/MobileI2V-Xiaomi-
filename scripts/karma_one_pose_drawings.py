@@ -19,6 +19,7 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480):
     shoulder = (cx, floor - 205 - bob)
     head = (cx, floor - 267 - bob)
     pen.line((30, floor, width-30, floor), fill="#799ba0", width=3)
+    # Each drawing is freshly rasterized from a new articulated pose.
     left_foot = (int(cx-28-27*step), floor-int(13*max(0,step)))
     right_foot = (int(cx+28-27*step), floor-int(13*max(0,-step)))
     left_knee = (int((hip[0]+left_foot[0])/2-15), int((hip[1]+left_foot[1])/2))
