@@ -41,10 +41,37 @@ def test_sequence_zip(monkeypatch):
         files={"reference": ("a.png", png(), "image/png")})
     assert response.status_code == 200
     with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
-        assert archive.namelist() == ["frame_000.png", "frame_001.png", "frame_002.png"]
+        assert archive.namelist() == ["frame_000.png", "frame_001.png", "frame_002.png", "manifest.json"]
 
 def test_sequence_rejects_unbounded_request():
     response = client.post("/redraw/sequence",
         data={"actions": ",".join(["running"] * 9)},
+        files={"reference": ("a.png", png(), "image/png")})
+    assert response.status_code == 422
+
+def test_sequence_anchors_each_pose_to_original(monkeypatch):
+    import json
+    import zipfile
+    import ai_redraw.sequence as sequence
+    observed = []
+    def fake_redraw(image, prompt, action, strength, seed):
+        observed.append(image.getpixel((0, 0)))
+        image = image.copy()
+        image.putpixel((0, 0), (len(observed), 0, 0))
+        return image
+    monkeypatch.setattr(sequence, "redraw", fake_redraw)
+    response = client.post("/redraw/sequence",
+        data={"actions": "standing,running,falling", "identity_mode": "reference"},
+        files={"reference": ("a.png", png(), "image/png")})
+    assert response.status_code == 200
+    assert observed == [(100, 50, 50)] * 3
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        manifest = json.loads(archive.read("manifest.json"))
+        assert manifest["identity_mode"] == "reference"
+        assert manifest["identity_verified"] is False
+
+def test_sequence_rejects_invalid_identity_mode():
+    response = client.post("/redraw/sequence",
+        data={"identity_mode": "unknown"},
         files={"reference": ("a.png", png(), "image/png")})
     assert response.status_code == 422
