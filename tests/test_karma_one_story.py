@@ -13,6 +13,14 @@ def load(name):
     return mod
 
 class StoryTests(unittest.TestCase):
+    def test_transition_starts_at_old_pose_and_finishes_at_new_pose(self):
+        story=load("karma_one_story_sequence")
+        self.assertEqual(story.transition_blend(0,6),0.0)
+        self.assertAlmostEqual(story.transition_blend(2,6),0.4)
+        self.assertEqual(story.transition_blend(5,6),1.0)
+        self.assertEqual(story.transition_blend(9,6),1.0)
+        self.assertEqual(story.transition_blend(0,6,first_action=True),1.0)
+
     def test_ordered_actions(self):
         m=load("karma_one_story_sequence")
         self.assertEqual([s["action"] for s in m.plan("marche puis court puis danse")],
