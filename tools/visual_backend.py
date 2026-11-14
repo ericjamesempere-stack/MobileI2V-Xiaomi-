@@ -60,12 +60,12 @@ def pose():
 def redraw():
     global _draw_model
     try:
-        from diffusers import AutoPipelineForImage2Image
-        import torch
         data = request.get_json(force=True)
         model_id = os.environ.get("MOBILEI2V_IMAGE_MODEL", "").strip()
         if not model_id:
             return jsonify({"error": "Set MOBILEI2V_IMAGE_MODEL to a compatible diffusion image-to-image model"}), 503
+        from diffusers import AutoPipelineForImage2Image
+        import torch
         if _draw_model is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
             _draw_model = AutoPipelineForImage2Image.from_pretrained(
