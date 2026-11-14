@@ -55,8 +55,8 @@ def produce(story, output, seconds, fps=24, appearance=None, face_photo=None, fa
         raise ValueError("Duration 1..300 seconds, fps 24 or 30")
     steps = plan(story)
     count = seconds * fps
-    if count < len(steps):
-        raise ValueError("More actions than available frames")
+    if count < len(steps) * 2:
+        raise ValueError("Each action needs at least two frames for continuous transitions")
     face_image = None
     if face_photo is not None:
         if face_box is None:
@@ -93,13 +93,14 @@ def produce(story, output, seconds, fps=24, appearance=None, face_photo=None, fa
     for i, step in enumerate(steps):
         start = (i * count) // len(steps)
         end = ((i+1) * count) // len(steps)
-        boundaries.append({"action": step["action"], "start_frame": start, "end_frame_exclusive": end})
+        local_transition = min(transition_frames, end-start)
+        boundaries.append({"action": step["action"], "start_frame": start, "end_frame_exclusive": end, "transition_frames": local_transition if i else 0})
         for frame in range(start, end):
             # Keep one consistent appearance across all actions.
             previous_action = steps[i-1]["action"] if i else None
             # First frame of a new action reproduces the preceding pose exactly.
             # Subsequent frames interpolate to the target with smoothstep in renderer.
-            blend = transition_blend(frame-start, transition_frames, first_action=(i == 0))
+            blend = transition_blend(frame-start, local_transition, first_action=(i == 0))
             joint_samples.append(drawing.joint_positions(frame-start,end-start,action=step["action"],
                                      previous_action=previous_action,blend=blend,phase_index=frame,
                                      proportions=proportions))
