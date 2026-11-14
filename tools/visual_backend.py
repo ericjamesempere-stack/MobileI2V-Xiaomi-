@@ -40,6 +40,8 @@ def pose():
     try:
         import mediapipe as mp
         import numpy as np
+        if not hasattr(mp, "solutions"):
+            return jsonify({"error": "MediaPipe solutions.pose unavailable in this installed version; install a compatible MediaPipe build or migrate to Tasks PoseLandmarker"}), 503
         if _pose_model is None:
             _pose_model = mp.solutions.pose.Pose(static_image_mode=True, model_complexity=2,
                                                  enable_segmentation=False, min_detection_confidence=0.5)
@@ -77,7 +79,7 @@ def redraw():
         prompt = str(data.get("prompt", "")).strip()
         if not prompt:
             return jsonify({"error": "Missing prompt"}), 400
-        count = min(4, max(1, int(data.get("num_images", 1))))
+        count = min(4, max(1, int(data.get("num_images", data.get("frames", 1)))))
         outputs = []
         for _ in range(count):
             generated = _draw_model(prompt=prompt, image=source, strength=0.65,
