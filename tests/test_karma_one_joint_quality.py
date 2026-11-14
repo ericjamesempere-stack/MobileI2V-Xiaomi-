@@ -15,6 +15,20 @@ def frame(offset=0):
              ("left_hand",0,19),("right_hand",20,19)]}
 
 class JointQualityTests(unittest.TestCase):
+    def test_abrupt_elbow_rotation_is_reported(self):
+        first=frame()
+        second=frame()
+        second["left_hand"]=(10,9)
+        report=m.inspect([first,second],max_step=65)
+        self.assertEqual(report["jump_count"],0)
+        self.assertGreater(report["angle_warning_count"],0)
+        self.assertTrue(any(w["joint"]=="left_elbow"
+                            for w in report["angle_warnings"]))
+
+    def test_constant_pose_has_no_angle_jump(self):
+        report=m.inspect([frame(),frame()])
+        self.assertEqual(report["angle_warning_count"],0)
+
     def test_joint_angles_straight_and_folded(self):
         self.assertAlmostEqual(m.joint_angle((0,0),(1,0),(2,0)),180)
         self.assertAlmostEqual(m.joint_angle((0,0),(1,0),(1,1)),90)
