@@ -294,3 +294,26 @@ func generate_gait_keyframes(neutral_pose: Array, cycles: int = 2,
         "action": "course" if running else "marche",
         "limitations": ["simple 2D procedural gait, no ground contact physics",
             "requires a valid neutral landmark pose"]}
+
+# Render a procedural gait using the existing painted-character compositor.
+# The same source artwork and pose are reused across the complete cycle.
+func render_gait_sequence(artwork: Image, neutral_pose: Array,
+        cycles: int = 2, running: bool = false,
+        limb_half_width: float = 9.0) -> Dictionary:
+    if artwork == null or artwork.is_empty():
+        return {"ok": false, "error": "Artwork image required"}
+    var gait: Dictionary = generate_gait_keyframes(neutral_pose, cycles, running)
+    if not bool(gait.get("ok", false)):
+        return gait
+    var painter: RefCounted = load("res://scripts/painted_limb_warp.gd").new()
+    var images: Array = []
+    for pose in gait["frames"]:
+        var rendered: Dictionary = painter.render_composite_preview(
+            artwork, neutral_pose, pose, limb_half_width)
+        if not bool(rendered.get("ok", false)):
+            return {"ok": false, "error": "Gait render failed at frame %d" % images.size()}
+        images.append(rendered["image"])
+    return {"ok": true, "frames": images, "count": images.size(),
+        "action": gait["action"], "status": "procedural_gait_articulated_frames",
+        "limitations": gait["limitations"] +
+            ["not photorealistic, no autonomous character segmentation"]}
