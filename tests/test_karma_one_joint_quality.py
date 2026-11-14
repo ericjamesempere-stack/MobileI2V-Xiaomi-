@@ -15,6 +15,21 @@ def frame(offset=0):
              ("left_hand",0,19),("right_hand",20,19)]}
 
 class JointQualityTests(unittest.TestCase):
+    def test_anatomy_reports_floor_penetration(self):
+        joints=frame()
+        joints["left_foot"]=(0,440)
+        report=m.inspect([joints])
+        self.assertEqual(report["jump_count"],0)
+        self.assertTrue(any(w["issue"]=="floor_penetration"
+                            for w in report["anatomy_warnings"]))
+
+    def test_anatomy_reports_collapsed_segment(self):
+        joints=frame()
+        joints["left_knee"]=joints["hip"]
+        report=m.inspect([joints])
+        self.assertTrue(any(w["issue"]=="collapsed_leg_segment"
+                            for w in report["anatomy_warnings"]))
+
     def test_smooth_sequence(self):
         report=m.inspect([frame(0),frame(2),frame(4)],max_step=5)
         self.assertEqual(report["jump_count"],0)
