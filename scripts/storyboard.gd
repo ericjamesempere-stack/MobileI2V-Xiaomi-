@@ -23,6 +23,7 @@ var plan: Array[int] = []
 var parent_studio: Control
 var picker: FileDialog
 var video_picker: FileDialog
+var v5_sheet_loaded: bool = false
 var pose_sheet_picker: FileDialog
 var exporting_video: bool = false
 var imported_path: String = ""
@@ -258,6 +259,7 @@ func _pose_sheet_selected(path: String) -> void:
             part.resize(540, 960, Image.INTERPOLATE_LANCZOS)
             imported.append(ImageTexture.create_from_image(part))
     sources = imported
+    v5_sheet_loaded = true
     accepted.clear()
     paths.clear()
     plan.clear()
@@ -285,6 +287,7 @@ func _export_board_mp4() -> void:
     var exporter: Node = Node.new()
     exporter.set_script(load("res://scripts/export_mp4.gd"))
     exporter.set("status_label", status)
+    exporter.set("hold_keyframes", v5_sheet_loaded)
     add_child(exporter)
     var indices: Array = []
     for item in plan:
@@ -485,6 +488,7 @@ func _image_chosen(path: String) -> void:
     if img.save_png(saved_path) != OK:
         status.text = "ERREUR : impossible de copier la photo."
         return
+    v5_sheet_loaded = false
     imported_path = saved_path
     detected_landmarks.clear()
     skeleton_preview.visible = false
