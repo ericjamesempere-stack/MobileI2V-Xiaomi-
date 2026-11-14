@@ -16,7 +16,7 @@ func _run() -> void:
     manifest.store_string(JSON.stringify({"fps": 12, "frame_count": 3, "video_encoded": false}))
     manifest.close()
     var player: Control = script.new()
-    root_node.add_child(player)
+    get_root().add_child(player)
     assert(player.open_sequence(root))
     assert(player.running)
     assert(player.frame_paths.size() == 3)
