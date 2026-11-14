@@ -20,7 +20,7 @@ func generate(prompt: String, duration: float = 5.0, face: Texture2D = null) -> 
         return ""
     busy = true
     var count := ceili(duration * FPS)
-    var directory := "user://generated/sequence_%d_%d" % [Time.get_unix_time_from_system(), Time.get_ticks_msec()]
+    var directory := "user://generated/sequence_%d_%d" % [int(Time.get_unix_time_from_system()), Time.get_ticks_msec()]
     var error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(directory))
     if error != OK:
         busy = false
@@ -44,8 +44,7 @@ func generate(prompt: String, duration: float = 5.0, face: Texture2D = null) -> 
     background.color = Color("101923")
     background.size = Vector2(SIZE)
     viewport.add_child(background)
-    var rig := Control.new()
-    rig.set_script(load("res://scripts/rig_character.gd"))
+    var rig := load("res://scripts/rig_character.gd").new()
     rig.position = Vector2(0, 170)
     rig.size = Vector2(720, 900)
     viewport.add_child(rig)
