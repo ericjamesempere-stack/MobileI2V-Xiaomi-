@@ -840,6 +840,11 @@ func _create_storyboard() -> void:
         refs.append(photo_path)
     var project: Dictionary = StoryStudio.storyboard(prompt_text, float(storyboard_duration.value), storyboard_style.get_item_text(storyboard_style.selected), refs)
     project["reference_paths"] = refs
+    var motion_plan: Dictionary = StoryActionPlanner.plan(project, 12)
+    if not motion_plan.get("ok", false):
+        generator_status.text = "Erreur planification des gestes"
+        return
+    project = motion_plan["project"]
     var request_export: Dictionary = StoryStudio.export_requests(project, save_dir + "/requests")
     if not request_export.get("ok", false):
         generator_status.text = "Erreur preparation scenes : " + str(request_export.get("error", "inconnue"))
@@ -853,7 +858,11 @@ func _create_storyboard() -> void:
     file.close()
     latest_storyboard_directory = save_dir
     var scenes: Array = project["scenes"]
-    generator_status.text = "%d scenes, %d references, %d demandes image pretes (pas encore generees)" % [scenes.size(), refs.size(), int(request_export["count"])]
+    var unsupported := 0
+    for scene in scenes:
+        if not scene.get("motion_supported", false):
+            unsupported += 1
+    generator_status.text = "%d scenes, %d gestes non reconnus, %d demandes image (non generees)" % [scenes.size(), unsupported, int(request_export["count"])]
 
 func _generate_frames() -> void:
     if frame_generator != null and frame_generator.get("busy"):
