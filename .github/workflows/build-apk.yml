@@ -10,6 +10,12 @@ on:
 permissions:
   contents: read
 
+# Only the newest commit needs a costly Android build. Cancel superseded
+# runs on the same branch instead of compiling the H.264 plugin repeatedly.
+concurrency:
+  group: mobilei2v-apk-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
