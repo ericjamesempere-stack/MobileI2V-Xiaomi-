@@ -28,10 +28,11 @@ _draw_model = None
 
 def decode_image(data):
     raw = base64.b64decode(data, validate=True)
-    image = Image.open(io.BytesIO(raw)).convert("RGB")
+    with Image.open(io.BytesIO(raw)) as opened:
+        if opened.width * opened.height > 16_000_000:
+            raise ValueError("Image too large")
+        image = opened.convert("RGB")
     image.load()
-    if image.width * image.height > 16_000_000:
-        raise ValueError("Image too large")
     return image
 
 
@@ -69,6 +70,8 @@ def pose():
         points = [{"x": float(p.x), "y": float(p.y), "z": float(p.z),
                    "visibility": float(p.visibility)} for p in landmarks]
         return jsonify({"detected": True, "landmarks": points, "model": model_name})
+    except (KeyError, ValueError, TypeError) as exc:
+        return jsonify({"error": str(exc)}), 400
     except Exception as exc:
         return jsonify({"error": str(exc)}), 503
 
