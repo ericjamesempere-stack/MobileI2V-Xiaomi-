@@ -8,7 +8,7 @@ import math
 from pathlib import Path
 from PIL import Image, ImageDraw
 
-def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appearance=None, action="walk", previous_action=None, blend=1.0, phase_index=None, face_image=None):
+def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appearance=None, action="walk", previous_action=None, blend=1.0, phase_index=None, face_image=None, proportions=None):
     appearance = appearance or {}
     shirt_color = appearance.get("shirt", "#386eaa")
     pants_color = appearance.get("pants", "#25354b")
@@ -26,11 +26,21 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     step = math.sin(phase) * speed
     image = Image.new("RGB", (width, height), "#e7f0f4")
     pen = ImageDraw.Draw(image)
+    proportions = proportions or {}
+    def ratio(name, default):
+        value = float(proportions.get(name, default))
+        if not 0.5 <= value <= 1.5:
+            raise ValueError(f"Invalid proportion {name}: {value}")
+        return value
+    leg_ratio = ratio("leg_length", 1.0)
+    torso_ratio = ratio("torso_length", 1.0)
+    arm_ratio = ratio("arm_length", 1.0)
+    head_ratio = ratio("head_size", 1.0)
     cx, floor = width // 2, int(height * 0.86)
     bob = int(5 * abs(math.sin(phase)))
-    hip = (cx, floor - 100 - bob)
-    shoulder = (cx, floor - 205 - bob)
-    head = (cx, floor - 267 - bob)
+    hip = (cx, floor - int(100*leg_ratio) - bob)
+    shoulder = (cx, hip[1] - int(105*torso_ratio))
+    head = (cx, shoulder[1] - int(62*head_ratio))
     pen.line((30, floor, width-30, floor), fill="#799ba0", width=3)
     # Each drawing is freshly rasterized from a new articulated pose.
     left_foot = (int(cx-28-27*step), floor-int(13*max(0,step)))
@@ -42,8 +52,8 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
         pen.ellipse((foot[0]-14,foot[1]-6,foot[0]+14,foot[1]+6),fill=pants_color)
     pen.line((hip,shoulder),fill=shirt_color,width=46)
     for direction in [-1,1]:
-        hand=(int(cx+direction*(60+20*step)),int(shoulder[1]+85-direction*18*step))
-        elbow=(int(cx+direction*42),int(shoulder[1]+40))
+        hand=(int(cx+direction*(60*arm_ratio+20*step)),int(shoulder[1]+85*arm_ratio-direction*18*step))
+        elbow=(int(cx+direction*42*arm_ratio),int(shoulder[1]+40*arm_ratio))
         pen.line((shoulder,elbow,hand),fill=shirt_color,width=15,joint="curve")
         pen.ellipse((hand[0]-9,hand[1]-9,hand[0]+9,hand[1]+9),fill=skin_color)
     pen.ellipse((head[0]-32,head[1]-42,head[0]+32,head[1]+42),fill=skin_color,outline="#483c37",width=3)
