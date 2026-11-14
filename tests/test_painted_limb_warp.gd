@@ -74,6 +74,14 @@ func _initialize() -> void:
     assert(multi_action["ok"], "Generic keyframes must render actual character frames")
     assert(multi_action["count"] == 12)
     assert(multi_action["repair_count"] == 0)
+    var gait_walk: Dictionary = generic_solver.render_gait_sequence(
+        source, original_pose, 2, false, 8.0)
+    var gait_run: Dictionary = generic_solver.render_gait_sequence(
+        source, original_pose, 2, true, 8.0)
+    assert(gait_walk["ok"] and gait_run["ok"], "Procedural gaits must render")
+    assert(gait_walk["count"] == 17 and gait_run["count"] == 17)
+    assert(gait_walk["frames"][0] is Image)
+    assert(gait_run["frames"][8] is Image)
     var connected: Dictionary = generic_solver.render_action_sequence(source, original_pose, [
         {"action": "marche", "frame_count": 30, "keyframes": [
             {"time": 0.0, "pose": original_pose}, {"time": 1.0, "pose": moved_pose}]},
