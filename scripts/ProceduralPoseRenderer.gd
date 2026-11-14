@@ -10,9 +10,11 @@ static func render(project: Dictionary, root: String, fps: int = 12) -> Dictiona
     if scenes.is_empty():
         return {"ok": false, "error": "no_scenes"}
     for scene in scenes:
-        if not ["character", "unknown"].has(str(scene.get("subject_type", ""))):
-            return {"ok": false, "error": "demo_only_supports_simple_humanoid"}
-        if not ["run", "walk", "jump", "fall", "wave", "dance"].has(str(scene.get("motion_action", ""))):
+        var kind := str(scene.get("subject_type", ""))
+        if not ["character", "unknown", "animal", "vehicle"].has(kind):
+            return {"ok": false, "error": "unsupported_demo_subject", "subject_type": kind}
+        var allowed := ["run", "walk", "jump", "fall", "wave", "dance"] if kind == "character" or kind == "unknown" else ["run", "walk", "jump", "fall", "dance"] if kind == "animal" else ["travel", "fly", "jump", "fall", "land", "stop"]
+        if not allowed.has(str(scene.get("motion_action", ""))):
             return {"ok": false, "error": "unsupported_demo_motion", "scene_id": scene.get("id", "")}
     var generated := 0
     for i in range(scenes.size()):
@@ -23,14 +25,15 @@ static func render(project: Dictionary, root: String, fps: int = 12) -> Dictiona
         var count := maxi(1, roundi(float(scene.get("duration_seconds", 1.0)) * fps))
         for j in range(count):
             var progress := float(j) / float(maxi(1, count - 1))
-            var svg := _pose_svg(str(scene["motion_action"]), progress)
+            var kind := str(scene.get("subject_type", ""))
+            var svg := _pose_svg(str(scene["motion_action"]), progress) if kind == "character" or kind == "unknown" else SubjectPoseLibrary.render_svg(kind, str(scene["motion_action"]), progress)
             var image := Image.new()
             if image.load_svg_from_buffer(svg.to_utf8_buffer(), 1.0) != OK:
                 return {"ok": false, "error": "svg_render_failed", "scene": i, "frame": j}
             if image.save_png("%s/frame_%06d.png" % [folder, j]) != OK:
                 return {"ok": false, "error": "png_write_failed", "scene": i, "frame": j}
             generated += 1
-    return {"ok": true, "frames": generated, "mode": "simple_humanoid_procedural_demo", "video_encoded": false}
+    return {"ok": true, "frames": generated, "mode": "offline_procedural_subject_demo", "video_encoded": false}
 
 static func _pose_svg(action: String, t: float) -> String:
     var phase := t * TAU * 2.0
