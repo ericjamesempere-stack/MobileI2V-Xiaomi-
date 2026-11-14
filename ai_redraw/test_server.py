@@ -96,3 +96,31 @@ def test_pose_redraw_requires_skeleton():
     response = client.post("/redraw/pose",
         files={"reference": ("ref.png", png(), "image/png")})
     assert response.status_code == 422
+
+def test_action_generates_distinct_pose_guides():
+    from ai_redraw.pose_guides import render_pose
+    running = render_pose("running", .25, (128, 128))
+    falling = render_pose("falling", 1.0, (128, 128))
+    assert running.size == (128, 128)
+    assert running.tobytes() != falling.tobytes()
+
+def test_action_endpoint_uses_generated_skeleton(monkeypatch):
+    import ai_redraw.pose as pose_module
+    captured = {}
+    def fake_pose_redraw(reference, pose, prompt, strength, seed):
+        captured["pose_size"] = pose.size
+        captured["prompt"] = prompt
+        return reference.copy()
+    monkeypatch.setattr(pose_module, "pose_redraw", fake_pose_redraw)
+    response = client.post("/redraw/action",
+        data={"action": "crouch", "phase": "0.5"},
+        files={"reference": ("ref.png", png(), "image/png")})
+    assert response.status_code == 200
+    assert captured["pose_size"] == (512, 512)
+    assert "crouch" in captured["prompt"]
+
+def test_action_endpoint_rejects_bad_phase():
+    response = client.post("/redraw/action",
+        data={"phase": "2"},
+        files={"reference": ("ref.png", png(), "image/png")})
+    assert response.status_code == 422
