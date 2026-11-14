@@ -6,6 +6,9 @@ on:
       - karma/storyboard-story-sequence-20261113
     paths:
       - ".github/workflows/verify-storyboard.yml"
+      - "scripts/**"
+      - "tests/**"
+      - "project.godot"
   pull_request:
     paths:
       - 'scripts/**'
