@@ -38,7 +38,7 @@ def action_stage(prompt: str, progress: float) -> str:
     """Split a sequential description into phases for per-frame conditioning."""
     parts = [
         part.strip() for part in re.split(
-            r"(?i)\\b(?:puis|ensuite|et puis|then|afterwards|suddenly)\\b|[.;\\n]",
+            r"(?i)\b(?:et puis|puis|ensuite|then|afterwards|suddenly)\b|[.;\n]",
             prompt,
         ) if part.strip()
     ]
