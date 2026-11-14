@@ -95,7 +95,7 @@ func _initialize() -> void:
     assert(acceleration["ok"] and acceleration["count"] == 42)
     var accelerated_images: Array = []
     for pose in acceleration["frames"]:
-        var composite: Dictionary = warp.render_composite_preview(
+        var composite: Dictionary = painter.render_composite_preview(
             source, original_pose, pose, 8.0)
         assert(composite["ok"], "Acceleration frame must render")
         accelerated_images.append(composite["image"])
