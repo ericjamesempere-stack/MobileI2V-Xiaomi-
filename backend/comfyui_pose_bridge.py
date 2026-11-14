@@ -145,6 +145,15 @@ def generate(req: Request, authorization: str | None = Header(default=None)):
                    and any(token in str(workflow[node_id].get("class_type", "")) for token in pose_control_classes)
                    for node_id in workflow):
             raise ValueError("Pose image must feed the ControlNet conditioning path")
+        # Optional temporal-conditioning input. Without this node the model
+        # receives the original reference for every frame, not the previous
+        # generated frame; do not pretend temporal identity is guaranteed.
+        previous_node = os.environ.get("COMFYUI_PREVIOUS_NODE", "").strip()
+        if previous_node:
+            if previous_node not in reachable or workflow[previous_node].get("class_type") != "LoadImage":
+                raise ValueError("COMFYUI_PREVIOUS_NODE must be an upstream LoadImage node")
+            if not req.previous_image_base64:
+                raise ValueError("Previous generated frame required for temporal conditioning")
         workflow = copy.deepcopy(workflow)
         # Optional CLIPTextEncode node: insert the current story action into
         # the model conditioning instead of repeatedly running a static prompt.
@@ -160,6 +169,9 @@ def generate(req: Request, authorization: str | None = Header(default=None)):
         )
         workflow[ref_id]["inputs"]["image"] = upload(base, reference, "mobilei2v_ref_" + uuid.uuid4().hex)
         workflow[pose_id]["inputs"]["image"] = upload(base, pose, "mobilei2v_pose_" + uuid.uuid4().hex)
+        if previous_node:
+            previous = decode(req.previous_image_base64)
+            workflow[previous_node]["inputs"]["image"] = upload(base, previous, "mobilei2v_prev_" + uuid.uuid4().hex)
         job = requests.post(base + "/prompt", json={"prompt": workflow, "client_id": str(uuid.uuid4())}, timeout=30)
         job.raise_for_status()
         prompt_id = job.json()["prompt_id"]
