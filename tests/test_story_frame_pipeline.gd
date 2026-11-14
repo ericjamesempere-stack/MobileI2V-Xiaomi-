@@ -43,6 +43,14 @@ func _run() -> void:
     var rejected: Dictionary = pipeline.export_png_sequence(stills, root + "/bad_export", 12)
     assert(not rejected["ok"])
     assert(rejected["error"] == "insufficient_motion_frames")
+    var duplicate_frames: Array = []
+    for i in range(12):
+        duplicate_frames.append(paths[0])
+    var duplicates: Dictionary = studio.storyboard("Une moto roule", 1.0)
+    duplicates = pipeline.attach_scene_frames(duplicates, 0, duplicate_frames)["project"]
+    var duplicate_result: Dictionary = pipeline.export_png_sequence(duplicates, root + "/duplicate_export", 12)
+    assert(not duplicate_result["ok"])
+    assert(duplicate_result["error"] == "identical_still_frames")
     for i in range(24):
         DirAccess.remove_absolute(ProjectSettings.globalize_path(export_dir + "/frame_%06d.png" % i))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(export_dir + "/manifest.json"))
