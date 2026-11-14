@@ -2,6 +2,7 @@ extends Node
 # V50 : export MP4 H.264 via plugin Android natif. Repli PNG explicite sinon.
 var status_label: Label = null
 var exporting: bool = false
+var hold_keyframes: bool = false
 
 const FPS: int = 30
 const WIDTH: int = 720
@@ -122,7 +123,7 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
             previous_pair = pair
         var progress: float = position - float(slot)
         var eased: float = progress * progress * (3.0 - 2.0 * progress)
-        var img: Image = interpolator.blend(image_a, image_b, eased, shift) if index != next_index else image_a.duplicate()
+        var img: Image = image_a.duplicate() if hold_keyframes or index == next_index else interpolator.blend(image_a, image_b, eased, shift)
         img.resize(WIDTH, HEIGHT, Image.INTERPOLATE_BILINEAR)
         img.convert(Image.FORMAT_RGBA8)
         var frame_ok: Variant = encoder.call("push_frame_rgba", img.get_data())
