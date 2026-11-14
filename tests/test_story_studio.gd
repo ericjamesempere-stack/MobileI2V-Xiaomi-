@@ -22,6 +22,12 @@ func _run() -> void:
     assert(scenes[1]["reference_previous_frame"] == "user://frame.png")
     assert(scenes[1]["entry_state"]["color"] == "red")
     assert(project["entities"].size() == 1, "One persistent subject expected")
+    project["reference_paths"] = ["user://reference.png"]
+    var request: Dictionary = studio.image_request(project, 1)
+    assert(request["previous_frame"] == "user://frame.png")
+    assert(request["reference_images"].size() == 2)
+    assert(request["status"] == "requires_image_model")
+    assert(studio.image_request(project, 999).has("error"))
     assert(studio.classify_subject("un chat saute") == "animal")
     assert(studio.classify_subject("une ville futuriste") == "place")
     assert(studio.storyboard("Un robot danse", 3.0, "cartoon")["style"] == "cartoon")
