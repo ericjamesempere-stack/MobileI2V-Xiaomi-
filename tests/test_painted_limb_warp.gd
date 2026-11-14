@@ -150,11 +150,15 @@ func _initialize() -> void:
         assert(travel["ok"])
         # Move arm and leg joints independently: a translated still image is not animation.
         var animated_pose: Array = travel["landmarks"]
-        var gait: float = sin(t * TAU * 2.0)
-        animated_pose[15]["x"] = float(animated_pose[15]["x"]) + 0.10 * gait
-        animated_pose[16]["x"] = float(animated_pose[16]["x"]) - 0.10 * gait
-        animated_pose[27]["x"] = float(animated_pose[27]["x"]) - 0.08 * gait
-        animated_pose[28]["x"] = float(animated_pose[28]["x"]) + 0.08 * gait
+        # Three consecutive phases: walk, run, then stop with a settled pose.
+        var phase: String = "walk" if frame_id < 20 else ("run" if frame_id < 40 else "stop")
+        var phase_t: float = float(frame_id % 20) / 20.0
+        var gait: float = sin(phase_t * TAU * (1.0 if phase == "walk" else 2.0)) if phase != "stop" else 0.0
+        var stride: float = 0.65 if phase == "walk" else (1.0 if phase == "run" else 0.0)
+        animated_pose[15]["x"] = float(animated_pose[15]["x"]) + 0.10 * gait * stride
+        animated_pose[16]["x"] = float(animated_pose[16]["x"]) - 0.10 * gait * stride
+        animated_pose[27]["x"] = float(animated_pose[27]["x"]) - 0.08 * gait * stride
+        animated_pose[28]["x"] = float(animated_pose[28]["x"]) + 0.08 * gait * stride
         wrist_min = minf(wrist_min, float(animated_pose[15]["x"]))
         wrist_max = maxf(wrist_max, float(animated_pose[15]["x"]))
         ankle_min = minf(ankle_min, float(animated_pose[27]["x"]))
