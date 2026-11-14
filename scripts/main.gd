@@ -158,6 +158,8 @@ func _ready() -> void:
     guided.pressed.connect(_open_guided)
     guided.visible = false
     _render()
+    # Start in the actual creation studio, not the legacy looping demo.
+    _open_storyboard()
 
 func _open_guided() -> void:
     playing = false
