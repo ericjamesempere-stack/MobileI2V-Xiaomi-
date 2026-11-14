@@ -83,6 +83,14 @@ class ImageBackendStaticTests(unittest.TestCase):
         self.assertIn("Authorization: Bearer ", client)
         self.assertIn("count - 1", client)
 
+    def test_sequence_endpoint_chains_frames_and_checks_access(self):
+        server = ROOT.read_text(encoding="utf-8")
+        self.assertIn('@app.post("/generate_sequence")', server)
+        self.assertIn("previous_image_base64=previous", server)
+        self.assertIn('previous = result["image_base64"]', server)
+        self.assertIn("hmac.compare_digest(authorization or", server)
+        self.assertIn("total_frames: int = Field(default=6, ge=2, le=24)", server)
+
     def test_pipeline_does_not_use_obsolete_safety_checker_parameter(self):
         tree = extract("pipeline")
         for node in ast.walk(tree):
