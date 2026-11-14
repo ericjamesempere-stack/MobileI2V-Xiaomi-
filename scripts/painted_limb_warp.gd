@@ -244,3 +244,40 @@ func stabilize_stance_sequence(poses: Array, support_sides: Array) -> Dictionary
             return {"ok": false, "error": "Foot lock failed at frame %d" % i, "poses": []}
         corrected.append(locked["landmarks"])
     return {"ok": true, "poses": corrected, "count": corrected.size(), "type": "stance_locked"}
+
+# Choose support foot automatically from per-frame landmark displacement.
+# Lower motion is treated as stance; ties retain previous support.
+# This is a heuristic, not a physics/contact detector.
+func infer_support_sides(poses: Array, initial_side: String = "left") -> Dictionary:
+    if poses.is_empty() or (initial_side != "left" and initial_side != "right"):
+        return {"ok": false, "error": "Invalid input", "sides": []}
+    var rig: RefCounted = load("res://scripts/continuous_rig.gd").new()
+    var sides: Array[String] = []
+    var previous: Array = []
+    var side: String = initial_side
+    for i in range(poses.size()):
+        var pose: Array = poses[i]
+        if not bool(rig.validate_landmarks(pose).get("ok", false)):
+            return {"ok": false, "error": "Invalid landmarks at frame %d" % i, "sides": []}
+        if i > 0:
+            var left_now := Vector2(float(pose[31]["x"]), float(pose[31]["y"]))
+            var left_before := Vector2(float(previous[31]["x"]), float(previous[31]["y"]))
+            var right_now := Vector2(float(pose[32]["x"]), float(pose[32]["y"]))
+            var right_before := Vector2(float(previous[32]["x"]), float(previous[32]["y"]))
+            var left_motion: float = left_now.distance_to(left_before)
+            var right_motion: float = right_now.distance_to(right_before)
+            if absf(left_motion - right_motion) > 0.002:
+                side = "left" if left_motion < right_motion else "right"
+        sides.append(side)
+        previous = pose
+    return {"ok": true, "sides": sides, "method": "foot_displacement_heuristic"}
+
+func auto_stabilize_walk(poses: Array, initial_side: String = "left") -> Dictionary:
+    var inferred: Dictionary = infer_support_sides(poses, initial_side)
+    if not bool(inferred.get("ok", false)):
+        return inferred
+    var stabilized: Dictionary = stabilize_stance_sequence(poses, inferred["sides"])
+    if bool(stabilized.get("ok", false)):
+        stabilized["support_sides"] = inferred["sides"]
+        stabilized["contact_method"] = inferred["method"]
+    return stabilized
