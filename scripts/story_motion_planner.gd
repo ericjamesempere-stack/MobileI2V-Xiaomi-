@@ -40,13 +40,26 @@ func plan(story: String, seconds: float = 6.0) -> Dictionary:
         normalized = normalized.replace(" " + transition + " ", "|")
     var recognized: Array[Dictionary] = []
     for part in normalized.split("|", false):
-        var phrase: String = part.strip_edges()
-        var action: String = _action_for(phrase)
-        if not phrase.is_empty():
-            # Never discard an instruction simply because the offline catalog lacks it.
-            # Unknown actions remain visible and must be resolved by a generator.
-            recognized.append({"action": action, "description": phrase,
-                "needs_generation": action == "inconnu"})
+        # Split "court et tombe et se releve" into three distinct gestures.
+        # Keep ordinary conjunctions intact when the next phrase does not
+        # contain a recognized action (e.g. "court et sourit").
+        var clauses: Array[String] = []
+        var current: String = ""
+        for segment in part.split(" et ", false):
+            var phrase_part: String = segment.strip_edges()
+            if not current.is_empty() and _action_for(phrase_part) != "inconnu":
+                clauses.append(current)
+                current = phrase_part
+            else:
+                current = phrase_part if current.is_empty() else current + " et " + phrase_part
+        if not current.is_empty():
+            clauses.append(current)
+        for phrase in clauses:
+            var action: String = _action_for(phrase)
+            if not phrase.is_empty():
+                # Unknown instructions remain visible for an actual generator.
+                recognized.append({"action": action, "description": phrase,
+                    "needs_generation": action == "inconnu"})
     if recognized.is_empty():
         return {"ok": false, "error": "Scénario vide", "steps": []}
     var total: float = maxf(0.5, seconds)
