@@ -91,6 +91,12 @@ func _initialize() -> void:
     assert(not saved["mp4_created"], "PNG frames must never be mislabeled MP4")
     assert(FileAccess.file_exists(saved["files"][0]))
     assert(FileAccess.file_exists(saved["files"][-1]))
+    assert(FileAccess.file_exists(saved["manifest_path"]))
+    var manifest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(saved["manifest_path"]))
+    assert(manifest["frame_count"] == 19)
+    assert(manifest["fps"] == 30)
+    assert(manifest["boundaries"].size() == 2)
+    assert(not manifest["mp4_created"])
 
     var painted_pose: Dictionary = painter.render_articulated_layers(source, original_pose, moved_pose, 8.0)
     assert(painted_pose["ok"])
