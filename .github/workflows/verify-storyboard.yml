@@ -54,6 +54,9 @@ jobs:
           name: mobilei2v-visual-smoke-mp4
           path: visual_smoke.mp4
           if-no-files-found: error
+      - name: Test painted limb warp
+        run: |
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_painted_limb_warp.gd
       - name: Test two-bone inverse kinematics
         run: |
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_two_bone_ik.gd
