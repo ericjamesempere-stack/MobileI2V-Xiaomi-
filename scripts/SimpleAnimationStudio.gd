@@ -132,11 +132,20 @@ func _generate() -> void:
             status.text = "Analyse de la photo impossible : " + str(inspected.get("error", "inconnue"))
             return
         project["scene_reference_profile"] = inspected["profile_path"]
+        var style_path := project_root + "/reference_styled.png"
+        var stylized := ReferenceStyleRenderer.render(selected_photo, style_path, style.get_item_text(style.selected))
+        if not stylized.get("ok", false):
+            status.text = "Transformation de l'image impossible : " + str(stylized.get("error", "inconnue"))
+            return
+        var styled_image := Image.new()
+        if styled_image.load(style_path) == OK:
+            preview.texture = ImageTexture.create_from_image(styled_image)
+        project["styled_reference_path"] = style_path
         var file := FileAccess.open(project_root + "/storyboard.json", FileAccess.WRITE)
         if file != null:
             file.store_string(JSON.stringify(project, "  "))
             file.close()
-        status.text = "Photo et ambiance conservees dans le projet. Analyse des objets et generation fidele encore indisponibles."
+        status.text = "Image convertie en %s et conservee. Animation fidele des elements pas encore disponible." % style.get_item_text(style.selected)
         return
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(project_root)) != OK:
         status.text = "Impossible de creer le dossier."
