@@ -101,7 +101,9 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
   var response: Array = await http.request_completed
   http.queue_free()
   if int(response[0]) != HTTPRequest.RESULT_SUCCESS or int(response[1]) != 200:
-   return {"ok": false, "error": "Erreur moteur : %s / HTTP %s" % [response[0], response[1]], "generated": frames.size()}
+   var http_code: int = int(response[1])
+   var retryable: bool = http_code == 429 or http_code == 503 or http_code == 502 or http_code == 504
+   return {"ok": false, "error": "Moteur indisponible (HTTP %s). %s" % [http_code, "Reessayer ou choisir un autre moteur HTTPS." if retryable else "Verifier la configuration du moteur."], "generated": frames.size(), "retryable": retryable, "http_status": http_code}
   var data: Variant = JSON.parse_string((response[3] as PackedByteArray).get_string_from_utf8())
   if not data is Dictionary or not data.has("image_base64"):
    return {"ok": false, "error": "Reponse invalide : image_base64 manquant", "generated": frames.size()}
