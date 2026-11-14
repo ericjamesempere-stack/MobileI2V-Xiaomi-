@@ -33,6 +33,23 @@ func _initialize() -> void:
     assert(missing_motion["scenes"][0]["rig_motion"] == "none")
     assert(missing_motion["scenes"][0]["status"] == "needs_motion_implementation")
     assert(bool(missing_motion["scenes"][0]["requires_visual_generation"]))
+    var pose_a: Array = []
+    var pose_b: Array = []
+    for landmark in range(33):
+        pose_a.append({"x": 0.3, "y": 0.4, "visibility": 0.99})
+        pose_b.append({"x": 0.7, "y": 0.6, "visibility": 0.99})
+    var pose_map: Dictionary = {}
+    for scene in scenes:
+        pose_map[scene["id"]] = {"start": pose_b, "end": pose_a}
+    var joined: Dictionary = director.build_pose_transitions(project, pose_map)
+    assert(joined["ok"])
+    assert(joined["transitions"].size() == 3)
+    assert(joined["transitions"][0]["count"] == 6)
+    assert(float(joined["transitions"][0]["poses"][0][11]["x"]) > 0.3)
+    assert(float(joined["transitions"][0]["poses"][-1][11]["x"]) < 0.7)
+    var absent: Dictionary = director.build_pose_transitions(project, {})
+    assert(not absent["ok"])
+    assert(absent["errors"].size() == 3)
     var unsupported: Dictionary = director.build("Une voiture a un accident et les secours arrivent.", 180.0)
     assert(not unsupported["warnings"].is_empty(), "Unsupported semantic actions must not be silently invented")
     print("STORY_DIRECTOR_TESTS_OK")
