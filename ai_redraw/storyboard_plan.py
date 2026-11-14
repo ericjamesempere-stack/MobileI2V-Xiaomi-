@@ -32,7 +32,7 @@ def plan_storyboard(story: str, duration_seconds: float = 5.0,
         raise ValueError("Resolution out of range")
     # Sentence boundaries are initial scene candidates, not a restricted action vocabulary.
     import re
-    chunks = [s.strip() for s in re.split(r"(?<=[.!?;])\\s+|\\n+", story.strip()) if s.strip()]
+    chunks = [s.strip() for s in re.split(r"(?<=[.!?;])\s+|\n+", story.strip()) if s.strip()]
     if not chunks:
         chunks = [story.strip()]
     total = max(len(chunks), ceil(duration_seconds * fps))
