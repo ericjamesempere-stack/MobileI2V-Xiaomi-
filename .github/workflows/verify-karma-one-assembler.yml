@@ -1,0 +1,21 @@
+name: Verify Karma One Drawing Assembly
+on:
+  pull_request:
+    paths:
+      - 'scripts/karma_one_frame_assembler.py'
+      - 'tests/test_karma_one_assembler.py'
+      - '.github/workflows/verify-karma-one-assembler.yml'
+  workflow_dispatch:
+jobs:
+  validate-drawings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install drawing and video tools
+        run: |
+          python3 -m pip install --user Pillow
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Test independent drawings, continuity and MP4
+        run: python3 -m unittest discover -s tests -p test_karma_one_assembler.py -v
