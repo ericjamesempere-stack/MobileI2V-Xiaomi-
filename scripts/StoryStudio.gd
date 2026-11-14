@@ -21,7 +21,9 @@ static func classify_subject(description: String) -> String:
 static func storyboard(prompt: String, duration: float = 15.0, style: String = "manga", references: Array = []) -> Dictionary:
     var selected_style: String = style if STYLES.has(style) else "manga"
     var normalized := prompt.strip_edges()
-    var parts := normalized.to_lower()
+    duration = clampf(duration, 0.1, 300.0)
+    var parts := normalized
+    # Preserve capitalization and original words in the actual scene descriptions.
     for sep in [" et puis ", " puis ", " ensuite ", " après ", " apres ", " then ", " and then ", " et ", ","]:
         parts = parts.replace(sep, "|")
     var descriptions: PackedStringArray = parts.split("|", false)
@@ -29,7 +31,7 @@ static func storyboard(prompt: String, duration: float = 15.0, style: String = "
         descriptions.append("scene immobile")
     var scenes: Array[Dictionary] = []
     var count := descriptions.size()
-    var scene_length := maxf(duration, 0.1) / float(count)
+    var scene_length := duration / float(count)
     var subject_type: String = classify_subject(normalized)
     var entity_id := "subject_000"
     var reference_ids: Array[String] = []
@@ -57,7 +59,7 @@ static func storyboard(prompt: String, duration: float = 15.0, style: String = "
     return {
         "version": 1,
         "prompt": normalized,
-        "duration_seconds": maxf(duration, 0.1),
+        "duration_seconds": duration,
         "style": selected_style,
         "subject_type": subject_type,
         "reference_count": references.size(),
@@ -85,3 +87,26 @@ static func carry_forward(project: Dictionary, scene_index: int, final_frame: St
         scenes[scene_index + 1] = following
     project["scenes"] = scenes
     return project
+
+# Generate a reproducible image-generation request. An external or local
+# image model must actually process this request; this is not an image renderer.
+static func image_request(project: Dictionary, scene_index: int) -> Dictionary:
+    var scenes: Array = project.get("scenes", [])
+    if scene_index < 0 or scene_index >= scenes.size():
+        return {"error": "invalid_scene_index"}
+    var scene: Dictionary = scenes[scene_index]
+    var refs: Array = project.get("reference_paths", [])
+    var previous: String = str(scene.get("reference_previous_frame", ""))
+    var images: Array = refs.duplicate()
+    if not previous.is_empty():
+        images.append(previous)
+    return {
+        "scene_id": scene.get("id", ""),
+        "prompt": scene.get("generation_prompt", ""),
+        "style": project.get("style", "manga"),
+        "entity_ids": scene.get("entity_ids", []),
+        "reference_images": images,
+        "previous_frame": previous,
+        "output_type": "image",
+        "status": "requires_image_model"
+    }
