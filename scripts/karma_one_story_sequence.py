@@ -40,7 +40,7 @@ def plan(story):
         raise ValueError("Empty story")
     return result
 
-def produce(story, output, seconds, fps=24, appearance=None, face_photo=None, face_box=None, color_regions=None):
+def produce(story, output, seconds, fps=24, appearance=None, face_photo=None, face_box=None, color_regions=None, proportions=None):
     if seconds < 1 or seconds > 300 or fps not in (24,30):
         raise ValueError("Duration 1..300 seconds, fps 24 or 30")
     steps = plan(story)
@@ -80,7 +80,8 @@ def produce(story, output, seconds, fps=24, appearance=None, face_photo=None, fa
             blend = min(1.0, (frame-start+1)/transition_frames)
             image = drawing.draw_pose(frame-start, end-start, appearance=appearance,
                                       action=step["action"], previous_action=previous_action,
-                                      blend=blend, phase_index=frame, face_image=face_image)
+                                      blend=blend, phase_index=frame, face_image=face_image,
+                                      proportions=proportions)
             image.save(frames_dir / f"frame_{frame:06d}.png")
     report = assembler.assemble(frames_dir, output, fps, count)
     report["actions"] = boundaries
@@ -88,6 +89,7 @@ def produce(story, output, seconds, fps=24, appearance=None, face_photo=None, fa
     report["photo_identity_preserved"] = False
     report["reference_face_texture_used"] = face_image is not None
     report["reference_photo_palette_used"] = color_regions is not None
+    report["custom_body_proportions_used"] = proportions is not None
     output.with_suffix(".story.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     return report
 
@@ -100,8 +102,10 @@ if __name__ == "__main__":
     parser.add_argument("--appearance", type=Path)
     parser.add_argument("--face-photo", type=Path, help="Reference photo with a visible face")
     parser.add_argument("--color-regions", type=Path, help="JSON regions for skin, hair, shirt and pants sampled from same photo")
+    parser.add_argument("--proportions", type=Path, help="Optional manual JSON body ratios; no automatic pose estimation")
     parser.add_argument("--face-box", type=float, nargs=4, metavar=("LEFT","TOP","RIGHT","BOTTOM"), help="Optional manual normalized face crop; otherwise OpenCV detection")
     args = parser.parse_args()
     appearance = json.loads(args.appearance.read_text(encoding="utf-8")) if args.appearance else None
     color_regions = json.loads(args.color_regions.read_text(encoding="utf-8")) if args.color_regions else None
-    print(json.dumps(produce(args.story,args.output,args.seconds,args.fps,appearance,args.face_photo,args.face_box,color_regions),indent=2))
+    proportions = json.loads(args.proportions.read_text(encoding="utf-8")) if args.proportions else None
+    print(json.dumps(produce(args.story,args.output,args.seconds,args.fps,appearance,args.face_photo,args.face_box,color_regions,proportions),indent=2))
