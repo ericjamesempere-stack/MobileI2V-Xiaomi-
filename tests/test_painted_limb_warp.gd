@@ -50,6 +50,28 @@ func _initialize() -> void:
     var seam_pixel: Color = seam_output.get_pixel(29, 29)
     assert(seam_pixel.r > 0.7 and seam_pixel.g > 0.25, "Joint seam failed to preserve original painted pigment")
     assert(seam_output.get_pixel(5, 5).r < 0.2, "Joint seam overwrote the background")
+    var original_pose: Array = []
+    var moved_pose: Array = []
+    for landmark in range(33):
+        original_pose.append({"x": 0.5, "y": 0.5, "visibility": 0.99})
+        moved_pose.append({"x": 0.5, "y": 0.5, "visibility": 0.99})
+    for idx in [11, 12, 23, 24]:
+        original_pose[idx]["y"] = 0.2
+        moved_pose[idx]["y"] = 0.2
+    for idx in [13, 14, 25, 26]:
+        original_pose[idx]["y"] = 0.5
+        moved_pose[idx]["y"] = 0.5
+    for idx in [15, 16, 27, 28]:
+        original_pose[idx]["y"] = 0.8
+        moved_pose[idx]["y"] = 0.8
+        moved_pose[idx]["x"] = 0.7
+    var painted_pose: Dictionary = painter.render_articulated_layers(source, original_pose, moved_pose, 8.0)
+    assert(painted_pose["ok"])
+    assert(painted_pose["limbs"] == 4)
+    assert(painted_pose["image"].get_size() == Vector2i(100, 100))
+    assert(painted_pose["image"].get_pixel(0, 0).a < 0.01)
+    original_pose[11]["visibility"] = 0.0
+    assert(not painter.render_articulated_layers(source, original_pose, moved_pose)["ok"])
     # Produce an actual sequence of painted-limb frames, not just one pose.
     DirAccess.make_dir_recursive_absolute("user://painted_warp")
     for frame in range(60):
