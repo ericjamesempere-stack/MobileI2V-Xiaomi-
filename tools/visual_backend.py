@@ -40,18 +40,35 @@ def pose():
     try:
         import mediapipe as mp
         import numpy as np
-        if not hasattr(mp, "solutions"):
-            return jsonify({"error": "MediaPipe solutions.pose unavailable in this installed version; install a compatible MediaPipe build or migrate to Tasks PoseLandmarker"}), 503
-        if _pose_model is None:
-            _pose_model = mp.solutions.pose.Pose(static_image_mode=True, model_complexity=2,
-                                                 enable_segmentation=False, min_detection_confidence=0.5)
         image = decode_image(request.get_json(force=True)["image_base64"])
-        result = _pose_model.process(np.asarray(image))
-        if not result.pose_landmarks:
+        task_path = os.environ.get("MOBILEI2V_POSE_TASK", "").strip()
+        if task_path:
+            if not os.path.isfile(task_path):
+                return jsonify({"error": "MOBILEI2V_POSE_TASK file not found"}), 503
+            if _pose_model is None:
+                options = mp.tasks.vision.PoseLandmarkerOptions(
+                    base_options=mp.tasks.BaseOptions(model_asset_path=task_path),
+                    running_mode=mp.tasks.vision.RunningMode.IMAGE,
+                    num_poses=1)
+                _pose_model = mp.tasks.vision.PoseLandmarker.create_from_options(options)
+            result = _pose_model.detect(mp.Image(image_format=mp.ImageFormat.SRGB,
+                                                 data=np.asarray(image)))
+            landmarks = result.pose_landmarks[0] if result.pose_landmarks else None
+            model_name = "mediapipe_tasks_pose_landmarker"
+        elif hasattr(mp, "solutions") and hasattr(mp.solutions, "pose"):
+            if _pose_model is None:
+                _pose_model = mp.solutions.pose.Pose(static_image_mode=True, model_complexity=2,
+                                                     enable_segmentation=False, min_detection_confidence=0.5)
+            result = _pose_model.process(np.asarray(image))
+            landmarks = result.pose_landmarks.landmark if result.pose_landmarks else None
+            model_name = "mediapipe_legacy_pose"
+        else:
+            return jsonify({"error": "Set MOBILEI2V_POSE_TASK to a downloaded pose_landmarker.task model; legacy MediaPipe solutions unavailable"}), 503
+        if not landmarks or len(landmarks) != 33:
             return jsonify({"error": "No reliable human pose detected"}), 422
         points = [{"x": float(p.x), "y": float(p.y), "z": float(p.z),
-                   "visibility": float(p.visibility)} for p in result.pose_landmarks.landmark]
-        return jsonify({"detected": True, "landmarks": points, "model": "mediapipe_pose"})
+                   "visibility": float(p.visibility)} for p in landmarks]
+        return jsonify({"detected": True, "landmarks": points, "model": model_name})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 503
 
