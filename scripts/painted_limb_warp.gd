@@ -340,3 +340,33 @@ func analyze_frame_sequence(frames: Array, max_jump_ratio: float = 0.65) -> Dict
         "change_ratios": jump_ratios,
         "status": "sequence_quality_checked",
         "limitations": ["sparse sampling can miss subtle motion", "no identity or anatomy scoring"]}
+
+# Measure whether the character's opaque silhouette changes size dramatically
+# between frames. This catches some cutout flicker and sudden body scale jumps.
+func analyze_silhouette_consistency(frames: Array, max_area_change: float = 0.30) -> Dictionary:
+    if frames.size() < 2:
+        return {"ok": false, "error": "At least two frames required"}
+    var areas: Array[int] = []
+    var abrupt_scale_pairs: int = 0
+    var previous_area: int = -1
+    for i in range(frames.size()):
+        if not frames[i] is Image:
+            return {"ok": false, "error": "Invalid frame at %d" % i}
+        var frame: Image = frames[i]
+        if frame.is_empty():
+            return {"ok": false, "error": "Empty frame at %d" % i}
+        var area: int = 0
+        for y in range(0, frame.get_height(), 2):
+            for x in range(0, frame.get_width(), 2):
+                if frame.get_pixel(x, y).a > 0.5:
+                    area += 1
+        areas.append(area)
+        if previous_area >= 0:
+            var delta: float = absf(float(area - previous_area)) / float(maxi(1, previous_area))
+            if delta > max_area_change:
+                abrupt_scale_pairs += 1
+        previous_area = area
+    return {"ok": abrupt_scale_pairs == 0, "areas": areas,
+        "abrupt_scale_pairs": abrupt_scale_pairs,
+        "status": "silhouette_area_checked",
+        "limitations": ["alpha-only silhouette", "does not measure identity or anatomy"]}
