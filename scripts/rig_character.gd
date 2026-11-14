@@ -223,5 +223,5 @@ func update_pose(seconds: float, action: String = "danse") -> void:
         motion_time = seconds
     motion_name = action
     phase = seconds if action == "chute" or action == "saut" else seconds * motion_speed
-    action_transition = minf(1.0, action_transition + maxf(0.0, seconds - motion_time) * 3.0)
+    action_transition = clampf((seconds - motion_time) * 3.0, 0.0, 1.0)
     queue_redraw()
