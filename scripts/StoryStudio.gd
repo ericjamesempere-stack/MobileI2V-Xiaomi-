@@ -31,6 +31,7 @@ static func storyboard(prompt: String, duration: float = 15.0, style: String = "
     var count := descriptions.size()
     var scene_length := maxf(duration, 0.1) / float(count)
     var subject_type: String = classify_subject(normalized)
+    var entity_id := "subject_000"
     var reference_ids: Array[String] = []
     for index in range(references.size()):
         reference_ids.append("reference_%d" % index)
@@ -44,6 +45,9 @@ static func storyboard(prompt: String, duration: float = 15.0, style: String = "
             "style": selected_style,
             "subject_type": subject_type,
             "reference_ids": reference_ids.duplicate(),
+            "entity_ids": [entity_id],
+            "generation_prompt": "%s illustration, consistent subject (%s), %s" % [selected_style, subject_type, scene_text],
+            "reference_previous_frame": "",
             "continuity_from": "scene_%03d" % (i - 1) if i > 0 else "",
             "entry_state": {},
             "exit_state": {},
@@ -57,6 +61,7 @@ static func storyboard(prompt: String, duration: float = 15.0, style: String = "
         "style": selected_style,
         "subject_type": subject_type,
         "reference_count": references.size(),
+        "entities": [{"id": entity_id, "kind": subject_type, "description": normalized, "reference_ids": reference_ids.duplicate()}],
         "scenes": scenes,
         "render_status": "not_rendered",
         "capability": "storyboard_only"
@@ -67,6 +72,8 @@ static func carry_forward(project: Dictionary, scene_index: int, final_frame: St
     if scene_index < 0 or scene_index >= scenes.size():
         return project
     var current: Dictionary = scenes[scene_index]
+    if final_frame.strip_edges().is_empty():
+        return project
     current["last_frame_path"] = final_frame
     current["exit_state"] = final_state.duplicate(true)
     current["status"] = "rendered"
