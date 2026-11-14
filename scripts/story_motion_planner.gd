@@ -1,6 +1,9 @@
 extends RefCounted
 # Offline, deterministic movement storyboard planner. No image AI or network.
 const KEYWORDS: Dictionary = {
+    "transformation": ["se transforme", "transforme", "devient", "transformation", "dragon", "transform into", "turns into"],
+    "metro": ["metro", "métro", "subway", "underground train"],
+    "football": ["football", "foot", "soccer", "joue au ballon"],
     "course": ["courir", "court", "course", "sprint", "run", "running"],
     "chute": ["tombe", "tomber", "chute", "fall", "falling"],
     "trebuche": ["trebuche", "trébuche", "trip", "stumble"],
@@ -23,7 +26,7 @@ func _normalize(value: String) -> String:
 
 func _action_for(fragment: String) -> String:
     # Explicit priorities avoid "tombe" being treated as an unrelated movement.
-    for action in ["trebuche", "chute", "releve", "saut", "course", "marche", "danse", "salut", "repos"]:
+    for action in ["transformation", "metro", "football", "trebuche", "chute", "releve", "saut", "course", "marche", "danse", "salut", "repos"]:
         for keyword in KEYWORDS[action]:
             if fragment.contains(_normalize(keyword)):
                 return action
