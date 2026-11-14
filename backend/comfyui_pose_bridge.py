@@ -139,6 +139,8 @@ def generate(req: Request, authorization: str | None = Header(default=None)):
         # Optional CLIPTextEncode node: insert the current story action into
         # the model conditioning instead of repeatedly running a static prompt.
         prompt_node = os.environ.get("COMFYUI_PROMPT_NODE", "").strip()
+        if not prompt_node:
+            raise ValueError("COMFYUI_PROMPT_NODE is required for story-driven generation")
         if prompt_node:
             if prompt_node not in reachable or workflow[prompt_node].get("class_type") != "CLIPTextEncode":
                 raise ValueError("COMFYUI_PROMPT_NODE must be an upstream CLIPTextEncode node")
