@@ -79,6 +79,29 @@ def anatomy_report(samples, floor=412, tolerance=12):
     return {"anatomy_warning_count":len(warnings),
             "anatomy_warnings":warnings[:100]}
 
+def trajectory_report(samples, max_acceleration=45.0):
+    """Flag sudden changes in hand/foot velocity (pixels per frame squared)."""
+    if max_acceleration<=0:
+        raise ValueError("max_acceleration must be positive")
+    tracked=("left_hand","right_hand","left_foot","right_foot")
+    warnings=[]
+    maximum=0.0
+    for i in range(2,len(samples)):
+        for name in tracked:
+            before,current,after=(samples[i-2][name],samples[i-1][name],samples[i][name])
+            ax=float(after[0])-2*float(current[0])+float(before[0])
+            ay=float(after[1])-2*float(current[1])+float(before[1])
+            acceleration=math.hypot(ax,ay)
+            maximum=max(maximum,acceleration)
+            if acceleration>max_acceleration:
+                warnings.append({"frame":i,"joint":name,
+                                 "issue":"abrupt_trajectory_acceleration",
+                                 "pixels_per_frame_squared":round(acceleration,2)})
+    return {"max_extremity_acceleration":round(maximum,2),
+            "max_allowed_extremity_acceleration":max_acceleration,
+            "trajectory_warning_count":len(warnings),
+            "trajectory_warnings":warnings[:100]}
+
 def inspect(samples, max_step=65.0):
     if max_step <= 0:
         raise ValueError("max_step must be positive")
@@ -103,5 +126,6 @@ def inspect(samples, max_step=65.0):
                 jumps.append({"frame":i,"joint":name,"pixels":round(step,2)})
     anatomy=anatomy_report(samples)
     angles=angle_motion_report(samples)
-    return {"checked_frames":len(samples),**anatomy,**angles,"max_joint_step_px":round(maximum,2),
+    trajectories=trajectory_report(samples)
+    return {"checked_frames":len(samples),**anatomy,**angles,**trajectories,"max_joint_step_px":round(maximum,2),
             "max_allowed_step_px":max_step,"jump_count":len(jumps),"jumps":jumps[:100]}
