@@ -102,6 +102,7 @@ func _ready() -> void:
     _button("IA externe (secours facultatif)", _request_ai_board, advanced_box)
     _button("Mouvement de camera sur photo (sans IA)", _generate_from_photo, advanced_box)
     _button("Dessiner un personnage generique (sans photo)", _generate_text_cartoon, advanced_box)
+    _button("DEMO : planches personnage articule", _generate_layered_demo, advanced_box)
     _button("Animation articulee approximative", _generate_articulated_board, advanced_box)
     _button("Exporter AVI (secours)", _export_video_direct, advanced_box)
     _button("Planche de demonstration", _prepare, advanced_box)
@@ -784,6 +785,43 @@ func _generate_text_cartoon() -> void:
     _save()
     _build_contact_sheet()
     status.text = "%d dessins 2D generes hors ligne. Style cartoon simple; IA detaillee non installee." % count
+
+func _generate_layered_demo() -> void:
+    # Non-destructive standalone preview: existing imported photos and
+    # previously saved projects remain untouched.
+    var folder: String = "user://projects/layered_%d" % Time.get_ticks_usec()
+    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
+        status.text = "Impossible de creer le projet de demonstration."
+        return
+    var renderer: RefCounted = load("res://scripts/articulated_preview.gd").new()
+    var count: int = clampi(ceili(float(duration_input.value) * 12.0), 24, 240)
+    var new_sources: Array[Texture2D] = []
+    var new_paths: Array[String] = []
+    for i in range(count):
+        var seconds: float = float(i) / 12.0
+        var drawing: Image = renderer.draw_frame(360, 480, seconds)
+        var path: String = folder.path_join("drawing_%03d.png" % i)
+        if drawing.save_png(path) != OK:
+            status.text = "Echec sauvegarde du dessin %d." % i
+            return
+        new_sources.append(ImageTexture.create_from_image(drawing))
+        new_paths.append(path)
+        if i % 12 == 0:
+            status.text = "Dessin articule : %d/%d" % [i + 1, count]
+            await get_tree().process_frame
+    sources = new_sources
+    paths.clear()
+    paths.append_array(new_paths)
+    plan.clear()
+    accepted.clear()
+    for i in range(count):
+        plan.append(i)
+        accepted.append(true)
+    frame_index = 0
+    _refresh()
+    _save()
+    _build_contact_sheet()
+    status.text = "%d dessins articules generes. Demo sans photo : utilise EXPORTER MP4." % count
 
 func _generate_articulated_board(use_detected: bool = false) -> void:
     if imported_path.is_empty():
