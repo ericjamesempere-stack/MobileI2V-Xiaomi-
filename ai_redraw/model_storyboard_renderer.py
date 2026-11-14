@@ -24,6 +24,7 @@ class VideoModelStoryboardRenderer:
         self._next = 0
         self._scene = -1
         self._previous = None
+        self._reference = None
 
     def __call__(self, request: FrameRequest) -> Image.Image:
         if request.frame_index != self._next:
@@ -31,16 +32,21 @@ class VideoModelStoryboardRenderer:
         if request.scene_index != self._scene:
             self._scene = request.scene_index
             self._batch = []
+            # A new scene reanchors on the original image rather than
+            # allowing identity drift to accumulate indefinitely.
+            self._previous = None
+        if self._reference is None:
+            self._reference = request.reference.copy()
         if not self._batch:
             # First batch is conditioned on original image. Subsequent batches
             # use last accepted frame for local motion continuity.
-            source = request.reference if self._previous is None else self._previous
+            source = self._reference if self._previous is None else self._previous
             prompt = request.scene_instruction
             batch = self.provider(source, prompt, self.style,
                                   self.seed + request.frame_index)
             if not isinstance(batch, (list, tuple)) or len(batch) < 2:
                 raise RuntimeError("Video model did not generate a frame sequence")
-            self._batch = list(batch)
+            self._batch = list(batch[:self.batch_size])
         image = self._batch.pop(0)
         if not isinstance(image, Image.Image):
             raise RuntimeError("Video model returned invalid frame")
