@@ -17,6 +17,18 @@ class StoryTests(unittest.TestCase):
         m=load("karma_one_story_sequence")
         self.assertEqual([s["action"] for s in m.plan("marche puis court puis danse")],
                          ["walk","run","dance"])
+    def test_fall_is_recognized_and_joint_geometry_transitions(self):
+        story=load("karma_one_story_sequence")
+        draw=load("karma_one_pose_drawings")
+        self.assertEqual([x["action"] for x in story.plan("court puis tombe puis debout")],
+                         ["run","fall","stand"])
+        start=draw.draw_pose(0,24,action="fall",previous_action="stand",blend=0,phase_index=0)
+        middle=draw.draw_pose(0,24,action="fall",previous_action="stand",blend=.5,phase_index=0)
+        end=draw.draw_pose(0,24,action="fall",previous_action="stand",blend=1,phase_index=0)
+        self.assertNotEqual(start.tobytes(),middle.tobytes())
+        self.assertNotEqual(middle.tobytes(),end.tobytes())
+        self.assertEqual(start.tobytes(),draw.draw_pose(0,24,action="stand",phase_index=0).tobytes())
+
     def test_crouch_transition_interpolates_geometry(self):
         draw=load("karma_one_pose_drawings")
         first=draw.draw_pose(0,24,action="crouch",previous_action="stand",blend=0,phase_index=0)
