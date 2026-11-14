@@ -61,6 +61,10 @@ func render(description: String, phase: float = 0.0, size: Vector2i = Vector2i(3
     _stroke(image, hip, shoulder, 57 * scale, shirt)
     var left_hand := shoulder + Vector2((-67 - 17 * swing) * scale, (67 + 28 * swing) * scale)
     var right_hand := shoulder + Vector2((67 - 17 * swing) * scale, (67 - 28 * swing) * scale)
+    # During a fall, put both hands near the ground to support the body.
+    # During a stand-up, reverse those joint positions continuously.
+    left_hand = left_hand.lerp(Vector2(cx + 12 * scale, floor_y - 12 * scale), fall_progress)
+    right_hand = right_hand.lerp(Vector2(cx + 114 * scale, floor_y - 12 * scale), fall_progress)
     if action == "salut":
         right_hand = shoulder + Vector2(63 * scale, (-68 + 12 * swing) * scale)
     elif action == "saut":
