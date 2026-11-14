@@ -38,5 +38,16 @@ func _initialize() -> void:
         {"time": 0.0, "pose": _pose(0.0)},
         {"time": 0.0, "pose": _pose(0.1)}
     ], 30)["ok"])
+    var sequence: Dictionary = solver.generate_action_sequence([
+        {"action": "walk", "frame_count": 12, "keyframes": [
+            {"time": 0.0, "pose": _pose(0.0)}, {"time": 1.0, "pose": _pose(0.1)}]},
+        {"action": "jump", "frame_count": 12, "keyframes": [
+            {"time": 0.0, "pose": _pose(0.1)}, {"time": 1.0, "pose": _pose(0.2)}]}
+    ], 4)
+    assert(sequence["ok"])
+    assert(sequence["count"] == 28)
+    assert(sequence["boundaries"].size() == 2)
+    assert(sequence["boundaries"][1]["transition_frames"] == 4)
+    assert(absf(float(sequence["frames"][-1][11]["x"]) - 0.6) < 0.001)
     print("POSE_KEYFRAME_SOLVER_TESTS_OK")
     quit(0)
