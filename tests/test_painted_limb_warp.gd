@@ -83,6 +83,12 @@ func _initialize() -> void:
     assert(is_equal_approx(float(foot_lock["landmarks"][31]["x"]), 0.5))
     assert(is_equal_approx(float(foot_lock["landmarks"][31]["y"]), 0.8))
     assert(not painter.lock_support_foot(original_pose, Vector2(0.5, 0.8), "middle")["ok"])
+    var moving_poses: Array = [original_pose, shifted["landmarks"], moved_pose]
+    var locked_walk: Dictionary = painter.stabilize_stance_sequence(moving_poses, ["left", "left", "right"])
+    assert(locked_walk["ok"])
+    assert(locked_walk["count"] == 3)
+    assert(is_equal_approx(float(locked_walk["poses"][0][31]["x"]), float(locked_walk["poses"][1][31]["x"])))
+    assert(not painter.stabilize_stance_sequence(moving_poses, ["left"])["ok"])
     var composite: Dictionary = painter.render_composite_preview(source, original_pose, moved_pose, 8.0)
     assert(composite["ok"])
     assert(composite["image"].get_size() == Vector2i(100, 100))
