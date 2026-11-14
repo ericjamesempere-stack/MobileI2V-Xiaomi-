@@ -88,6 +88,7 @@ def produce(story, output, seconds, fps=24, appearance=None, face_photo=None, fa
     frames_dir = output.parent / (output.stem + "_drawings")
     frames_dir.mkdir(parents=True, exist_ok=True)
     boundaries = []
+    joint_samples = []
     transition_frames = max(2, round(fps * 0.25))
     for i, step in enumerate(steps):
         start = (i * count) // len(steps)
@@ -99,12 +100,19 @@ def produce(story, output, seconds, fps=24, appearance=None, face_photo=None, fa
             # First frame of a new action reproduces the preceding pose exactly.
             # Subsequent frames interpolate to the target with smoothstep in renderer.
             blend = transition_blend(frame-start, transition_frames, first_action=(i == 0))
+            joint_samples.append(drawing.joint_positions(frame-start,end-start,action=step["action"],
+                                     previous_action=previous_action,blend=blend,phase_index=frame,
+                                     proportions=proportions))
             image = drawing.draw_pose(frame-start, end-start, appearance=appearance,
                                       action=step["action"], previous_action=previous_action,
                                       blend=blend, phase_index=frame, face_image=face_image,
                                       proportions=proportions)
             image.save(frames_dir / f"frame_{frame:06d}.png")
+    joint_report = load("karma_one_joint_quality").inspect(joint_samples)
+    if joint_report["jump_count"]:
+        raise ValueError("Joint continuity check failed: " + str(joint_report["jumps"][:3]))
     report = assembler.assemble(frames_dir, output, fps, count)
+    report["joint_continuity"] = joint_report
     report["actions"] = boundaries
     report["transition_frames"] = transition_frames
     report["photo_identity_preserved"] = False
