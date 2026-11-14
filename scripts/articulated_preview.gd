@@ -38,8 +38,10 @@ func draw_frame(width: int, height: int, time: float) -> Image:
     var foot_y := float(height) * 0.88
     var left_foot := Vector2(center.x - 24.0 * scale + 20.0 * sin(cycle) * scale, foot_y - 14.0 * maxf(0.0, sin(cycle)) * scale)
     var right_foot := Vector2(center.x + 24.0 * scale - 20.0 * sin(cycle) * scale, foot_y - 14.0 * maxf(0.0, -sin(cycle)) * scale)
-    var left_hand := left_shoulder + Vector2(-47.0 + 13.0 * sin(cycle), 79.0 + 19.0 * sin(cycle)) * scale
-    var right_hand := right_shoulder + Vector2(47.0 + 13.0 * sin(cycle), 79.0 - 19.0 * sin(cycle)) * scale
+    # Opposing arm swing and gentle secondary motion. Keep hand targets
+    # inside each two-bone chain's reachable range.
+    var left_hand := left_shoulder + Vector2(-30.0 + 20.0 * sin(cycle), 63.0 + 12.0 * cos(cycle)) * scale
+    var right_hand := right_shoulder + Vector2(30.0 - 20.0 * sin(cycle), 63.0 - 12.0 * cos(cycle)) * scale
     var left_leg: Dictionary = ik.solve_two_bone(left_hip, left_foot, 69.0 * scale, 67.0 * scale, -1.0)
     var right_leg: Dictionary = ik.solve_two_bone(right_hip, right_foot, 69.0 * scale, 67.0 * scale, 1.0)
     var left_arm: Dictionary = ik.solve_two_bone(left_shoulder, left_hand, 47.0 * scale, 43.0 * scale, -1.0)
