@@ -960,6 +960,13 @@ func _generate_text_cartoon() -> void:
     var generator: RefCounted = load("res://scripts/procedural_cartoon_generator.gd").new()
     var planner: RefCounted = load("res://scripts/story_motion_planner.gd").new()
     var motion: Dictionary = planner.plan(story, float(duration_input.value))
+    if not bool(motion.get("ok", false)):
+        status.text = "Impossible de comprendre le scenario."
+        return
+    for step in motion.get("steps", []):
+        if str(step.get("action", "inconnu")) == "inconnu":
+            status.text = "Mouvement non reconnu : %s. Aucun dessin existant efface." % str(step.get("description", ""))
+            return
     var count: int = clampi(ceili(float(duration_input.value) * 4.0), 12, 120)
     sources.clear()
     paths.clear()
@@ -976,8 +983,15 @@ func _generate_text_cartoon() -> void:
     for i in range(count):
         var seconds: float = float(i) / float(count) * float(duration_input.value)
         var action: String = planner.action_at(motion, seconds) if bool(motion.get("ok", false)) else "danse"
-        var speed: float = 1.8 if action == "course" else 1.0
-        var phase: float = seconds * speed
+        var phase: float = 0.0
+        for step in motion.get("steps", []):
+            if seconds < float(step.get("end", 0.0)) or step == motion.get("steps", []).back():
+                var begin: float = float(step.get("start", 0.0))
+                var end: float = float(step.get("end", begin + 1.0))
+                phase = clampf((seconds - begin) / maxf(0.001, end - begin), 0.0, 1.0)
+                break
+        if action == "course" or action == "marche" or action == "danse":
+            phase = seconds * (1.8 if action == "course" else 1.0)
         var image: Image = generator.render(story, phase, Vector2i(360, 480), action)
         var path: String = project_dir.path_join("drawing_%03d.png" % i)
         if image.save_png(path) != OK:
