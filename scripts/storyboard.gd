@@ -907,7 +907,18 @@ func _prepare_pose_guides() -> void:
         if action == "inconnu":
             status.text = "Action inconnue : modifie l'histoire pour produire des poses precises."
             return
-        var phase: float = seconds * (1.8 if action == "course" else 1.0)
+        # Use phase within the current action for one-shot gestures such as
+        # falling and standing up. Walking/running remain cyclic.
+        var phase: float = 0.0
+        var steps: Array = motion.get("steps", [])
+        for step in steps:
+            if seconds < float(step.get("end", 0.0)) or step == steps.back():
+                var start_time: float = float(step.get("start", 0.0))
+                var end_time: float = float(step.get("end", start_time + 1.0))
+                phase = clampf((seconds - start_time) / maxf(0.001, end_time - start_time), 0.0, 1.0)
+                break
+        if action == "course" or action == "marche" or action == "danse":
+            phase = seconds * (1.8 if action == "course" else 1.0)
         var guide: Image = generator.render(story, phase, Vector2i(360, 480), action)
         if guide == null or guide.is_empty():
             status.text = "Pose %d non creee." % (i + 1)
