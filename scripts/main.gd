@@ -777,6 +777,8 @@ func _load_board_texture(path: String) -> Texture2D:
 var frame_generator: FrameGenerator = null
 var generator_status: Label = null
 var generator_prompt: LineEdit = null
+var storyboard_style: OptionButton = null
+var storyboard_duration: SpinBox = null
 
 func _build_generator_controls() -> void:
     generator_prompt = LineEdit.new()
@@ -788,6 +790,21 @@ func _build_generator_controls() -> void:
     generate_button.pressed.connect(_generate_frames)
     generator_status = _label(Vector2(12, 804), 16, Color("d0e5f4"))
     generator_status.text = "Mode 2D provisoire : pas encore de generation universelle"
+    storyboard_style = OptionButton.new()
+    storyboard_style.position = Vector2(12, 856)
+    storyboard_style.size = Vector2(205, 42)
+    for style_name in ["manga", "bd", "cartoon"]:
+        storyboard_style.add_item(style_name)
+    add_child(storyboard_style)
+    storyboard_duration = SpinBox.new()
+    storyboard_duration.position = Vector2(226, 856)
+    storyboard_duration.size = Vector2(250, 42)
+    storyboard_duration.min_value = 1.0
+    storyboard_duration.max_value = 300.0
+    storyboard_duration.step = 1.0
+    storyboard_duration.value = 15.0
+    storyboard_duration.suffix = "sec"
+    add_child(storyboard_duration)
     var storyboard_button: Button = _button("Storyboard BD", Vector2(492, 856), Vector2(214, 40))
     storyboard_button.pressed.connect(_create_storyboard)
 
@@ -816,7 +833,7 @@ func _create_storyboard() -> void:
             generator_status.text = "Erreur sauvegarde image %d" % i
             return
         refs.append(photo_path)
-    var project: Dictionary = StoryStudio.storyboard(prompt_text, 15.0, "manga", refs)
+    var project: Dictionary = StoryStudio.storyboard(prompt_text, float(storyboard_duration.value), storyboard_style.get_item_text(storyboard_style.selected), refs)
     project["reference_paths"] = refs
     var output := "%s/storyboard.json" % save_dir
     var file := FileAccess.open(output, FileAccess.WRITE)
