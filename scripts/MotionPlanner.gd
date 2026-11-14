@@ -22,7 +22,8 @@ static func action_from_text(prompt: String) -> String:
 # Split simple sequential instructions into ordered actions.
 # Each segment receives a proportional share of the duration.
 static func story_actions(prompt: String) -> Array[String]:
-    var normalized := prompt.to_lower()
+    var normalized := prompt.to_lower().strip_edges()
+    normalized = normalized.replace(" et ", "|")
     for separator in [" et puis ", " puis ", " ensuite ", " après ", " apres ", " then ", " and then ", ","]:
         normalized = normalized.replace(separator, "|")
     var actions: Array[String] = []
@@ -79,8 +80,9 @@ static func pose(action: String, t: float, duration: float = 5.0) -> Dictionary:
 static func timeline(prompt: String, duration: float = 5.0, fps: int = 30) -> Array[Dictionary]:
     var frames: Array[Dictionary] = []
     var count := maxi(1, ceili(maxf(duration, 0.01) * maxi(fps, 1)))
-    var action := action_from_text(prompt)
     for i in range(count):
         var t := float(i) / float(maxi(fps, 1))
-        frames.append({"time": t, "action": action, "pose": pose(action, t, duration)})
+        var instruction := story_action_at(prompt, t, duration)
+        var action: String = instruction["action"]
+        frames.append({"time": t, "action": action, "pose": pose(action, float(instruction["local_time"]), float(instruction["segment_duration"]))})
     return frames
