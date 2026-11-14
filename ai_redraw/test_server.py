@@ -75,3 +75,24 @@ def test_sequence_rejects_invalid_identity_mode():
         data={"identity_mode": "unknown"},
         files={"reference": ("a.png", png(), "image/png")})
     assert response.status_code == 422
+
+def test_pose_redraw_contract(monkeypatch):
+    import ai_redraw.pose as pose_module
+    seen = {}
+    def fake_pose_redraw(reference, pose, prompt, strength, seed):
+        seen["size"] = pose.size
+        return reference.copy()
+    monkeypatch.setattr(pose_module, "pose_redraw", fake_pose_redraw)
+    response = client.post("/redraw/pose",
+        data={"prompt": "running"},
+        files={"reference": ("ref.png", png(), "image/png"),
+               "pose": ("pose.png", png(), "image/png")})
+    assert response.status_code == 200
+    assert seen["size"] == (64, 64)
+    assert response.headers["x-redraw-engine"] == "controlnet-openpose-img2img"
+    assert response.headers["x-identity-verified"] == "false"
+
+def test_pose_redraw_requires_skeleton():
+    response = client.post("/redraw/pose",
+        files={"reference": ("ref.png", png(), "image/png")})
+    assert response.status_code == 422
