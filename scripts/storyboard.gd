@@ -45,8 +45,9 @@ func _ready() -> void:
     root_box.add_theme_constant_override("separation", 12)
     sc.add_child(root_box)
     sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-    _label("CREER MON ANIMATION", 28)
-    _label("1. Choisis une photo, raconte les mouvements, puis genere.", 18)
+    _label("MOBILEI2V | STUDIO DE CREATION", 28)
+    _label("1. Importe ton personnage. 2. Decris son mouvement. 3. Cree et controle les dessins.", 18)
+    _label("Important : le mode photo actuel anime un detourage 2D. Il ne redessine pas encore chaque posture avec une IA.", 16)
     _button("1. CHOISIR MA PHOTO", _choose_image)
     status = _label("Choisis une photo pour creer une planche locale approximative.", 23)
     preview = TextureRect.new()
@@ -77,7 +78,7 @@ func _ready() -> void:
     duration_input.step = 1
     duration_input.value = 6
     line.add_child(duration_input)
-    _button("GENERER MA VIDEO", _automatic_local_movie)
+    _button("CREER DES POSES 2D A PARTIR DE MA PHOTO", _automatic_local_movie)
     contact_caption = _label("Les poses generees apparaitront ici.", 20)
     contact_sheet = TextureRect.new()
     contact_sheet.custom_minimum_size = Vector2(0, 220)
@@ -85,8 +86,8 @@ func _ready() -> void:
     contact_sheet.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     root_box.add_child(contact_sheet)
-    _button("IMPORTER PLANCHE V5 (3 x 6)", _choose_pose_sheet)
-    _button("EXPORTER MP4", _export_board_mp4)
+    _button("IMPORTER 18 DESSINS DEJA CREES (V5)", _choose_pose_sheet)
+    _button("EXPORTER LE FILM MP4 (APRES VERIFICATION)", _export_board_mp4)
     var advanced_box := VBoxContainer.new()
     root_box.add_child(advanced_box)
     advanced_box.visible = false
@@ -118,7 +119,7 @@ func _ready() -> void:
     _button("Pose suivante", _next, advanced_box)
     _button("Enregistrer la planche", _save, advanced_box)
     _button("Recharger la planche", _load_saved, advanced_box)
-    _button("Retour au studio", _close)
+    _button("FERMER LE STUDIO (ANCIEN LECTEUR)", _close)
     picker = FileDialog.new()
     picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
     picker.access = FileDialog.ACCESS_FILESYSTEM
@@ -267,6 +268,7 @@ func _pose_sheet_selected(path: String) -> void:
         accepted.append(true)
         plan.append(i)
     frame_index = 0
+    _refresh()
     _build_contact_sheet()
     status.text = "18 poses V5 importees localement. Export MP4 disponible. ATTENTION : poses maintenues, pas de redessin IA."
 
@@ -502,7 +504,7 @@ func _image_chosen(path: String) -> void:
     preview.texture = ImageTexture.create_from_image(img)
     status.text = "PHOTO CHARGEE (%d x %d) : preparation..." % [img.get_width(), img.get_height()]
     await get_tree().process_frame
-    status.text = "Photo conservee. Decris une action puis lance Planche adaptative 2D."
+    status.text = "Photo importee. Decris une action. Le mode 2D conserve des morceaux de la photo; pas de redessin IA."
 
 func _texture_for_path(path: String) -> Texture2D:
     if path.begins_with("user://") or path.begins_with("/"):
@@ -807,12 +809,19 @@ func _automatic_local_movie() -> void:
     # Reset only the in-memory result of the previous generation.
     # Previously, a failed generation could export an old storyboard as
     # though it were the newly requested video. Saved projects are untouched.
+    v5_sheet_loaded = false
     sources.clear()
     paths.clear()
     plan.clear()
     accepted.clear()
     frame_index = 0
-    preview.texture = null
+    # Preserve the reference photo preview until actual pose frames exist.
+    if not imported_path.is_empty() and FileAccess.file_exists(imported_path):
+        var reference_image := Image.new()
+        if reference_image.load(imported_path) == OK:
+            preview.texture = ImageTexture.create_from_image(reference_image)
+    else:
+        preview.texture = null
     contact_sheet.texture = null
     contact_caption.text = "Nouvelle planche en cours de generation."
     status.text = "Etape 1/3 : creation automatique de la planche."
