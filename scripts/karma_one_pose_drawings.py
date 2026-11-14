@@ -29,7 +29,7 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     target_speed = speeds[action]
     prior_speed = speeds.get(previous_action, target_speed)
     t = max(0.0, min(1.0, blend))
-    smooth = t*t*(3-2*t)
+    smooth = t*t*t*(t*(6*t-15)+10)
     speed = prior_speed*(1-smooth) + target_speed*smooth
     step = math.sin(phase) * speed
     image = Image.new("RGB", (width, height), "#e7f0f4")
