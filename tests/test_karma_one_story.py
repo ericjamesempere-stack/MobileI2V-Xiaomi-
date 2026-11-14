@@ -49,6 +49,18 @@ class StoryTests(unittest.TestCase):
         textured=m.draw_pose(3,24,action="walk",face_image=photo)
         self.assertNotEqual(plain.tobytes(),textured.tobytes())
 
+    def test_body_proportions_change_drawn_anatomy(self):
+        m=load("karma_one_pose_drawings")
+        normal=m.draw_pose(3,24,action="walk")
+        altered=m.draw_pose(3,24,action="walk",
+                            proportions={"leg_length":1.2,"torso_length":0.85,"arm_length":1.15})
+        self.assertNotEqual(normal.tobytes(),altered.tobytes())
+
+    def test_invalid_body_proportions_rejected(self):
+        m=load("karma_one_pose_drawings")
+        with self.assertRaisesRegex(ValueError,"Invalid proportion"):
+            m.draw_pose(0,24,proportions={"leg_length":9})
+
     def test_unsupported_draw_action_rejected(self):
         m=load("karma_one_pose_drawings")
         with self.assertRaises(ValueError):
