@@ -6,6 +6,7 @@ on:
       - 'scripts/karma_one_pose_drawings.py'
       - 'scripts/karma_one_pipeline.py'
       - 'scripts/karma_one_story_sequence.py'
+      - 'scripts/karma_one_face_detector.py'
       - 'tests/test_karma_one_story.py'
       - 'scripts/karma_one_photo_palette.py'
       - 'tests/test_karma_one_photo_palette.py'
