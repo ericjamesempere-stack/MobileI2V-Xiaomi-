@@ -64,7 +64,7 @@ class ComfyBridgeTests(unittest.TestCase):
                         result = generate(req, authorization="Bearer secret")
             self.assertEqual(result["backend"], "comfyui")
             self.assertEqual(result["frame_index"], 0)
-            self.assertTrue(base64.b64decode(result["image_base64"]).startswith(b"\\x89PNG"))
+            self.assertTrue(base64.b64decode(result["image_base64"]).startswith(bytes([137, 80, 78, 71])))
             self.assertIn("person running then falling", sent[0]["3"]["inputs"]["text"])
             self.assertEqual(sent[0]["1"]["inputs"]["image"], "uploaded.png")
 
