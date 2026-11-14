@@ -21,7 +21,7 @@ def test_reference_and_previous_are_passed_for_every_drawing():
 
 def test_reject_static_frames():
     plan = plan_storyboard("Move a vehicle.", 1, 3, 128, 128)
-    with pytest.raises(ValueError, match="Duplicate drawing"):
+    with pytest.raises(ValueError, match="(?:Duplicate|Repeated) drawing"):
         generate_drawings(plan, Image.new("RGB", (128, 128)),
                           lambda req: Image.new("RGB", (128, 128), "blue"))
 
