@@ -21,5 +21,8 @@ func _run() -> void:
     var unknown: Dictionary = planner.plan(studio.storyboard("Une créature se métamorphose", 1.0))
     assert(unknown["project"]["scenes"][0]["motion_action"] == "unsupported")
     assert(not unknown["project"]["scenes"][0]["motion_supported"])
+    assert(planner.action_for("Il atterrit puis vole") == "land")
+    assert(planner.action_for("Il saute et tombe") == "jump")
+    assert(planner.action_for("Il court et danse") == "run")
     print("MOBILEI2V_STORY_ACTION_PLANNER_OK")
     quit(0)
