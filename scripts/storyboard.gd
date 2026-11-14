@@ -23,6 +23,7 @@ var plan: Array[int] = []
 var parent_studio: Control
 var picker: FileDialog
 var video_picker: FileDialog
+var pose_sheet_picker: FileDialog
 var exporting_video: bool = false
 var imported_path: String = ""
 const SAVE: String = "user://mobilei2v_storyboard_v23.json"
@@ -83,6 +84,7 @@ func _ready() -> void:
     contact_sheet.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     root_box.add_child(contact_sheet)
+    _button("IMPORTER PLANCHE V5 (3 x 6)", _choose_pose_sheet)
     _button("EXPORTER MP4", _export_board_mp4)
     var advanced_box := VBoxContainer.new()
     root_box.add_child(advanced_box)
@@ -126,6 +128,13 @@ func _ready() -> void:
     picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp;Images;image/png,image/jpeg,image/webp"])
     picker.file_selected.connect(_image_chosen)
     add_child(picker)
+    pose_sheet_picker = FileDialog.new()
+    pose_sheet_picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+    pose_sheet_picker.access = FileDialog.ACCESS_FILESYSTEM
+    pose_sheet_picker.use_native_dialog = true
+    pose_sheet_picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg;Planche de poses"])
+    pose_sheet_picker.file_selected.connect(_pose_sheet_selected)
+    add_child(pose_sheet_picker)
     video_picker = FileDialog.new()
     video_picker.file_mode = FileDialog.FILE_MODE_SAVE_FILE
     video_picker.access = FileDialog.ACCESS_FILESYSTEM
@@ -219,6 +228,45 @@ func _avi_headers(width: int, height: int, fps: int, count: int, max_jpg: int) -
     var hdrl := _avi_chunk("avih", avih)
     hdrl.append_array(_avi_list("strl", stream))
     return _avi_list("hdrl", hdrl)
+
+func _choose_pose_sheet() -> void:
+    pose_sheet_picker.popup_centered_ratio(0.9)
+
+func _pose_sheet_selected(path: String) -> void:
+    var sheet: Image = load("res://scripts/android_image_reader.gd").read_image(path)
+    if sheet == null or sheet.is_empty():
+        status.text = "Impossible de lire la planche V5."
+        return
+    var w: int = sheet.get_width()
+    var h: int = sheet.get_height()
+    if w < 600 or h < 450:
+        status.text = "Planche V5 trop petite."
+        return
+    var x0: int = int(float(w) * 0.245)
+    var y_edges: Array[int] = [0, int(float(h) * 0.325), int(float(h) * 0.655), h]
+    var imported: Array[Texture2D] = []
+    for row in range(3):
+        for col in range(6):
+            var x1: int = x0 + roundi(float(col) * float(w - x0) / 6.0) + 5
+            var x2: int = x0 + roundi(float(col + 1) * float(w - x0) / 6.0) - 5
+            var y1: int = y_edges[row] + 40
+            var y2: int = y_edges[row + 1] - 38
+            if x2 <= x1 or y2 <= y1:
+                status.text = "Planche V5 : dimensions incompatibles."
+                return
+            var part: Image = sheet.get_region(Rect2i(x1, y1, x2 - x1, y2 - y1))
+            part.resize(540, 960, Image.INTERPOLATE_LANCZOS)
+            imported.append(ImageTexture.create_from_image(part))
+    sources = imported
+    accepted.clear()
+    paths.clear()
+    plan.clear()
+    for i in range(sources.size()):
+        accepted.append(true)
+        plan.append(i)
+    frame_index = 0
+    _build_contact_sheet()
+    status.text = "18 poses V5 importees localement. Export MP4 disponible. ATTENTION : poses maintenues, pas de redessin IA."
 
 func _export_board_mp4() -> void:
     if not Engine.has_singleton("MP4Exporter"):
