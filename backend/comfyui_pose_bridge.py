@@ -154,6 +154,16 @@ def generate(req: Request, authorization: str | None = Header(default=None)):
                 raise ValueError("COMFYUI_PREVIOUS_NODE must be an upstream LoadImage node")
             if not req.previous_image_base64:
                 raise ValueError("Previous generated frame required for temporal conditioning")
+        # A reference merely blended into the output is not identity
+        # conditioning. Opt into strict verification for real deployments.
+        if os.environ.get("COMFYUI_REQUIRE_IDENTITY_ADAPTER", "0") == "1":
+            identity_classes = ("IPAdapter", "InstantID", "PuLID", "PhotoMaker")
+            ref_path = descendants_of(ref_id)
+            if not any(node_id in ref_path and node_id in reachable
+                       and any(name.lower() in str(workflow[node_id].get("class_type", "")).lower()
+                               for name in identity_classes)
+                       for node_id in workflow):
+                raise ValueError("Reference image must feed an identity adapter upstream of output")
         workflow = copy.deepcopy(workflow)
         # Optional CLIPTextEncode node: insert the current story action into
         # the model conditioning instead of repeatedly running a static prompt.
