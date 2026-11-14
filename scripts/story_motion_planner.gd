@@ -14,7 +14,7 @@ const KEYWORDS: Dictionary = {
     "releve": ["releve", "relève", "relever", "gets up", "stand up"],
     "repos": ["arrete", "arrête", "stop", "immobile", "attend"]
 }
-const TRANSITIONS: Array[String] = ["et puis", "tout a coup", "d'un coup", "puis", "ensuite", "apres", "soudain", "then", "suddenly"]
+const TRANSITIONS: Array[String] = ["et puis", "et apres", "et ensuite", "tout a coup", "d'un coup", "puis", "ensuite", "apres", "soudain", "then", "suddenly"]
 
 func _normalize(value: String) -> String:
     var result: String = value.to_lower().strip_edges()
