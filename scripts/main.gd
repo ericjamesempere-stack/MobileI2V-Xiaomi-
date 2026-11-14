@@ -859,6 +859,10 @@ func _create_storyboard() -> void:
     file.store_string(JSON.stringify(project, "  "))
     file.close()
     latest_storyboard_directory = save_dir
+    var latest_pointer := FileAccess.open("user://latest_storyboard.txt", FileAccess.WRITE)
+    if latest_pointer != null:
+        latest_pointer.store_string(save_dir)
+        latest_pointer.close()
     var scenes: Array = project["scenes"]
     var unsupported := 0
     for scene in scenes:
@@ -999,5 +1003,5 @@ func _create_and_preview_demo() -> void:
     if latest_storyboard_directory.is_empty() or latest_storyboard_directory == previous:
         return
     _render_procedural_demo()
-    if FileAccess.file_exists(latest_storyboard_directory + "/sequence/manifest.json"):
+    if generator_status.text.begins_with("Demo 2D :"):
         _preview_storyboard_animation()
