@@ -5,6 +5,7 @@ on:
     paths:
       - 'scripts/**'
       - 'tests/**'
+      - 'tools/**'
       - 'project.godot'
       - '.github/workflows/verify-image-generator.yml'
   workflow_dispatch:
@@ -29,6 +30,8 @@ jobs:
       - name: Run motion smoke tests
         run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_motion.gd
 
+      - name: Run real MP4 encoder integration tests
+        run: python3 -m unittest discover -s tests -p test_encode_sequence.py -v
       - name: Encode and validate a real H264 MP4 sample
         run: |
           set -euo pipefail
