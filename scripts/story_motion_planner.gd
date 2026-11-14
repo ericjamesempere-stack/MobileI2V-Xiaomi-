@@ -45,7 +45,7 @@ func plan(story: String, seconds: float = 6.0) -> Dictionary:
         # contain a recognized action (e.g. "court et sourit").
         var clauses: Array[String] = []
         var current: String = ""
-        for segment in part.split(" et ", false):
+        for segment in part.replace(" and ", " et ").split(" et ", false):
             var phrase_part: String = segment.strip_edges()
             if not current.is_empty() and _action_for(phrase_part) != "inconnu":
                 clauses.append(current)
