@@ -93,8 +93,8 @@ func render_articulated_layers(artwork: Image, source_landmarks: Array, target_l
     # Reject opaque photographs: warping their background as clothing creates ghosts.
     var transparent_samples: int = 0
     var sample_count: int = 0
-    for py in range(0, artwork.get_height(), maxi(1, artwork.get_height() / 16)):
-        for px in range(0, artwork.get_width(), maxi(1, artwork.get_width() / 16)):
+    for py in range(0, artwork.get_height(), maxi(1, floori(float(artwork.get_height()) / 16.0))):
+        for px in range(0, artwork.get_width(), maxi(1, floori(float(artwork.get_width()) / 16.0))):
             sample_count += 1
             if artwork.get_pixel(px, py).a < 0.1:
                 transparent_samples += 1
