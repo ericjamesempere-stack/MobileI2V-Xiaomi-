@@ -1,0 +1,72 @@
+"""HTTP contract tests. Fake model modules; these tests do NOT validate actual AI quality."""
+import base64
+import io
+import os
+import sys
+import types
+import unittest
+from unittest.mock import patch
+from PIL import Image
+
+sys.path.insert(0, os.path.abspath("tools"))
+import visual_backend as backend
+
+
+def source_b64():
+    im = Image.new("RGB", (64, 64), (150, 80, 40))
+    buf = io.BytesIO()
+    im.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+class VisualBackendContract(unittest.TestCase):
+    def setUp(self):
+        self.client = backend.app.test_client()
+        backend._pose_model = None
+        backend._draw_model = None
+
+    def test_health(self):
+        self.assertEqual(self.client.get("/health").status_code, 200)
+
+    def test_pose_real_response_shape_with_stub_detector(self):
+        class Landmark:
+            x, y, z, visibility = 0.5, 0.4, 0.0, 0.99
+
+        class Pose:
+            def __init__(self, **kwargs): pass
+            def process(self, image):
+                return types.SimpleNamespace(pose_landmarks=types.SimpleNamespace(landmark=[Landmark() for _ in range(33)]))
+
+        fake_mp = types.SimpleNamespace(solutions=types.SimpleNamespace(pose=types.SimpleNamespace(Pose=Pose)))
+        with patch.dict(sys.modules, {"mediapipe": fake_mp}):
+            result = self.client.post("/pose", json={"image_base64": source_b64()})
+        self.assertEqual(result.status_code, 200, result.json)
+        self.assertTrue(result.json["detected"])
+        self.assertEqual(len(result.json["landmarks"]), 33)
+
+    def test_redraw_missing_model_is_explicit(self):
+        # Diffusers import occurs before missing-model validation.
+        fake_diffusers = types.SimpleNamespace(AutoPipelineForImage2Image=object)
+        with patch.dict(sys.modules, {"diffusers": fake_diffusers}), patch.dict(os.environ, {"MOBILEI2V_IMAGE_MODEL": ""}):
+            response = self.client.post("/generate/storyboard", json={"image_base64": source_b64(), "prompt": "standing"})
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("MOBILEI2V_IMAGE_MODEL", response.json["error"])
+
+    def test_redraw_returns_real_png_bytes_from_stub_pipeline(self):
+        class FakePipeline:
+            @classmethod
+            def from_pretrained(cls, *args, **kwargs): return cls()
+            def to(self, device): return self
+            def __call__(self, **kwargs):
+                return types.SimpleNamespace(images=[Image.new("RGB", (64, 64), (10, 20, 30))])
+        fake_diffusers = types.SimpleNamespace(AutoPipelineForImage2Image=FakePipeline)
+        fake_torch = types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: False), float32="float32", float16="float16")
+        with patch.dict(sys.modules, {"diffusers": fake_diffusers, "torch": fake_torch}), patch.dict(os.environ, {"MOBILEI2V_IMAGE_MODEL": "mock"}):
+            response = self.client.post("/generate/storyboard", json={"image_base64": source_b64(), "prompt": "standing", "num_images": 2})
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertEqual(len(response.json["images"]), 2)
+        self.assertTrue(base64.b64decode(response.json["images"][0]).startswith(b"\\x89PNG\\r\\n\\x1a\\n"))
+
+
+if __name__ == "__main__":
+    unittest.main()
