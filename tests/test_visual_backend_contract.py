@@ -65,7 +65,7 @@ class VisualBackendContract(unittest.TestCase):
             response = self.client.post("/generate/storyboard", json={"image_base64": source_b64(), "prompt": "standing", "num_images": 2})
         self.assertEqual(response.status_code, 200, response.json)
         self.assertEqual(len(response.json["images"]), 2)
-        self.assertTrue(base64.b64decode(response.json["images"][0]).startswith(b"\\x89PNG\\r\\n\\x1a\\n"))
+        self.assertTrue(base64.b64decode(response.json["images"][0]).startswith(b"\x89PNG\r\n\x1a\n"))
 
 
 if __name__ == "__main__":
