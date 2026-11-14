@@ -18,11 +18,13 @@ def main():
     p.add_argument("output", type=Path)
     p.add_argument("--seconds", type=int, default=3)
     p.add_argument("--fps", type=int, choices=[24, 30], default=24)
+    p.add_argument("--appearance", type=Path, help="Optional manual character palette JSON")
     args = p.parse_args()
     drawing = load_module("karma_drawings", "karma_one_pose_drawings.py")
     assembly = load_module("karma_assembler", "karma_one_frame_assembler.py")
     folder = args.output.parent / (args.output.stem + "_drawings")
-    total = drawing.render(folder, args.seconds, args.fps)
+    appearance = json.loads(args.appearance.read_text(encoding="utf-8")) if args.appearance else None
+    total = drawing.render(folder, args.seconds, args.fps, appearance)
     result = assembly.assemble(folder, args.output, args.fps, total)
     result["generator"] = "offline_procedural_stylized_pose_drawings"
     result["photo_identity_preserved"] = False
