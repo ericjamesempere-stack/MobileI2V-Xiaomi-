@@ -68,3 +68,23 @@ func validate_bone_lengths(frames: Array, max_relative_change: float = 0.20) -> 
         "status": "bone_length_checked",
         "limitations": ["2D projection can change apparent bone length",
             "does not enforce collisions, joint angles or dynamics"]}
+
+# Turn approved keyframes into painted RGBA frames for the existing MP4 encoder.
+# This is a usable bridge, not a text-to-motion generator.
+func render_artwork_sequence(artwork: Image, source_pose: Array, keyframes: Array,
+        frame_count: int = 60, limb_half_width: float = 9.0) -> Dictionary:
+    var plan: Dictionary = generate(keyframes, frame_count)
+    if not bool(plan.get("ok", false)):
+        return plan
+    var painter: RefCounted = load("res://scripts/painted_limb_warp.gd").new()
+    var rendered: Array = []
+    for pose in plan["frames"]:
+        var result: Dictionary = painter.render_composite_preview(artwork, source_pose, pose, limb_half_width)
+        if not bool(result.get("ok", false)):
+            return {"ok": false, "error": "Character render failed at frame %d: %s" %
+                [rendered.size(), str(result.get("error", "unknown"))]}
+        rendered.append(result["image"])
+    return {"ok": true, "frames": rendered, "count": rendered.size(),
+        "status": "articulated_artwork_frames",
+        "limitations": ["requires transparent artwork and approved source/keyframe poses",
+            "not automatic photo segmentation or free-text motion generation"]}
