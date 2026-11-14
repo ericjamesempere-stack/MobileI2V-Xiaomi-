@@ -58,3 +58,45 @@ static func timeline(project: Dictionary, fps: int = 12) -> Dictionary:
             var source_index := mini(frames.size() - 1, int(float(i) * float(frames.size()) / float(count)))
             result.append(str(frames[source_index]))
     return {"ok": true, "fps": fps, "frames": result, "frame_count": result.size(), "dimensions": expected_size}
+
+# Materialize a standard numbered PNG sequence usable by a real video encoder.
+# Explicitly does not label the result MP4/GIF until an encoder succeeds.
+static func export_png_sequence(project: Dictionary, directory: String, fps: int = 12) -> Dictionary:
+    var plan: Dictionary = timeline(project, fps)
+    if not plan.get("ok", false):
+        return plan
+    if not directory.begins_with("user://"):
+        return {"ok": false, "error": "output_must_be_user_directory"}
+    if plan["frame_count"] > 18000:
+        return {"ok": false, "error": "frame_limit_exceeded"}
+    var error: int = DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(directory))
+    if error != OK:
+        return {"ok": false, "error": "cannot_create_directory", "code": error}
+    var frame_paths: Array = plan["frames"]
+    for i in range(frame_paths.size()):
+        var source_path: String = str(frame_paths[i])
+        if not FileAccess.file_exists(source_path):
+            return {"ok": false, "error": "missing_source_frame", "frame": i}
+        var target_path := "%s/frame_%06d.png" % [directory, i]
+        var source_bytes: PackedByteArray = FileAccess.get_file_as_bytes(source_path)
+        if source_bytes.is_empty():
+            return {"ok": false, "error": "cannot_read_frame", "frame": i}
+        var output := FileAccess.open(target_path, FileAccess.WRITE)
+        if output == null:
+            return {"ok": false, "error": "cannot_write_frame", "frame": i}
+        output.store_buffer(source_bytes)
+        output.close()
+    var manifest := {
+        "format": "png_sequence",
+        "fps": fps,
+        "frame_count": frame_paths.size(),
+        "dimensions": plan["dimensions"],
+        "duration_seconds": float(frame_paths.size()) / float(fps),
+        "video_encoded": false
+    }
+    var manifest_file := FileAccess.open(directory + "/manifest.json", FileAccess.WRITE)
+    if manifest_file == null:
+        return {"ok": false, "error": "cannot_write_manifest"}
+    manifest_file.store_string(JSON.stringify(manifest, "  "))
+    manifest_file.close()
+    return {"ok": true, "directory": directory, "manifest": directory + "/manifest.json", "frame_count": frame_paths.size(), "video_encoded": false}
