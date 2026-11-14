@@ -30,6 +30,18 @@ func _run() -> void:
     assert(movie["frames"][12] == b)
     assert(not pipeline.attach_scene_frames(project, 0, ["user://missing_123.png"])["ok"])
     assert(not pipeline.timeline(project, 0)["ok"])
+    var export_dir := root + "/export"
+    var exported: Dictionary = pipeline.export_png_sequence(project, export_dir, 12)
+    assert(exported["ok"], "PNG sequence export failed")
+    assert(exported["frame_count"] == 24)
+    assert(FileAccess.file_exists(export_dir + "/frame_000000.png"))
+    assert(FileAccess.file_exists(export_dir + "/frame_000023.png"))
+    assert(FileAccess.file_exists(export_dir + "/manifest.json"))
+    assert(exported["video_encoded"] == false)
+    for i in range(24):
+        DirAccess.remove_absolute(ProjectSettings.globalize_path(export_dir + "/frame_%06d.png" % i))
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(export_dir + "/manifest.json"))
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(export_dir))
     assert(DirAccess.remove_absolute(ProjectSettings.globalize_path(a)) == OK)
     assert(DirAccess.remove_absolute(ProjectSettings.globalize_path(b)) == OK)
     print("MOBILEI2V_STORY_FRAME_PIPELINE_OK")
