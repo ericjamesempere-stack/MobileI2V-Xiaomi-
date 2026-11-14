@@ -21,6 +21,14 @@ func _initialize() -> void:
         assert(scene["end_frame"] > scene["start_frame"])
         assert(not scene["keyframes"].is_empty())
         assert(not str(scene["source_text"]).is_empty())
+    var unknown_project: Dictionary = director.build("Il fait un salto sur une main.", 3.0)
+    assert(unknown_project["scenes"].size() == 1)
+    assert(unknown_project["scenes"][0]["motion_generation_required"])
+    var blank_artwork := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+    var missing_poses: Dictionary = director.render_scene_from_keyframes(
+        unknown_project["scenes"][0], blank_artwork, [], [])
+    assert(not missing_poses["ok"])
+    assert(missing_poses["requires_pose_generation"])
     var pending: Dictionary = director.validate_for_animation(project)
     assert(not pending["ok"], "Unapproved drawings must block animation")
     for scene in scenes:
