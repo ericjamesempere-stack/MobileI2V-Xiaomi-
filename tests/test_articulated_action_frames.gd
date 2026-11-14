@@ -28,5 +28,17 @@ func _initialize() -> void:
         push_error("Too few articulated posture changes: %d / 14" % changed_pairs)
         quit(1)
         return
+    # Fall end and rise start must describe the same physical pose.
+    var fallen: Image = generator.render("personnage", 1.0, Vector2i(360, 480), "chute")
+    var rising: Image = generator.render("personnage", 0.0, Vector2i(360, 480), "releve")
+    var mismatched := 0
+    for y in range(0, 480, 4):
+        for x in range(0, 360, 4):
+            if fallen.get_pixel(x, y) != rising.get_pixel(x, y):
+                mismatched += 1
+    if mismatched > 0:
+        push_error("Fall-to-rise pose discontinuity: %d mismatched samples" % mismatched)
+        quit(1)
+        return
     print("ARTICULATED_ACTION_FRAMES_OK changed_pairs=", changed_pairs)
     quit(0)
