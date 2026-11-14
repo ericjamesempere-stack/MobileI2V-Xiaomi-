@@ -65,6 +65,14 @@ func _initialize() -> void:
         original_pose[idx]["y"] = 0.8
         moved_pose[idx]["y"] = 0.8
         moved_pose[idx]["x"] = 0.7
+    var generic_solver: RefCounted = load("res://scripts/pose_keyframe_solver.gd").new()
+    var multi_action: Dictionary = generic_solver.render_artwork_sequence(source, original_pose, [
+        {"time": 0.0, "pose": original_pose},
+        {"time": 0.5, "pose": moved_pose},
+        {"time": 1.0, "pose": original_pose}
+    ], 12, 8.0)
+    assert(multi_action["ok"], "Generic keyframes must render actual character frames")
+    assert(multi_action["count"] == 12)
     var painted_pose: Dictionary = painter.render_articulated_layers(source, original_pose, moved_pose, 8.0)
     assert(painted_pose["ok"])
     var opaque_artwork := Image.create(100, 100, false, Image.FORMAT_RGBA8)
