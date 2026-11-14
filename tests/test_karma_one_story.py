@@ -101,18 +101,12 @@ class StoryTests(unittest.TestCase):
 
     def test_gait_alternates_support_and_swing_foot(self):
         draw=load("karma_one_pose_drawings")
-        a=draw.draw_pose(3,24,action="run",phase_index=3)
-        b=draw.draw_pose(9,24,action="run",phase_index=9)
-        floor=int(a.height*.86)
-        pants=(37,53,75)
-        # Look for the bottom of each shoe in left and right halves.
-        def lowest(image, left):
-            x0,x1=(90,175) if left else (185,270)
-            return max((y for y in range(floor-30,floor+8)
-                        for x in range(x0,x1)
-                        if image.getpixel((x,y))==pants),default=-1)
-        self.assertLess(lowest(a,True),lowest(a,False))
-        self.assertGreater(lowest(b,True),lowest(b,False))
+        a=draw.joint_positions(3,24,action="run",phase_index=3)
+        b=draw.joint_positions(9,24,action="run",phase_index=9)
+        # Test the actual articulated foot landmarks, not ambiguous pixel colors
+        # where limbs can cross from one half of the image into the other.
+        self.assertLess(a["left_foot"][1],a["right_foot"][1])
+        self.assertGreater(b["left_foot"][1],b["right_foot"][1])
 
     def test_stumble_between_run_and_fall(self):
         story=load("karma_one_story_sequence")
