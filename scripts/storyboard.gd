@@ -642,7 +642,7 @@ func _generate_image_sequence() -> void:
         status.text = "Moteur IA non configure. Indique son adresse HTTPS dans Options avancees. Aucun modele generatif integre a cette APK."
         generator.queue_free()
         return
-    var result: Dictionary = await generator.call("generate", original, action_input.text, endpoint, count, false)
+    var result: Dictionary = await generator.call("generate", original, action_input.text, endpoint, count, false, "", float(duration_input.value))
     ai_running = false
     generator.queue_free()
     if not bool(result.get("ok", false)):
