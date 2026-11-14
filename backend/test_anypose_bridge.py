@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 from fastapi import HTTPException
 from PIL import Image
-from backend.anypose_bridge import Request, decode, first_gallery_path, generate
+from backend.anypose_bridge import Request, decode, first_gallery_path, generate, health
 
 
 def png_b64(color):
@@ -47,6 +47,29 @@ class BridgeTests(unittest.TestCase):
             frame_index=0,
             total_frames=2,
         )
+
+    def test_health_does_not_claim_remote_is_verified(self):
+        with patch.dict(os.environ, {"MOBILEI2V_API_TOKEN": "secret"}):
+            status = health()
+        self.assertTrue(status["ready"])
+        self.assertFalse(status["remote_verified"])
+
+    def test_remote_failure_is_retryable_without_leaking_details(self):
+        class FailingClient:
+            def __init__(self, *args, **kwargs):
+                pass
+            def predict(self, *args, **kwargs):
+                raise RuntimeError("private server path /secret/data")
+        fake = types.ModuleType("gradio_client")
+        fake.Client = FailingClient
+        fake.handle_file = lambda path: path
+        with patch.dict(sys.modules, {"gradio_client": fake}):
+            with patch.dict(os.environ, {"MOBILEI2V_API_TOKEN": "secret"}):
+                with self.assertRaises(HTTPException) as caught:
+                    generate(self.req, authorization="Bearer secret")
+        self.assertEqual(caught.exception.status_code, 503)
+        self.assertEqual(caught.exception.headers["Retry-After"], "30")
+        self.assertNotIn("secret", caught.exception.detail)
 
     def test_gallery_nested_path(self):
         self.assertEqual(first_gallery_path([{"image": {"path": "/tmp/x.png"}}]), "/tmp/x.png")
