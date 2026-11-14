@@ -1,0 +1,21 @@
+name: Real AnyPose Synthetic Image Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install inference client
+        run: python -m pip install -q 'gradio_client>=1.0' pillow fastapi
+      - name: Run real inference with two synthetic figures
+        run: python -m tools.smoke_anypose_synthetic
