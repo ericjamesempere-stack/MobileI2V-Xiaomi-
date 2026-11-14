@@ -34,8 +34,8 @@ class Request(BaseModel):
     pose_action: str | None = None
     full_story: str | None = None
     loop: bool = False
-    reference_strength: float = 0.85
-    temporal_position: float = 0.0
+    reference_strength: float = Field(default=0.85, ge=0.0, le=1.0)
+    temporal_position: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 def decode(value: str) -> Image.Image:
@@ -88,6 +88,9 @@ def generate(req: Request, authorization: str | None = Header(default=None)):
         raise HTTPException(401, "Unauthorized")
     if req.frame_index >= req.total_frames:
         raise HTTPException(400, "Frame index out of bounds")
+    expected_progress = req.frame_index / max(1, req.total_frames - 1)
+    if abs(req.temporal_position - expected_progress) > 0.02:
+        raise HTTPException(400, "Temporal position inconsistent with frame index")
     reference = decode(req.image_base64)
     pose = decode(req.pose_image_base64)
     try:
