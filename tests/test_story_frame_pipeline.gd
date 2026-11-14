@@ -16,6 +16,23 @@ func _run() -> void:
         var p := "%s/source_%03d.png" % [root, i]
         assert(image.save_png(p) == OK)
         paths.append(p)
+    var import_project: Dictionary = studio.storyboard("Une moto roule puis saute", 2.0)
+    var rendered_first := root + "/rendered/scene_000"
+    var rendered_second := root + "/rendered/scene_001"
+    assert(DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(rendered_first)) == OK)
+    var failed_import: Dictionary = pipeline.import_rendered_scenes(import_project, root)
+    assert(not failed_import["ok"])
+    assert(not import_project["scenes"][0].has("frame_paths"))
+    assert(DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(rendered_second)) == OK)
+    for i in range(24):
+        var target_folder := rendered_first if i < 12 else rendered_second
+        var destination := "%s/frame_%06d.png" % [target_folder, i % 12]
+        assert(DirAccess.copy_absolute(ProjectSettings.globalize_path(paths[i]), ProjectSettings.globalize_path(destination)) == OK)
+    var imported: Dictionary = pipeline.import_rendered_scenes(import_project, root)
+    assert(imported["ok"])
+    assert(imported["imported"] == 2)
+    assert(imported["project"]["scenes"][1]["reference_previous_frame"].ends_with("frame_000011.png"))
+    assert(not import_project["scenes"][0].has("frame_paths"))
     var first: Dictionary = pipeline.attach_scene_frames(project, 0, paths.slice(0, 12))
     assert(first["ok"])
     project = first["project"]
@@ -55,6 +72,12 @@ func _run() -> void:
         DirAccess.remove_absolute(ProjectSettings.globalize_path(export_dir + "/frame_%06d.png" % i))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(export_dir + "/manifest.json"))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(export_dir))
+    for i in range(24):
+        var target_folder := rendered_first if i < 12 else rendered_second
+        DirAccess.remove_absolute(ProjectSettings.globalize_path("%s/frame_%06d.png" % [target_folder, i % 12]))
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(rendered_first))
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(rendered_second))
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(root + "/rendered"))
     for p in paths:
         assert(DirAccess.remove_absolute(ProjectSettings.globalize_path(p)) == OK)
     print("MOBILEI2V_STORY_FRAME_PIPELINE_OK")
