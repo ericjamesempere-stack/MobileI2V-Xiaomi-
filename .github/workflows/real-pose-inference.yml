@@ -5,7 +5,7 @@ on:
     inputs:
       public_image_url:
         description: 'Optional HTTPS URL to a publicly licensed full-body test image (never private user photos)'
-        required: true
+        required: false
         type: string
 
 jobs:
@@ -24,13 +24,15 @@ jobs:
           curl --fail --location --retry 3 --output /tmp/pose_landmarker_lite.task \
             https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task
           test -s /tmp/pose_landmarker_lite.task
-      - name: Download public test image
+      - name: Prepare public test image
         env:
           TEST_URL: ${{ inputs.public_image_url }}
         run: |
           python - <<'PY'
           import os, urllib.parse, urllib.request
-          url = os.environ["TEST_URL"]
+          url = os.environ.get("TEST_URL", "").strip()
+          if not url:
+              url = "https://raw.githubusercontent.com/google-ai-edge/mediapipe/master/mediapipe/tasks/testdata/vision/pose.jpg"
           parsed = urllib.parse.urlsplit(url)
           if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
               raise SystemExit("Only public HTTPS images are accepted")
