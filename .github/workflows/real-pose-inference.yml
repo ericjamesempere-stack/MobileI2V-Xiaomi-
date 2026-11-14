@@ -1,6 +1,12 @@
 name: Real MediaPipe Pose Inference
 
 on:
+  push:
+    branches:
+      - karma/storyboard-story-sequence-20261113
+    paths:
+      - 'tools/test_real_pose.py'
+      - '.github/workflows/real-pose-inference.yml'
   workflow_dispatch:
     inputs:
       public_image_url:
