@@ -17,6 +17,7 @@ ACTIONS = {
     "stand": ("immobile", "debout", "attend", "stand", "stop", "se relève", "se releve", "se relever", "relève", "releve", "gets up", "get up", "stands up"),
     "crouch": ("accroupi", "accroupit", "accroupir", "crouch", "squat"),
     "fall": ("tombe", "tomber", "chute", "fall", "falls", "falling"),
+    "stumble": ("trébuche", "trébucher", "trebuche", "trebucher", "perd l'équilibre", "stumble", "stumbles", "trip", "trips"),
 }
 
 def load(name):
