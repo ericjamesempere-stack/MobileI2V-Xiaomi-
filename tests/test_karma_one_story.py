@@ -17,6 +17,15 @@ class StoryTests(unittest.TestCase):
         m=load("karma_one_story_sequence")
         self.assertEqual([s["action"] for s in m.plan("marche puis court puis danse")],
                          ["walk","run","dance"])
+    def test_running_pelvis_and_knees_change_across_stride(self):
+        draw=load("karma_one_pose_drawings")
+        a=draw.draw_pose(0,24,action="run",phase_index=0)
+        b=draw.draw_pose(3,24,action="run",phase_index=3)
+        c=draw.draw_pose(6,24,action="run",phase_index=6)
+        self.assertNotEqual(a.tobytes(),b.tobytes())
+        self.assertNotEqual(b.tobytes(),c.tobytes())
+        self.assertEqual(a.size,b.size)
+
     def test_gait_alternates_support_and_swing_foot(self):
         draw=load("karma_one_pose_drawings")
         a=draw.draw_pose(3,24,action="run",phase_index=3)
