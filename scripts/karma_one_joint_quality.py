@@ -2,6 +2,17 @@
 """Inspect consecutive articulated 2D joint samples before video assembly."""
 import math
 
+def joint_angle(a, pivot, b):
+    """Interior angle in degrees, 0 folded and 180 straight."""
+    ax,ay=float(a[0])-float(pivot[0]),float(a[1])-float(pivot[1])
+    bx,by=float(b[0])-float(pivot[0]),float(b[1])-float(pivot[1])
+    la=math.hypot(ax,ay)
+    lb=math.hypot(bx,by)
+    if min(la,lb)<1e-8:
+        return None
+    cosine=max(-1.0,min(1.0,(ax*bx+ay*by)/(la*lb)))
+    return math.degrees(math.acos(cosine))
+
 def anatomy_report(samples, floor=412, tolerance=12):
     """Diagnostic only: report suspect floor penetration and joint bending.
 
@@ -22,11 +33,21 @@ def anatomy_report(samples, floor=412, tolerance=12):
             if upper < 5 or lower < 5:
                 warnings.append({"frame":i,"joint":side+"_knee",
                                  "issue":"collapsed_leg_segment"})
+            knee_angle=joint_angle(hip,knee,foot)
+            if knee_angle is not None and knee_angle < 15:
+                warnings.append({"frame":i,"joint":side+"_knee",
+                                 "issue":"extreme_knee_flexion",
+                                 "degrees":round(knee_angle,1)})
             elbow=joints[side+"_elbow"]
             hand=joints[side+"_hand"]
             if math.dist(joints["shoulder"],elbow)<5 or math.dist(elbow,hand)<5:
                 warnings.append({"frame":i,"joint":side+"_elbow",
                                  "issue":"collapsed_arm_segment"})
+            elbow_angle=joint_angle(joints["shoulder"],elbow,hand)
+            if elbow_angle is not None and elbow_angle < 15:
+                warnings.append({"frame":i,"joint":side+"_elbow",
+                                 "issue":"extreme_elbow_flexion",
+                                 "degrees":round(elbow_angle,1)})
     return {"anatomy_warning_count":len(warnings),
             "anatomy_warnings":warnings[:100]}
 
