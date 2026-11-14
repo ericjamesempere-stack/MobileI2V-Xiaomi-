@@ -26,7 +26,7 @@ func build(story: String, duration_seconds: float, reference_image: String = "")
     var warnings: Array[String] = []
     var total_frames: int = maxi(1, roundi(duration * FPS))
     if steps.is_empty():
-        warnings.append("Aucune action reconnue : le dessin et les mouvements demandent une interpretation humaine ou un modele de langage.")
+        warnings.append("Scénario vide : aucune action à planifier.")
     var previous_scene_id: String = ""
     var previous_action: String = ""
     for index in range(steps.size()):
@@ -53,6 +53,8 @@ func build(story: String, duration_seconds: float, reference_image: String = "")
             "id": "scene_%03d" % (index + 1),
             "source_text": str(step.get("description", "")).strip_edges() if not str(step.get("description", "")).strip_edges().is_empty() else story.strip_edges(),
             "action": action,
+            "requested_motion": str(step.get("description", "")),
+            "motion_generation_required": not supported_motion,
             "start_frame": start_frame,
             "end_frame": end_frame,
             "rig_motion": spec["rig"] if bool(visual["implemented"]) and supported_motion else "none",
