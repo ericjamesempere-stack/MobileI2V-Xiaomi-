@@ -117,6 +117,17 @@ jobs:
           test -s multi_action_character.mp4
           N="$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 multi_action_character.mp4)"
           test "$N" = "66"
+          # Verify the encoded video actually changes pose across frames;
+          # a static image exported as MP4 is not a successful animation.
+          ffmpeg -hide_banner -loglevel error -i multi_action_character.mp4 -f framemd5 multi_action_framemd5.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          rows = [line for line in Path("multi_action_framemd5.txt").read_text().splitlines() if line and not line.startswith("#")]
+          hashes = [row.split(",")[-1].strip() for row in rows]
+          assert len(hashes) == 66, f"Expected 66 decoded frames, got {len(hashes)}"
+          assert len(set(hashes)) >= 8, f"Video is effectively static: {len(set(hashes))} distinct frames"
+          print(f"Validated {len(hashes)} decoded frames, {len(set(hashes))} unique visual frames")
+          PY
       - name: Upload multi-action character MP4
         uses: actions/upload-artifact@v4
         with:
