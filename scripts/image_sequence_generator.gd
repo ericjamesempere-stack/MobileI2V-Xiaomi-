@@ -5,7 +5,7 @@ extends Node
 signal progress(index: int, total: int)
 var cancel_requested := false
 
-func generate(source: Image, prompt: String, endpoint: String, count: int = 12, loop: bool = false, api_token: String = "") -> Dictionary:
+func generate(source: Image, prompt: String, endpoint: String, count: int = 12, loop: bool = false, api_token: String = "", duration_seconds: float = 0.0) -> Dictionary:
  if source == null or source.is_empty():
   return {"ok": false, "error": "Image source absente"}
  if prompt.strip_edges().is_empty():
@@ -28,7 +28,7 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
  var frames: Array[Image] = []
  # Timeline seconds are independent from the number of requested drawings.
  # The caller may request 120 frames for a six-second film.
- var motion_plan: Dictionary = load("res://scripts/story_motion_planner.gd").new().plan(prompt, float(count) / 8.0)
+ var motion_plan: Dictionary = load("res://scripts/story_motion_planner.gd").new().plan(prompt, duration_seconds if duration_seconds > 0.0 else float(count) / 4.0)
  var motion_steps: Array = motion_plan.get("steps", [])
  var supported_actions: Array[String] = ["repos", "marche", "course", "saut", "chute", "trebuche", "releve", "danse", "salut"]
  # Do not silently draw a generic dancing/standing figure for an action
