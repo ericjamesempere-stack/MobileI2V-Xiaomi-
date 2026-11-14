@@ -27,6 +27,8 @@ MAX_PIXELS = 1024 * 1024
 class GenerateRequest(BaseModel):
     image_base64: str
     previous_image_base64: str | None = None
+    pose_image_base64: str | None = None
+    pose_action: str | None = None
     prompt: str = Field(min_length=1, max_length=2000)
     frame_index: int = Field(ge=0, le=119)
     total_frames: int = Field(ge=2, le=120)
@@ -107,7 +109,7 @@ def generate(req: GenerateRequest, authorization: str | None = Header(default=No
         raise HTTPException(400, "temporal_position inconsistent with frame_index")
     if not torch.cuda.is_available():
         raise HTTPException(503, "GPU unavailable: image generation requires CUDA")
-    reference = fit(decode_image(req.image_base64))
+    # This SD-Turbo img2img backend has no pose-control model. Reject pose\n    # requests rather than silently ignoring them and claiming compliance.\n    if req.pose_image_base64 is not None:\n        decode_image(req.pose_image_base64)\n        raise HTTPException(501, "Pose-guided generation is not supported by this SD-Turbo backend; use a verified pose-conditioned model")\n    reference = fit(decode_image(req.image_base64))
     previous = fit(decode_image(req.previous_image_base64)) if req.previous_image_base64 else reference
     if previous.size != reference.size:
         previous = previous.resize(reference.size, Image.Resampling.LANCZOS)
