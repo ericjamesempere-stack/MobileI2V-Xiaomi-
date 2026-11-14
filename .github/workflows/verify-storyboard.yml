@@ -126,6 +126,26 @@ jobs:
           hashes = [row.split(",")[-1].strip() for row in rows]
           assert len(hashes) == 66, f"Expected 66 decoded frames, got {len(hashes)}"
           assert len(set(hashes)) >= 8, f"Video is effectively static: {len(set(hashes))} distinct frames"
+          # A video with one moving patch and an otherwise frozen image can
+          # still have many hashes. Check visual changes across spatial regions.
+          import subprocess
+          from PIL import Image, ImageChops, ImageStat
+          import io
+          def frame_at(index):
+              raw = subprocess.check_output(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", "multi_action_character.mp4", "-vf", f"select=eq(n\\,{index})", "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "-"])
+              return Image.open(io.BytesIO(raw)).convert("RGB")
+          sampled = [frame_at(i) for i in (0, 12, 24, 36, 48, 65)]
+          w, h = sampled[0].size
+          changed_regions = set()
+          for a, b in zip(sampled, sampled[1:]):
+              diff = ImageChops.difference(a, b).convert("L")
+              for gy in range(4):
+                  for gx in range(4):
+                      box = (gx*w//4, gy*h//4, (gx+1)*w//4, (gy+1)*h//4)
+                      if ImageStat.Stat(diff.crop(box)).mean[0] > 2.0:
+                          changed_regions.add((gx, gy))
+          assert len(changed_regions) >= 2, f"Motion is confined to {len(changed_regions)} region(s)"
+          print(f"Spatially changing regions: {len(changed_regions)} / 16")
           print(f"Validated {len(hashes)} decoded frames, {len(set(hashes))} unique visual frames")
           PY
       - name: Upload multi-action character MP4
