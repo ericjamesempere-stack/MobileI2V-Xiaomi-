@@ -106,3 +106,21 @@ func render_articulated_layers(artwork: Image, source_landmarks: Array, target_l
         draw_segment(image, artwork, source_b, source_c, target_b, target_c, limb_half_width)
         draw_joint(image, artwork, source_b, target_b, limb_half_width * 0.7)
     return {"ok": true, "image": image, "limbs": limbs.size(), "status": "painted_limbs_only"}
+
+# Render a chronological sequence using the SAME source artwork for every pose.
+# No crossfade or replacement drawing: each frame reprojects painted limb pixels.
+func render_motion_sequence(artwork: Image, source_landmarks: Array, target_poses: Array, limb_half_width: float = 9.0) -> Dictionary:
+    if target_poses.is_empty():
+        return {"ok": false, "error": "No target poses", "frames": []}
+    if target_poses.size() > 300:
+        return {"ok": false, "error": "Too many poses in one batch", "frames": []}
+    var frames: Array[Image] = []
+    for pose in target_poses:
+        if not pose is Array:
+            return {"ok": false, "error": "Invalid pose format", "frames": []}
+        var result: Dictionary = render_articulated_layers(artwork, source_landmarks, pose, limb_half_width)
+        if not bool(result.get("ok", false)):
+            return {"ok": false, "error": str(result.get("error", "Invalid pose")), "frames": []}
+        frames.append(result["image"])
+    return {"ok": true, "frames": frames, "count": frames.size(),
+        "status": "painted_limb_sequence", "scope": "four_limbs_only"}
