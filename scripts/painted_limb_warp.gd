@@ -78,3 +78,31 @@ func draw_joint(dst: Image, artwork: Image, source_joint: Vector2, target_joint:
                 continue
             var alpha: float = pigment.a * clampf(radius + 0.5 - distance, 0.0, 1.0)
             dst.set_pixel(x, y, dst.get_pixel(x, y).lerp(Color(pigment.r, pigment.g, pigment.b, 1.0), alpha))
+
+# Transfer articulated movement onto a pre-separated transparent character
+# drawing. Requires verified MediaPipe landmarks for the SOURCE drawing and
+# target pose. This is not automatic segmentation of arbitrary photographs.
+func render_articulated_layers(artwork: Image, source_landmarks: Array, target_landmarks: Array, limb_half_width: float = 9.0) -> Dictionary:
+    var rig: RefCounted = load("res://scripts/continuous_rig.gd").new()
+    var source_check: Dictionary = rig.validate_landmarks(source_landmarks)
+    var target_check: Dictionary = rig.validate_landmarks(target_landmarks)
+    if not bool(source_check.get("ok", false)) or not bool(target_check.get("ok", false)):
+        return {"ok": false, "error": "Source and target body landmarks required"}
+    if artwork.is_empty() or artwork.get_width() < 32 or artwork.get_height() < 32:
+        return {"ok": false, "error": "Character artwork missing"}
+    var image := Image.create(artwork.get_width(), artwork.get_height(), false, Image.FORMAT_RGBA8)
+    image.fill(Color.TRANSPARENT)
+    var w: float = float(artwork.get_width())
+    var h: float = float(artwork.get_height())
+    var limbs: Array = [[11, 13, 15], [12, 14, 16], [23, 25, 27], [24, 26, 28]]
+    for limb in limbs:
+        var source_a := Vector2(float(source_landmarks[limb[0]]["x"]) * w, float(source_landmarks[limb[0]]["y"]) * h)
+        var source_b := Vector2(float(source_landmarks[limb[1]]["x"]) * w, float(source_landmarks[limb[1]]["y"]) * h)
+        var source_c := Vector2(float(source_landmarks[limb[2]]["x"]) * w, float(source_landmarks[limb[2]]["y"]) * h)
+        var target_a := Vector2(float(target_landmarks[limb[0]]["x"]) * w, float(target_landmarks[limb[0]]["y"]) * h)
+        var target_b := Vector2(float(target_landmarks[limb[1]]["x"]) * w, float(target_landmarks[limb[1]]["y"]) * h)
+        var target_c := Vector2(float(target_landmarks[limb[2]]["x"]) * w, float(target_landmarks[limb[2]]["y"]) * h)
+        draw_segment(image, artwork, source_a, source_b, target_a, target_b, limb_half_width)
+        draw_segment(image, artwork, source_b, source_c, target_b, target_c, limb_half_width)
+        draw_joint(image, artwork, source_b, target_b, limb_half_width * 0.7)
+    return {"ok": true, "image": image, "limbs": limbs.size(), "status": "painted_limbs_only"}
