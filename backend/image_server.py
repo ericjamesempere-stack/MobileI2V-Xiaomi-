@@ -89,7 +89,7 @@ def fit(image: Image.Image) -> Image.Image:
 @app.get("/health")
 def health():
     return {
-        "ready": True,
+        "ready": torch.cuda.is_available(),
         "model_loaded": pipeline.cache_info().currsize > 0,
         "gpu": torch.cuda.is_available(),
         "model": os.getenv("MOBILEI2V_MODEL", "stabilityai/sd-turbo"),
@@ -105,6 +105,8 @@ def generate(req: GenerateRequest, authorization: str | None = Header(default=No
         raise HTTPException(400, "frame_index exceeds total_frames")
     if abs(req.temporal_position - req.frame_index / max(1, req.total_frames - 1)) > 0.02:
         raise HTTPException(400, "temporal_position inconsistent with frame_index")
+    if not torch.cuda.is_available():
+        raise HTTPException(503, "GPU unavailable: image generation requires CUDA")
     reference = fit(decode_image(req.image_base64))
     previous = fit(decode_image(req.previous_image_base64)) if req.previous_image_base64 else reference
     if previous.size != reference.size:
