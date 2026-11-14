@@ -88,3 +88,6 @@ async def redraw_endpoint(
 # Imported last to avoid circular imports: sequence uses redraw and validation above.
 from .sequence import router as sequence_router
 app.include_router(sequence_router)
+
+from .pose import router as pose_router
+app.include_router(pose_router)
