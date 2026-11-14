@@ -44,6 +44,33 @@ class VisualBackendContract(unittest.TestCase):
         self.assertTrue(result.json["detected"])
         self.assertEqual(len(result.json["landmarks"]), 33)
 
+    def test_tasks_pose_landmarker_contract(self):
+        class Landmark:
+            x, y, z, visibility = 0.5, 0.4, 0.0, 0.99
+
+        class TaskDetector:
+            @classmethod
+            def create_from_options(cls, options): return cls()
+            def detect(self, image):
+                return types.SimpleNamespace(pose_landmarks=[[Landmark() for _ in range(33)]])
+
+        fake_mp = types.SimpleNamespace(
+            tasks=types.SimpleNamespace(
+                BaseOptions=lambda **kwargs: object(),
+                vision=types.SimpleNamespace(
+                    PoseLandmarkerOptions=lambda **kwargs: object(),
+                    RunningMode=types.SimpleNamespace(IMAGE="IMAGE"),
+                    PoseLandmarker=TaskDetector)),
+            Image=lambda **kwargs: object(),
+            ImageFormat=types.SimpleNamespace(SRGB="SRGB"))
+        with patch.dict(sys.modules, {"mediapipe": fake_mp}), patch.dict(
+            os.environ, {"MOBILEI2V_POSE_TASK": "/tmp/pose_landmarker.task"}
+        ), patch("os.path.isfile", return_value=True):
+            response = self.client.post("/pose", json={"image_base64": source_b64()})
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertEqual(response.json["model"], "mediapipe_tasks_pose_landmarker")
+        self.assertEqual(len(response.json["landmarks"]), 33)
+
     def test_redraw_missing_model_is_explicit(self):
         # Diffusers import occurs before missing-model validation.
         fake_diffusers = types.SimpleNamespace(AutoPipelineForImage2Image=object)
