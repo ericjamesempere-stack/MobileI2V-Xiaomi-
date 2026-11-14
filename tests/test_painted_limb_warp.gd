@@ -139,12 +139,14 @@ func _initialize() -> void:
     DirAccess.make_dir_recursive_absolute("user://character_preview")
     var first_preview: Image = null
     var visibly_changed: bool = false
+    var transparent_preview_frames: Array = []
     for frame_id in range(60):
         var t: float = float(frame_id) / 59.0
         var travel: Dictionary = painter.translate_body_landmarks(original_pose, 0.12 * t, 0.03 * sin(t * TAU), 0.015 * sin(t * TAU * 2.0))
         assert(travel["ok"])
         var preview: Dictionary = painter.render_composite_preview(source, original_pose, travel["landmarks"], 8.0)
         assert(preview["ok"])
+        transparent_preview_frames.append(preview["image"])
         var canvas := Image.create(100, 100, false, Image.FORMAT_RGBA8)
         canvas.fill(Color("25364a"))
         canvas.blend_rect(preview["image"], Rect2i(Vector2i.ZERO, Vector2i(100, 100)), Vector2i.ZERO)
@@ -163,6 +165,12 @@ func _initialize() -> void:
             quit(1)
             return
     assert(visibly_changed, "Composite preview has no visible movement between frames 0 and 30")
+    var export_preflight: Dictionary = painter.validate_character_sequence(transparent_preview_frames)
+    if not bool(export_preflight.get("ok", false)):
+        push_error("Character video quality preflight failed: " + str(export_preflight))
+        quit(1)
+        return
+    print("CHARACTER_VIDEO_PREFLIGHT_OK")
     original_pose[11]["visibility"] = 0.0
     assert(not painter.render_articulated_layers(source, original_pose, moved_pose)["ok"])
     # Produce an actual sequence of painted-limb frames, not just one pose.
