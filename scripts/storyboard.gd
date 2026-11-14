@@ -887,13 +887,18 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
     var arm_r := Vector2(left + sw * 0.74, top + sh * 0.54)
     var leg_l := Vector2(left + sw * 0.39, top + sh * 0.91)
     var leg_r := Vector2(left + sw * 0.61, top + sh * 0.91)
+    # Approximate elbows and knees only when pose landmarks are unavailable.
+    var elbow_l: Vector2 = shoulder_l.lerp(arm_l, 0.5)
+    var elbow_r: Vector2 = shoulder_r.lerp(arm_r, 0.5)
+    var knee_l: Vector2 = hip_l.lerp(leg_l, 0.5)
+    var knee_r: Vector2 = hip_r.lerp(leg_r, 0.5)
     if use_detected:
         var rig: RefCounted = load("res://scripts/continuous_rig.gd").new()
         var rig_check: Dictionary = rig.validate_landmarks(detected_landmarks)
         if not bool(rig_check.get("ok", false)):
             status.text = "Squelette incomplet : " + str(rig_check.get("error", ""))
             return
-        for joint in [11,12,15,16,23,24,27,28]:
+        for joint in [11,12,13,14,15,16,23,24,25,26,27,28]:
             if not detected_landmarks[joint] is Dictionary or float(detected_landmarks[joint].get("visibility",0.0)) < 0.35:
                 status.text = "Articulation %d peu visible. Utilise une photo du corps entier." % joint
                 return
@@ -905,6 +910,10 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
         hip_r = _joint_point(24,width,height,fw,fh)
         leg_l = _joint_point(27,width,height,fw,fh)
         leg_r = _joint_point(28,width,height,fw,fh)
+        elbow_l = _joint_point(13,width,height,fw,fh)
+        elbow_r = _joint_point(14,width,height,fw,fh)
+        knee_l = _joint_point(25,width,height,fw,fh)
+        knee_r = _joint_point(26,width,height,fw,fh)
     if action_input.text.strip_edges().is_empty():
         status.text = "Ecris une action avant de generer la planche."
         return
@@ -990,18 +999,19 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
         # per limb. The artwork pixels are sampled from the transparent
         # source image, not replaced with procedural colored capsules.
         for limb in [
-            {"root": shoulder_l, "end": arm_l, "angle": arm_angle * sin(phase) + lean, "radius": 18.0, "bend": -1.0},
-            {"root": shoulder_r, "end": arm_r, "angle": -arm_angle * sin(phase) + lean, "radius": 18.0, "bend": 1.0},
-            {"root": hip_l, "end": leg_l, "angle": -leg_angle * sin(phase) + lean, "radius": 22.0, "bend": -1.0},
-            {"root": hip_r, "end": leg_r, "angle": leg_angle * sin(phase) + lean, "radius": 22.0, "bend": 1.0}
+            {"root": shoulder_l, "middle": elbow_l, "end": arm_l, "angle": arm_angle * sin(phase) + lean, "radius": 18.0, "bend": -1.0},
+            {"root": shoulder_r, "middle": elbow_r, "end": arm_r, "angle": -arm_angle * sin(phase) + lean, "radius": 18.0, "bend": 1.0},
+            {"root": hip_l, "middle": knee_l, "end": leg_l, "angle": -leg_angle * sin(phase) + lean, "radius": 22.0, "bend": -1.0},
+            {"root": hip_r, "middle": knee_r, "end": leg_r, "angle": leg_angle * sin(phase) + lean, "radius": 22.0, "bend": 1.0}
         ]:
             var root_point: Vector2 = limb["root"]
             var rest_end: Vector2 = limb["end"]
-            var rest_middle: Vector2 = root_point.lerp(rest_end, 0.5)
-            var length: float = root_point.distance_to(rest_end)
+            var rest_middle: Vector2 = limb["middle"]
+            var upper_length: float = root_point.distance_to(rest_middle)
+            var lower_length: float = rest_middle.distance_to(rest_end)
             var theta: float = limb["angle"]
             var target: Vector2 = root_point + (rest_end - root_point).rotated(theta) * 0.94
-            var solution: Dictionary = ik_solver.solve_two_bone(root_point, target, length * 0.5, length * 0.5, limb["bend"])
+            var solution: Dictionary = ik_solver.solve_two_bone(root_point, target, upper_length, lower_length, limb["bend"])
             if not bool(solution.get("ok", false)):
                 continue
             var radius: float = limb["radius"]
