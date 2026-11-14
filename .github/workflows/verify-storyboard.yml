@@ -57,6 +57,18 @@ jobs:
       - name: Test painted limb warp
         run: |
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_painted_limb_warp.gd
+      - name: Encode hand-painted limb animation
+        run: |
+          FRAMES_DIR="$(find "$HOME/.local/share/godot/app_userdata" -type d -name painted_warp -print -quit)"
+          test -n "$FRAMES_DIR"
+          test "$(find "$FRAMES_DIR" -name 'frame_*.png' | wc -l)" -eq 60
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 -i "$FRAMES_DIR/frame_%03d.png" -c:v libx264 -pix_fmt yuv420p -movflags +faststart painted_limb_animation.mp4
+      - name: Upload hand-painted animation
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobilei2v-painted-limb-animation
+          path: painted_limb_animation.mp4
+          if-no-files-found: error
       - name: Test two-bone inverse kinematics
         run: |
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_two_bone_ik.gd
