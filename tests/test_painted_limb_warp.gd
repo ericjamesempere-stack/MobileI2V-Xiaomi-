@@ -120,6 +120,22 @@ func _initialize() -> void:
     assert(motion["frames"][0].get_size() == Vector2i(100, 100))
     assert(motion["frames"][0].get_pixel(0, 0).a < 0.01)
     assert(not painter.render_motion_sequence(source, original_pose, [])["ok"])
+    # Export a 60-frame composited motion preview for visual CI inspection.
+    # The test drawing is synthetic; this does not validate arbitrary photos.
+    DirAccess.make_dir_recursive_absolute("user://character_preview")
+    for frame_id in range(60):
+        var t: float = float(frame_id) / 59.0
+        var travel: Dictionary = painter.translate_body_landmarks(original_pose, 0.12 * t, 0.03 * sin(t * TAU), 0.015 * sin(t * TAU * 2.0))
+        assert(travel["ok"])
+        var preview: Dictionary = painter.render_composite_preview(source, original_pose, travel["landmarks"], 8.0)
+        assert(preview["ok"])
+        var canvas := Image.create(100, 100, false, Image.FORMAT_RGBA8)
+        canvas.fill(Color("25364a"))
+        canvas.blend_rect(preview["image"], Rect2i(Vector2i.ZERO, Vector2i(100, 100)), Vector2i.ZERO)
+        if canvas.save_png("user://character_preview/frame_%03d.png" % frame_id) != OK:
+            push_error("Could not export character preview")
+            quit(1)
+            return
     original_pose[11]["visibility"] = 0.0
     assert(not painter.render_articulated_layers(source, original_pose, moved_pose)["ok"])
     # Produce an actual sequence of painted-limb frames, not just one pose.
