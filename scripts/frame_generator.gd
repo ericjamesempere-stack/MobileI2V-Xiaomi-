@@ -26,7 +26,7 @@ func generate(prompt: String, duration: float = 5.0, face: Texture2D = null) -> 
         busy = false
         failed.emit("Impossible de creer le dossier : %d" % error)
         return ""
-    var metadata := {"prompt": prompt, "duration_seconds": duration, "fps": FPS, "width": SIZE.x, "height": SIZE.y, "frames": count, "format": "png", "renderer": "articulated_2d", "actions": MotionPlanner.story_actions(prompt)}
+    var metadata := {"prompt": prompt, "duration_seconds": duration, "fps": FPS, "width": SIZE.x, "height": SIZE.y, "frames": count, "format": "png", "renderer": "articulated_2d", "reference_photo_applied": false, "identity_preserved": false, "actions": MotionPlanner.story_actions(prompt)}
     var metadata_file := FileAccess.open(directory + "/sequence.json", FileAccess.WRITE)
     if metadata_file == null:
         busy = false
@@ -48,8 +48,11 @@ func generate(prompt: String, duration: float = 5.0, face: Texture2D = null) -> 
     rig.position = Vector2(0, 170)
     rig.size = Vector2(720, 900)
     viewport.add_child(rig)
+    # A raw photo cannot be treated as a generated full-body model sheet.
+    # Keep the procedural illustrated character until a genuine model-sheet
+    # conversion is available; do not paste the photo onto its head.
     if face != null:
-        rig.reference_head = face
+        push_warning("Photo importee, mais conversion en personnage BD non disponible : avatar provisoire.")
     for i in range(count):
         var t := float(i) / float(FPS)
         var instruction: Dictionary = MotionPlanner.story_action_at(prompt, t, duration)
