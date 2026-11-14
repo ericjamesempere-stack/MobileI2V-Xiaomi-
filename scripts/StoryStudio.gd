@@ -25,7 +25,7 @@ static func storyboard(prompt: String, duration: float = 15.0, style: String = "
     # Case-insensitive sentence segmentation while keeping the original text.
     # The former exact-string replacement missed "Puis", "THEN" and newlines.
     var splitter := RegEx.new()
-    splitter.compile("(?i)\\\\s+(?:et\\\\s+puis|puis|ensuite|apr[eè]s|then|and\\\\s+then)\\\\s+|[,;\\\\n]+")
+    splitter.compile("(?i)\\s+(?:et\\s+puis|puis|ensuite|apr[eè]s|then|and\\s+then)\\s+|[,;\\n]+")
     var parts := splitter.sub(normalized, "|", true)
     var descriptions: PackedStringArray = parts.split("|", false)
     if descriptions.is_empty():
