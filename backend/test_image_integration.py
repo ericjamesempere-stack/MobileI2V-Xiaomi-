@@ -68,6 +68,11 @@ class ImageBackendStaticTests(unittest.TestCase):
         self.assertEqual(action(story, 0.5), "court")
         self.assertEqual(action(story, 1.0), "tombe au sol")
 
+    def test_server_reports_gpu_readiness_and_fails_fast_without_gpu(self):
+        server = ROOT.read_text(encoding="utf-8")
+        self.assertIn('"ready": torch.cuda.is_available()', server)
+        self.assertIn('GPU unavailable: image generation requires CUDA', server)
+
     def test_backend_rejects_inconsistent_timeline(self):
         server = ROOT.read_text(encoding="utf-8")
         self.assertIn("temporal_position inconsistent with frame_index", server)
