@@ -1,4 +1,5 @@
 import io
+import hashlib
 import json
 import zipfile
 import pytest
@@ -39,3 +40,19 @@ def test_storyboard_can_target_5_minutes():
     plan = plan_storyboard("An entire landscape comes alive.", 300, 24)
     assert plan.total_frames == 7200
     assert plan.scenes[0].frame_count == 7200
+
+def test_sheet_preserves_full_image_and_frame_hashes():
+    plan = plan_storyboard("A wide city skyline comes alive.", 1, 2, 256, 128)
+    def draw(index, *_):
+        frame = Image.new("RGB", (256, 128), "white")
+        ImageDraw.Draw(frame).rectangle((0, 0, 12, 127), fill="red")
+        ImageDraw.Draw(frame).rectangle((243, 0, 255, 127), fill="blue")
+        return frame
+    with zipfile.ZipFile(io.BytesIO(create_storyboard_archive(plan, draw))) as z:
+        manifest = json.loads(z.read("manifest.json"))
+        for entry in manifest["frames"]:
+            assert hashlib.sha256(z.read(entry["file"])).hexdigest() == entry["sha256"]
+        sheet = Image.open(io.BytesIO(z.read("boards/board_0000.png")))
+        # Both outer edges must be visible: a centered crop would hide them.
+        assert sheet.getpixel((3, 40))[0] > 150
+        assert sheet.getpixel((175, 40))[2] > 150
