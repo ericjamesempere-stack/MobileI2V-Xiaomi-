@@ -1,10 +1,31 @@
-import os
-import tempfile
 import gradio as gr
 import spaces
 from PIL import Image
-from backend.image_server import pipeline, fit, action_stage
+from functools import lru_cache
+import re
+from diffusers import AutoPipelineForImage2Image
 import torch
+
+
+@lru_cache(maxsize=1)
+def pipeline():
+    dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+    model = AutoPipelineForImage2Image.from_pretrained("stabilityai/sd-turbo", torch_dtype=dtype)
+    model.to("cuda" if torch.cuda.is_available() else "cpu")
+    model.set_progress_bar_config(disable=True)
+    return model
+
+
+def fit(image):
+    scale = min(512 / image.width, 512 / image.height)
+    width = max(64, round(image.width * scale / 8) * 8)
+    height = max(64, round(image.height * scale / 8) * 8)
+    return image.resize((width, height), Image.Resampling.LANCZOS)
+
+
+def action_stage(story, progress):
+    parts = [x.strip() for x in re.split(r"(?i)\\b(?:et puis|puis|ensuite|then|afterwards|suddenly)\\b|[.;\\n]", story) if x.strip()]
+    return parts[min(len(parts) - 1, int(min(max(progress, 0), 0.99999) * len(parts)))] if parts else story
 
 @spaces.GPU(duration=45)
 def generate(reference, previous, story, frame_index, total_frames, reference_strength):
