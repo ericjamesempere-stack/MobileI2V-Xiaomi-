@@ -300,3 +300,43 @@ func render_stabilized_character_sequence(artwork: Image, source_landmarks: Arra
         "status": "stabilized_composite_frames",
         "limitations": ["requires transparent pre-separated artwork and landmarks",
             "head and torso only translate", "no automatic pose synthesis", "no video encoding"]}
+
+# Quality gate for image sequences: detect identical frames and abrupt changes.
+# Uses sparse RGBA pixel sampling for a low-memory, CPU-only preview check.
+func analyze_frame_sequence(frames: Array, max_jump_ratio: float = 0.65) -> Dictionary:
+    if frames.size() < 2:
+        return {"ok": false, "error": "At least two frames required"}
+    var previous: Image = frames[0]
+    if previous == null or previous.is_empty():
+        return {"ok": false, "error": "Empty first frame"}
+    var width: int = previous.get_width()
+    var height: int = previous.get_height()
+    var jump_ratios: Array[float] = []
+    var frozen_pairs: int = 0
+    var abrupt_pairs: int = 0
+    var samples: int = 0
+    for i in range(1, frames.size()):
+        var current: Image = frames[i]
+        if current == null or current.is_empty() or current.get_size() != previous.get_size():
+            return {"ok": false, "error": "Missing or mismatched frame at %d" % i}
+        var changed: int = 0
+        samples = 0
+        for y in range(0, height, maxi(1, floori(float(height) / 32.0))):
+            for x in range(0, width, maxi(1, floori(float(width) / 32.0))):
+                samples += 1
+                var a: Color = previous.get_pixel(x, y)
+                var b: Color = current.get_pixel(x, y)
+                if absf(a.r - b.r) + absf(a.g - b.g) + absf(a.b - b.b) + absf(a.a - b.a) > 0.25:
+                    changed += 1
+        var ratio: float = float(changed) / float(maxi(1, samples))
+        jump_ratios.append(ratio)
+        if changed == 0:
+            frozen_pairs += 1
+        if ratio > max_jump_ratio:
+            abrupt_pairs += 1
+        previous = current
+    return {"ok": frozen_pairs < frames.size() - 1 and abrupt_pairs == 0,
+        "frozen_pairs": frozen_pairs, "abrupt_pairs": abrupt_pairs,
+        "change_ratios": jump_ratios,
+        "status": "sequence_quality_checked",
+        "limitations": ["sparse sampling can miss subtle motion", "no identity or anatomy scoring"]}
