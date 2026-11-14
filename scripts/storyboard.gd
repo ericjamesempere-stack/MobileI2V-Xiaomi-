@@ -502,8 +502,13 @@ func _limb_copy(dst: Image, src: Image, a: Vector2, b: Vector2, angle: float, ra
             var sx: int = roundi(a.x+rx*ca+ry*sa)
             var sy: int = roundi(a.y-rx*sa+ry*ca)
             if sx < 0 or sy < 0 or sx >= src.get_width() or sy >= src.get_height(): continue
+            # Clip pixels to the ORIGINAL limb capsule as well as the
+            # destination capsule. Otherwise the rotated sampling window
+            # picks up torso, neighboring limbs and head pixels.
+            var source_mask: float = _joint_mask(float(sx), float(sy), a, b, radius)
+            if source_mask <= 0.0: continue
             var pix: Color = src.get_pixel(sx,sy)
-            var strength: float = mask * pix.a
+            var strength: float = mask * source_mask * pix.a
             if strength <= 0.0: continue
             pix.a = 1.0
             dst.set_pixel(xx, yy, dst.get_pixel(xx, yy).lerp(pix, strength))
