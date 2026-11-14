@@ -123,6 +123,8 @@ func _initialize() -> void:
     # Export a 60-frame composited motion preview for visual CI inspection.
     # The test drawing is synthetic; this does not validate arbitrary photos.
     DirAccess.make_dir_recursive_absolute("user://character_preview")
+    var first_preview: Image = null
+    var visibly_changed: bool = false
     for frame_id in range(60):
         var t: float = float(frame_id) / 59.0
         var travel: Dictionary = painter.translate_body_landmarks(original_pose, 0.12 * t, 0.03 * sin(t * TAU), 0.015 * sin(t * TAU * 2.0))
@@ -132,10 +134,21 @@ func _initialize() -> void:
         var canvas := Image.create(100, 100, false, Image.FORMAT_RGBA8)
         canvas.fill(Color("25364a"))
         canvas.blend_rect(preview["image"], Rect2i(Vector2i.ZERO, Vector2i(100, 100)), Vector2i.ZERO)
+        if frame_id == 0:
+            first_preview = canvas.duplicate()
+        elif frame_id == 30:
+            for check_y in range(100):
+                for check_x in range(100):
+                    if canvas.get_pixel(check_x, check_y).distance_to(first_preview.get_pixel(check_x, check_y)) > 0.1:
+                        visibly_changed = true
+                        break
+                if visibly_changed:
+                    break
         if canvas.save_png("user://character_preview/frame_%03d.png" % frame_id) != OK:
             push_error("Could not export character preview")
             quit(1)
             return
+    assert(visibly_changed, "Composite preview has no visible movement between frames 0 and 30")
     original_pose[11]["visibility"] = 0.0
     assert(not painter.render_articulated_layers(source, original_pose, moved_pose)["ok"])
     # Produce an actual sequence of painted-limb frames, not just one pose.
