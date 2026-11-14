@@ -141,14 +141,13 @@ def generate(req: Request, authorization: str | None = Header(default=None)):
         prompt_node = os.environ.get("COMFYUI_PROMPT_NODE", "").strip()
         if not prompt_node:
             raise ValueError("COMFYUI_PROMPT_NODE is required for story-driven generation")
-        if prompt_node:
-            if prompt_node not in reachable or workflow[prompt_node].get("class_type") != "CLIPTextEncode":
-                raise ValueError("COMFYUI_PROMPT_NODE must be an upstream CLIPTextEncode node")
-            workflow[prompt_node]["inputs"]["text"] = (
-                "Same person, same face, same hair and outfit as reference image. "
-                "Full-body action, pose exactly matching the pose guide. "
-                + req.prompt
-            )
+        if prompt_node not in reachable or workflow[prompt_node].get("class_type") != "CLIPTextEncode":
+            raise ValueError("COMFYUI_PROMPT_NODE must be an upstream CLIPTextEncode node")
+        workflow[prompt_node]["inputs"]["text"] = (
+            "Same person, same face, same hair and outfit as reference image. "
+            "Full-body action, pose exactly matching the pose guide. "
+            + req.prompt
+        )
         workflow[ref_id]["inputs"]["image"] = upload(base, reference, "mobilei2v_ref_" + uuid.uuid4().hex)
         workflow[pose_id]["inputs"]["image"] = upload(base, pose, "mobilei2v_pose_" + uuid.uuid4().hex)
         job = requests.post(base + "/prompt", json={"prompt": workflow, "client_id": str(uuid.uuid4())}, timeout=30)
