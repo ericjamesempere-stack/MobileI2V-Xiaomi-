@@ -8,6 +8,8 @@ on:
       - 'scripts/painted_limb_warp.gd'
       - 'scripts/continuous_rig.gd'
       - 'tests/test_painted_limb_warp.gd'
+      - 'scripts/pose_keyframe_solver.gd'
+      - 'tests/test_pose_keyframe_solver.gd'
       - '.github/workflows/character-composite-video-preview.yml'
 jobs:
   render:
@@ -29,6 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           /tmp/Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --quit
+          /tmp/Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_pose_keyframe_solver.gd
           /tmp/Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_painted_limb_warp.gd
       - name: Encode and validate MP4
         shell: bash
