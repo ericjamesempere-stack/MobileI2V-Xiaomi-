@@ -5,7 +5,7 @@ extends Node
 signal progress(index: int, total: int)
 var cancel_requested := false
 
-func generate(source: Image, prompt: String, endpoint: String, count: int = 12, loop: bool = false) -> Dictionary:
+func generate(source: Image, prompt: String, endpoint: String, count: int = 12, loop: bool = false, api_token: String = "") -> Dictionary:
  if source == null or source.is_empty():
   return {"ok": false, "error": "Image source absente"}
  if prompt.strip_edges().is_empty():
@@ -40,9 +40,12 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
    "total_frames": count,
    "loop": loop,
    "reference_strength": 0.85,
-   "temporal_position": float(index) / float(count)
+   "temporal_position": float(index) / float(maxi(1, count - 1))
   }
-  var err := http.request(endpoint, ["Content-Type: application/json"], HTTPClient.METHOD_POST, JSON.stringify(payload))
+  var headers := PackedStringArray(["Content-Type: application/json"])
+  if not api_token.is_empty():
+   headers.append("Authorization: Bearer " + api_token)
+  var err := http.request(endpoint, headers, HTTPClient.METHOD_POST, JSON.stringify(payload))
   if err != OK:
    http.queue_free()
    return {"ok": false, "error": "Requete impossible : %s" % error_string(err), "generated": frames.size()}
