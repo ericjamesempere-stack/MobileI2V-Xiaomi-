@@ -35,6 +35,6 @@ func _initialize() -> void:
             fall_delta += _color_delta(start_fall.get_pixel(x, y), end_fall.get_pixel(x, y))
             reverse_delta += _color_delta(end_fall.get_pixel(x, y), start_rise.get_pixel(x, y))
     assert(fall_delta > 5.0, "Fall must draw visibly distinct standing and grounded poses")
-    assert(reverse_delta > 5.0, "Stand-up sequence must begin near the grounded pose")
+    assert(reverse_delta < 0.01, "Stand-up sequence must begin at the same grounded pose as the fall ends")
     print("PROCEDURAL_CARTOON_GENERATOR_TESTS_OK")
     quit(0)
