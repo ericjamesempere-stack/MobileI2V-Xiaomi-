@@ -218,3 +218,29 @@ func lock_support_foot(pose: Array, anchor: Vector2, side: String = "left") -> D
         corrected.append(p)
     return {"ok": true, "landmarks": corrected, "support_foot": side,
         "translation": Vector2(dx, dy), "type": "root_translation_foot_lock"}
+
+# Apply one support-foot anchor across a stance phase, retaining the original
+# pose ordering. A new anchor is captured when support switches.
+func stabilize_stance_sequence(poses: Array, support_sides: Array) -> Dictionary:
+    if poses.is_empty() or poses.size() != support_sides.size():
+        return {"ok": false, "error": "Pose/support sequence mismatch", "poses": []}
+    var corrected: Array = []
+    var anchor := Vector2.ZERO
+    var previous_side: String = ""
+    for i in range(poses.size()):
+        var side: String = str(support_sides[i])
+        if side != "left" and side != "right":
+            return {"ok": false, "error": "Invalid support side at frame %d" % i, "poses": []}
+        var pose: Array = poses[i]
+        var rig: RefCounted = load("res://scripts/continuous_rig.gd").new()
+        if not bool(rig.validate_landmarks(pose).get("ok", false)):
+            return {"ok": false, "error": "Invalid landmarks at frame %d" % i, "poses": []}
+        if side != previous_side:
+            var idx: int = 31 if side == "left" else 32
+            anchor = Vector2(float(pose[idx]["x"]), float(pose[idx]["y"]))
+            previous_side = side
+        var locked: Dictionary = lock_support_foot(pose, anchor, side)
+        if not bool(locked.get("ok", false)):
+            return {"ok": false, "error": "Foot lock failed at frame %d" % i, "poses": []}
+        corrected.append(locked["landmarks"])
+    return {"ok": true, "poses": corrected, "count": corrected.size(), "type": "stance_locked"}
