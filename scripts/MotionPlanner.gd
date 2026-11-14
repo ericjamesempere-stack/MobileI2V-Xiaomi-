@@ -23,8 +23,7 @@ static func action_from_text(prompt: String) -> String:
 # Each segment receives a proportional share of the duration.
 static func story_actions(prompt: String) -> Array[String]:
     var normalized := prompt.to_lower().strip_edges()
-    normalized = normalized.replace(" et ", "|")
-    for separator in [" et puis ", " puis ", " ensuite ", " après ", " apres ", " then ", " and then ", ","]:
+    for separator in [" et puis ", " and then ", " puis ", " ensuite ", " après ", " apres ", " then ", " et ", ","]:
         normalized = normalized.replace(separator, "|")
     var actions: Array[String] = []
     for part in normalized.split("|", false):
