@@ -980,13 +980,29 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
         _erase_limb(result, shoulder_r, arm_r, 18.0, studio_color)
         _erase_limb(result, hip_l, leg_l, 22.0, studio_color)
         _erase_limb(result, hip_r, leg_r, 22.0, studio_color)
-        _limb_copy(result, foreground, shoulder_l, arm_l, arm_angle * sin(phase) + lean, 18.0)
-        # Sample every moving limb from the transparent cutout. Sampling
-        # the composited base copied solid studio-background rectangles
-        # into rotated arms and legs.
-        _limb_copy(result, foreground, shoulder_r, arm_r, -arm_angle * sin(phase) + lean, 18.0)
-        _limb_copy(result, foreground, hip_l, leg_l, -leg_angle * sin(phase) + lean, 22.0)
-        _limb_copy(result, foreground, hip_r, leg_r, leg_angle * sin(phase) + lean, 22.0)
+        # Animate the original imported drawing with two articulated bones
+        # per limb. The artwork pixels are sampled from the transparent
+        # source image, not replaced with procedural colored capsules.
+        var ik_solver: RefCounted = load("res://scripts/two_bone_ik.gd").new()
+        var pixel_warp: RefCounted = load("res://scripts/painted_limb_warp.gd").new()
+        for limb in [
+            {"root": shoulder_l, "end": arm_l, "angle": arm_angle * sin(phase) + lean, "radius": 18.0, "bend": -1.0},
+            {"root": shoulder_r, "end": arm_r, "angle": -arm_angle * sin(phase) + lean, "radius": 18.0, "bend": 1.0},
+            {"root": hip_l, "end": leg_l, "angle": -leg_angle * sin(phase) + lean, "radius": 22.0, "bend": -1.0},
+            {"root": hip_r, "end": leg_r, "angle": leg_angle * sin(phase) + lean, "radius": 22.0, "bend": 1.0}
+        ]:
+            var root_point: Vector2 = limb["root"]
+            var rest_end: Vector2 = limb["end"]
+            var rest_middle: Vector2 = root_point.lerp(rest_end, 0.5)
+            var length: float = root_point.distance_to(rest_end)
+            var theta: float = limb["angle"]
+            var target: Vector2 = root_point + (rest_end - root_point).rotated(theta) * 0.94
+            var solution: Dictionary = ik_solver.solve_two_bone(root_point, target, length * 0.5, length * 0.5, limb["bend"])
+            if not bool(solution.get("ok", false)):
+                continue
+            var radius: float = limb["radius"]
+            pixel_warp.draw_segment(result, foreground, root_point, rest_middle, root_point, solution["middle"], radius)
+            pixel_warp.draw_segment(result, foreground, rest_middle, rest_end, solution["middle"], solution["end"], radius * 0.82)
         var path: String = "%s/pose_%02d.png" % [folder,i]
         if result.save_png(path) != OK:
             status.text = "Erreur sauvegarde pose."
