@@ -73,3 +73,30 @@ async def pose_endpoint(
         "X-Redraw-Engine": "controlnet-openpose-img2img",
         "X-Identity-Verified": "false",
     })
+
+@router.post("/redraw/action")
+async def action_endpoint(
+    reference: UploadFile = File(...),
+    action: str = Form("running"),
+    phase: float = Form(0.5),
+    prompt: str = Form("same character, full body"),
+    strength: float = Form(0.65),
+    seed: int = Form(1234),
+):
+    from .pose_guides import render_pose
+    if not 0.0 <= phase <= 1.0 or not 0.1 <= strength <= 0.95:
+        raise HTTPException(422, "Invalid phase or strength")
+    if len(action) > 200 or len(prompt) > 2000:
+        raise HTTPException(422, "Prompt too long")
+    original = validate_image(await reference.read())
+    skeleton = render_pose(action, phase)
+    try:
+        output = pose_redraw(original, skeleton, prompt + ", " + action, strength, seed)
+    except Exception as exc:
+        raise HTTPException(503, f"Pose inference unavailable: {type(exc).__name__}") from exc
+    buffer = io.BytesIO()
+    output.save(buffer, format="PNG")
+    return Response(buffer.getvalue(), media_type="image/png", headers={
+        "X-Redraw-Engine": "controlnet-generated-pose",
+        "X-Identity-Verified": "false",
+    })
