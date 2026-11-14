@@ -50,6 +50,11 @@ class ImageBackendStaticTests(unittest.TestCase):
         self.assertEqual(action(story, 0.5), "court")
         self.assertEqual(action(story, 1.0), "tombe au sol")
 
+    def test_backend_rejects_inconsistent_timeline(self):
+        server = ROOT.read_text(encoding="utf-8")
+        self.assertIn("temporal_position inconsistent with frame_index", server)
+        self.assertIn("req.frame_index / max(1, req.total_frames - 1)", server)
+
     def test_client_authentication_and_full_timeline(self):
         client = (ROOT.parent.parent / "scripts/image_sequence_generator.gd").read_text(encoding="utf-8")
         self.assertIn("Authorization: Bearer ", client)
