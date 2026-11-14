@@ -1,0 +1,30 @@
+name: Validate Image Generation Backend
+on:
+  push:
+    branches:
+      - karma/storyboard-story-sequence-20261113
+    paths:
+      - 'backend/**'
+      - '.github/workflows/validate-image-backend.yml'
+  workflow_dispatch:
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile Python backend
+        run: python -m compileall -q backend
+      - name: Validate backend contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path('backend/image_server.py').read_text()
+          assert '@app.post("/generate")' in s
+          assert 'image_base64' in s
+          assert 'previous_image_base64' in s
+          assert 'AutoPipelineForImage2Image' in s
+          print("Backend contract present")
+          PY
