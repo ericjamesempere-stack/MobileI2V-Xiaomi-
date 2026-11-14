@@ -36,7 +36,7 @@ def main(argv=None):
             duration_seconds=args.seconds, fps=args.fps,
             width=args.width, height=args.height)
     # Reopen archive to verify each stored PNG before reporting success.
-    verified = verify_storyboard_archive(Path(args.output).read_bytes())
+    verified = verify_storyboard_archive(args.output)
     print(json.dumps({**report, **verified}, ensure_ascii=False, indent=2))
     return 0
 
