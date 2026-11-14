@@ -142,6 +142,7 @@ func _ready() -> void:
     _build_editor()
     _build_motion_controls()
     _build_smooth_control()
+    _build_generator_controls()
     rig = Control.new()
     rig.set_script(load("res://scripts/rig_character.gd"))
     rig.position = Vector2(0, 105)
@@ -772,3 +773,41 @@ func _load_board_texture(path: String) -> Texture2D:
     if ResourceLoader.exists(path):
         return load(path)
     return null
+# Offline image-sequence generator (not an AI photorealistic generator).
+var frame_generator: Node = null
+var generator_status: Label = null
+var generator_prompt: LineEdit = null
+
+func _build_generator_controls() -> void:
+    generator_prompt = LineEdit.new()
+    generator_prompt.placeholder_text = "Ex: il court puis tombe"
+    generator_prompt.position = Vector2(12, 755)
+    generator_prompt.size = Vector2(470, 46)
+    add_child(generator_prompt)
+    var generate_button: Button = _button("Generer images", Vector2(492, 755), Vector2(214, 46))
+    generate_button.pressed.connect(_generate_frames)
+    generator_status = _label(Vector2(12, 804), 16, Color("d0e5f4"))
+    generator_status.text = "Generation locale 2D, 5 secondes, 150 images"
+
+func _generate_frames() -> void:
+    if frame_generator != null and frame_generator.get("busy"):
+        return
+    if frame_generator == null:
+        frame_generator = Node.new()
+        frame_generator.set_script(load("res://scripts/frame_generator.gd"))
+        add_child(frame_generator)
+        frame_generator.progress.connect(_generator_progress)
+        frame_generator.finished.connect(_generator_finished)
+        frame_generator.failed.connect(_generator_failed)
+    generator_status.text = "Generation en cours..."
+    var face: Texture2D = user_photos[0] if not user_photos.is_empty() else null
+    frame_generator.generate(generator_prompt.text, 5.0, face)
+
+func _generator_progress(done: int, total: int) -> void:
+    generator_status.text = "Images %d / %d" % [done, total]
+
+func _generator_finished(directory: String, frames: int) -> void:
+    generator_status.text = "%d PNG crees : %s" % [frames, directory]
+
+func _generator_failed(reason: String) -> void:
+    generator_status.text = "Erreur : " + reason
