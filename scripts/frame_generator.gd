@@ -75,6 +75,12 @@ func generate(prompt: String, duration: float = 5.0, face: Texture2D = null) -> 
                 frame_action = "salut"
                 pose_time = 0.0
         rig.update_pose(pose_time, frame_action)
+        var expression := "neutral"
+        if action == "fall":
+            expression = "surprised"
+        elif action == "dance" or action == "jump":
+            expression = "happy"
+        rig.update_expression(t, expression)
         await get_tree().process_frame
         await RenderingServer.frame_post_draw
         var img := viewport.get_texture().get_image()
