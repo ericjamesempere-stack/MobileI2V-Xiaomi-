@@ -15,6 +15,10 @@ func _initialize() -> void:
     ], 61)
     assert(result["ok"])
     assert(result["count"] == 61)
+    assert(solver.validate_joint_velocity(result["frames"])["ok"])
+    var teleported: Array = result["frames"].duplicate(true)
+    teleported[20][15]["x"] = float(teleported[20][15]["x"]) + 0.5
+    assert(not solver.validate_joint_velocity(teleported)["ok"])
     var lengths: Dictionary = solver.validate_bone_lengths(result["frames"])
     assert(lengths["ok"], "Rigid translation must preserve bone lengths")
     var distorted: Array = result["frames"].duplicate(true)
