@@ -57,6 +57,21 @@ jobs:
       - name: Test painted limb warp
         run: |
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_painted_limb_warp.gd
+      - name: Encode walking and running character preview
+        run: |
+          set -euo pipefail
+          FRAMES_DIR="$(find "$HOME/.local/share/godot/app_userdata" -type d -name walk_run_preview -print -quit)"
+          test -n "$FRAMES_DIR"
+          test "$(find "$FRAMES_DIR" -name 'frame_*.png' | wc -l)" -eq 34
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 -start_number 0 -i "$FRAMES_DIR/frame_%05d.png" -c:v libx264 -pix_fmt yuv420p -movflags +faststart walk_run_preview.mp4
+          N="$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 walk_run_preview.mp4)"
+          test "$N" = "34"
+      - name: Upload walking and running character MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobilei2v-walk-run-preview-mp4
+          path: walk_run_preview.mp4
+          if-no-files-found: error
       - name: Test generic pose keyframe solver
         run: |
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_pose_keyframe_solver.gd
