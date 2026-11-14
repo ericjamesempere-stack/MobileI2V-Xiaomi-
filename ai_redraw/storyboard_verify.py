@@ -54,7 +54,10 @@ def verify_storyboard_archive(raw: bytes) -> dict:
             seen.add(visual_hash)
         if repeated:
             raise ValueError(f"Repeated drawings at frames: {repeated[:12]}")
-        expected_sheets = (count + 15) // 16
+        per_sheet = manifest.get("sheet_columns", 4) * manifest.get("sheet_rows", 4)
+        if not 1 <= per_sheet <= 48:
+            raise ValueError("Invalid sheet layout")
+        expected_sheets = (count + per_sheet - 1) // per_sheet
         actual_sheets = [n for n in names if n.startswith("boards/") and n.endswith(".png")]
         if len(actual_sheets) != expected_sheets:
             raise ValueError("Missing contact sheets")
