@@ -91,3 +91,6 @@ app.include_router(sequence_router)
 
 from .pose import router as pose_router
 app.include_router(pose_router)
+
+from .video import router as video_router
+app.include_router(video_router)
