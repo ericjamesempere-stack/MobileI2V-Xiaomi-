@@ -155,17 +155,30 @@ func render_composite_preview(artwork: Image, source_landmarks: Array, target_la
         (float(left_hip["y"]) + float(right_hip["y"])) * 0.5 * h)
     var torso_half_width: float = maxf(2.0, absf(float(left_shoulder["x"]) - float(right_shoulder["x"])) * w * 0.7)
     var head_radius: float = maxf(3.0, torso_half_width * 0.75)
+    var target_shoulder := Vector2((float(target_landmarks[11]["x"]) + float(target_landmarks[12]["x"])) * 0.5 * w,
+        (float(target_landmarks[11]["y"]) + float(target_landmarks[12]["y"])) * 0.5 * h)
+    var target_hip := Vector2((float(target_landmarks[23]["x"]) + float(target_landmarks[24]["x"])) * 0.5 * w,
+        (float(target_landmarks[23]["y"]) + float(target_landmarks[24]["y"])) * 0.5 * h)
+    var body_shift: Vector2 = ((target_shoulder - shoulder_center) + (target_hip - hip_center)) * 0.5
+    var source_head := shoulder_center - Vector2(0.0, head_radius * 1.2)
+    var head_shift := target_shoulder - shoulder_center
+    # Independent nose offset allows subtle head sway while the torso moves.
+    head_shift += Vector2((float(target_landmarks[0]["x"]) - float(source_landmarks[0]["x"])) * w, (float(target_landmarks[0]["y"]) - float(source_landmarks[0]["y"])) * h) - (target_shoulder - shoulder_center)
     for y in range(h):
         for x in range(w):
             var p := Vector2(float(x), float(y))
             var body_pixel: bool = absf(p.x - lerpf(shoulder_center.x, hip_center.x, clampf((p.y - shoulder_center.y) / maxf(1.0, hip_center.y - shoulder_center.y), 0.0, 1.0))) <= torso_half_width and p.y >= shoulder_center.y and p.y <= hip_center.y
-            var head_pixel: bool = p.distance_to(shoulder_center - Vector2(0.0, head_radius * 1.2)) <= head_radius
+            var head_pixel: bool = p.distance_to(source_head) <= head_radius
             if body_pixel or head_pixel:
-                result.set_pixel(x, y, artwork.get_pixel(x, y))
+                var offset: Vector2 = head_shift if head_pixel else body_shift
+                var target_x: int = roundi(p.x + offset.x)
+                var target_y: int = roundi(p.y + offset.y)
+                if target_x >= 0 and target_y >= 0 and target_x < w and target_y < h:
+                    result.set_pixel(target_x, target_y, artwork.get_pixel(x, y))
     var limbs: Image = moved["image"]
     result.blend_rect(limbs, Rect2i(Vector2i.ZERO, limbs.get_size()), Vector2i.ZERO)
-    return {"ok": true, "image": result, "status": "static_head_torso_moving_limbs_preview",
-        "limitations": ["head and torso remain static", "source character must be pre-separated", "no occlusion ordering"]}
+    return {"ok": true, "image": result, "status": "translated_head_torso_moving_limbs_preview",
+        "limitations": ["head and torso translate but do not rotate", "source character must be pre-separated", "no occlusion ordering"]}
 
 # Simple hierarchical body sway: hips anchor the torso, shoulders and head
 # follow a common translation. This preview is intentionally 2D only.
