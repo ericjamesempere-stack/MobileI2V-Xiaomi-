@@ -134,3 +134,35 @@ func render_motion_sequence(artwork: Image, source_landmarks: Array, target_pose
         frames.append(result["image"])
     return {"ok": true, "frames": frames, "count": frames.size(),
         "status": "painted_limb_sequence", "scope": "four_limbs_only"}
+
+# Preview-only compositor: keep original head/torso pixels while painting
+# articulated limbs. Explicitly NOT a full-body rig: torso and head are static.
+func render_composite_preview(artwork: Image, source_landmarks: Array, target_landmarks: Array, limb_half_width: float = 9.0) -> Dictionary:
+    var moved: Dictionary = render_articulated_layers(artwork, source_landmarks, target_landmarks, limb_half_width)
+    if not bool(moved.get("ok", false)):
+        return moved
+    var w: int = artwork.get_width()
+    var h: int = artwork.get_height()
+    var result := Image.create(w, h, false, Image.FORMAT_RGBA8)
+    result.fill(Color.TRANSPARENT)
+    var left_shoulder: Dictionary = source_landmarks[11]
+    var right_shoulder: Dictionary = source_landmarks[12]
+    var left_hip: Dictionary = source_landmarks[23]
+    var right_hip: Dictionary = source_landmarks[24]
+    var shoulder_center := Vector2((float(left_shoulder["x"]) + float(right_shoulder["x"])) * 0.5 * w,
+        (float(left_shoulder["y"]) + float(right_shoulder["y"])) * 0.5 * h)
+    var hip_center := Vector2((float(left_hip["x"]) + float(right_hip["x"])) * 0.5 * w,
+        (float(left_hip["y"]) + float(right_hip["y"])) * 0.5 * h)
+    var torso_half_width: float = maxf(2.0, absf(float(left_shoulder["x"]) - float(right_shoulder["x"])) * w * 0.7)
+    var head_radius: float = maxf(3.0, torso_half_width * 0.75)
+    for y in range(h):
+        for x in range(w):
+            var p := Vector2(float(x), float(y))
+            var body_pixel: bool = absf(p.x - lerpf(shoulder_center.x, hip_center.x, clampf((p.y - shoulder_center.y) / maxf(1.0, hip_center.y - shoulder_center.y), 0.0, 1.0))) <= torso_half_width and p.y >= shoulder_center.y and p.y <= hip_center.y
+            var head_pixel: bool = p.distance_to(shoulder_center - Vector2(0.0, head_radius * 1.2)) <= head_radius
+            if body_pixel or head_pixel:
+                result.set_pixel(x, y, artwork.get_pixel(x, y))
+    var limbs: Image = moved["image"]
+    result.blend_rect(limbs, Rect2i(Vector2i.ZERO, limbs.get_size()), Vector2i.ZERO)
+    return {"ok": true, "image": result, "status": "static_head_torso_moving_limbs_preview",
+        "limitations": ["head and torso remain static", "source character must be pre-separated", "no occlusion ordering"]}
