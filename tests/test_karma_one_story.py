@@ -17,6 +17,13 @@ class StoryTests(unittest.TestCase):
         m=load("karma_one_story_sequence")
         self.assertEqual([s["action"] for s in m.plan("marche puis court puis danse")],
                          ["walk","run","dance"])
+    def test_crouching_is_distinct_pose(self):
+        story=load("karma_one_story_sequence")
+        draw=load("karma_one_pose_drawings")
+        self.assertEqual([x["action"] for x in story.plan("marche puis accroupi")],["walk","crouch"])
+        self.assertNotEqual(draw.draw_pose(4,24,action="stand").tobytes(),
+                            draw.draw_pose(4,24,action="crouch").tobytes())
+
     def test_unsupported_action_rejected(self):
         m=load("karma_one_story_sequence")
         with self.assertRaises(ValueError):
