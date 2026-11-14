@@ -810,6 +810,8 @@ func _build_generator_controls() -> void:
     storyboard_button.pressed.connect(_create_storyboard)
     var import_button: Button = _button("Importer scenes PNG", Vector2(492, 903), Vector2(214, 40))
     import_button.pressed.connect(_import_storyboard_frames)
+    var preview_button: Button = _button("Lire animation", Vector2(492, 950), Vector2(214, 40))
+    preview_button.pressed.connect(_preview_storyboard_animation)
 
 func _create_storyboard() -> void:
     var prompt_text: String = generator_prompt.text.strip_edges()
@@ -908,3 +910,19 @@ func _import_storyboard_frames() -> void:
     target.store_string(JSON.stringify(project, "  "))
     target.close()
     generator_status.text = "%d scenes importees, %d images de sequence (MP4 non encode)" % [int(result["imported"]), int(exported["frame_count"])]
+
+func _preview_storyboard_animation() -> void:
+    if latest_storyboard_directory.is_empty():
+        generator_status.text = "Aucune animation a lire"
+        return
+    var directory := latest_storyboard_directory + "/sequence"
+    if not FileAccess.file_exists(directory + "/manifest.json"):
+        generator_status.text = "Importe d'abord les images animees"
+        return
+    var player := StorySequencePlayer.new()
+    add_child(player)
+    player.playback_failed.connect(func(reason: String) -> void:
+        generator_status.text = "Lecture impossible : " + reason
+    )
+    if not player.open_sequence(directory):
+        player.queue_free()
