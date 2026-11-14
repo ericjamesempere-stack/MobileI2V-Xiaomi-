@@ -23,7 +23,6 @@ def assemble(folder: Path, output: Path, fps: int, expected: int | None = None):
     report = {"frame_count": len(frames), "fps": fps,
               "duration_seconds": len(frames) / fps, "warnings": []}
     prev = None
-    previous_frame = None
     for i, path in enumerate(frames):
         if path.name != f"frame_{i:06d}.png":
             raise ValueError(f"Missing/out-of-order drawing at {i}: {path.name}")
@@ -41,7 +40,7 @@ def assemble(folder: Path, output: Path, fps: int, expected: int | None = None):
             if mean > 45:
                 report["warnings"].append({"frame": i, "issue": "large_visual_jump"})
         prev = frame
-        previous_frame = path.name
+    report["warning_count"] = len(report["warnings"])
     output.parent.mkdir(parents=True, exist_ok=True)
     run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
          "-framerate", str(fps), "-start_number", "0",
