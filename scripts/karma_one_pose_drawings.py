@@ -8,14 +8,21 @@ import math
 from pathlib import Path
 from PIL import Image, ImageDraw
 
-def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appearance=None, action="walk"):
+def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appearance=None, action="walk", previous_action=None, blend=1.0, phase_index=None):
     appearance = appearance or {}
     shirt_color = appearance.get("shirt", "#386eaa")
     pants_color = appearance.get("pants", "#25354b")
     skin_color = appearance.get("skin", "#b98766")
     hair_color = appearance.get("hair", "#332725")
-    phase = 2 * math.pi * (index / 12.0)
-    speed = {"walk": 0.8, "run": 1.8, "dance": 1.2, "stand": 0.0}.get(action, 0.8)
+    phase = 2 * math.pi * ((index if phase_index is None else phase_index) / 12.0)
+    speeds = {"walk": 0.8, "run": 1.8, "dance": 1.2, "stand": 0.0}
+    if action not in speeds:
+        raise ValueError(f"Unsupported action: {action}")
+    target_speed = speeds[action]
+    prior_speed = speeds.get(previous_action, target_speed)
+    t = max(0.0, min(1.0, blend))
+    smooth = t*t*(3-2*t)
+    speed = prior_speed*(1-smooth) + target_speed*smooth
     step = math.sin(phase) * speed
     image = Image.new("RGB", (width, height), "#e7f0f4")
     pen = ImageDraw.Draw(image)
@@ -32,14 +39,14 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     right_knee = (int((hip[0]+right_foot[0])/2+15), int((hip[1]+right_foot[1])/2))
     for knee, foot in [(left_knee,left_foot),(right_knee,right_foot)]:
         pen.line((hip,knee,foot), fill=pants_color, width=19, joint="curve")
-        pen.ellipse((foot[0]-14,foot[1]-6,foot[0]+14,foot[1]+6),fill="#25354b")
+        pen.ellipse((foot[0]-14,foot[1]-6,foot[0]+14,foot[1]+6),fill=pants_color)
     pen.line((hip,shoulder),fill=shirt_color,width=46)
     for direction in [-1,1]:
         hand=(int(cx+direction*(60+20*step)),int(shoulder[1]+85-direction*18*step))
         elbow=(int(cx+direction*42),int(shoulder[1]+40))
-        pen.line((shoulder,elbow,hand),fill="#386eaa",width=15,joint="curve")
+        pen.line((shoulder,elbow,hand),fill=shirt_color,width=15,joint="curve")
         pen.ellipse((hand[0]-9,hand[1]-9,hand[0]+9,hand[1]+9),fill=skin_color)
-    pen.ellipse((head[0]-32,head[1]-42,head[0]+32,head[1]+42),fill="#b98766",outline="#483c37",width=3)
+    pen.ellipse((head[0]-32,head[1]-42,head[0]+32,head[1]+42),fill=skin_color,outline="#483c37",width=3)
     pen.pieslice((head[0]-34,head[1]-47,head[0]+34,head[1]+4),180,360,fill=hair_color)
     hair_style = appearance.get("hair_style", "short")
     if hair_style == "long":
