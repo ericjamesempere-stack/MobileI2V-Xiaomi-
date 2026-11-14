@@ -22,5 +22,19 @@ func _initialize() -> void:
         for x in range(0, 360, 12):
             action_delta += _color_delta(run.get_pixel(x, y), jump.get_pixel(x, y))
     assert(action_delta > 1.0, "Different actions must produce different drawings")
+    # Regression: falling must change the drawn posture and getting up
+    # must reverse it, not merely translate an unchanged standing image.
+    var start_fall: Image = generator.render("same character", 0.0, Vector2i(360, 480), "chute")
+    var end_fall: Image = generator.render("same character", 1.0, Vector2i(360, 480), "chute")
+    var start_rise: Image = generator.render("same character", 0.0, Vector2i(360, 480), "releve")
+    var end_rise: Image = generator.render("same character", 1.0, Vector2i(360, 480), "releve")
+    var fall_delta: float = 0.0
+    var reverse_delta: float = 0.0
+    for y in range(0, 480, 8):
+        for x in range(0, 360, 8):
+            fall_delta += _color_delta(start_fall.get_pixel(x, y), end_fall.get_pixel(x, y))
+            reverse_delta += _color_delta(end_fall.get_pixel(x, y), start_rise.get_pixel(x, y))
+    assert(fall_delta > 5.0, "Fall must draw visibly distinct standing and grounded poses")
+    assert(reverse_delta > 5.0, "Stand-up sequence must begin near the grounded pose")
     print("PROCEDURAL_CARTOON_GENERATOR_TESTS_OK")
     quit(0)
