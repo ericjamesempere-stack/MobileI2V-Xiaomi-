@@ -896,7 +896,10 @@ func _import_storyboard_frames() -> void:
     var project: Dictionary = result["project"]
     var exported: Dictionary = StoryFramePipeline.export_png_sequence(project, latest_storyboard_directory + "/sequence", 12)
     if not exported.get("ok", false):
-        generator_status.text = "Erreur sequence : " + str(exported.get("error", "inconnue"))
+        if exported.get("error", "") == "insufficient_motion_frames":
+            generator_status.text = "Animation incomplete : %d images pour %d requises (scene %s)" % [int(exported.get("available", 0)), int(exported.get("required", 0)), str(exported.get("scene_id", ""))]
+        else:
+            generator_status.text = "Erreur sequence : " + str(exported.get("error", "inconnue"))
         return
     var target := FileAccess.open(json_path, FileAccess.WRITE)
     if target == null:
