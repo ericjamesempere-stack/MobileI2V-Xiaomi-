@@ -74,8 +74,19 @@ func render(description: String, phase: float = 0.0, size: Vector2i = Vector2i(3
     elif action == "saut":
         left_hand = shoulder + Vector2(-65 * scale, -65 * scale)
         right_hand = shoulder + Vector2(65 * scale, -65 * scale)
-    _stroke(image, shoulder + Vector2(-22, 3) * scale, left_hand, 17 * scale, shirt)
-    _stroke(image, shoulder + Vector2(22, 3) * scale, right_hand, 17 * scale, shirt)
+    # Two-segment arms: elbow bends independently during a run and while
+    # bracing for a fall. A single straight shoulder-to-hand line cannot
+    # communicate these gestures.
+    var left_root: Vector2 = shoulder + Vector2(-22, 3) * scale
+    var right_root: Vector2 = shoulder + Vector2(22, 3) * scale
+    var left_elbow: Vector2 = left_root.lerp(left_hand, 0.48) + Vector2((-15 - 8 * swing) * scale, (-9 + 8 * swing) * scale)
+    var right_elbow: Vector2 = right_root.lerp(right_hand, 0.48) + Vector2((15 - 8 * swing) * scale, (-9 - 8 * swing) * scale)
+    left_elbow = left_elbow.lerp(left_root.lerp(left_hand, 0.5) + Vector2(-8, -15) * scale, fall_progress)
+    right_elbow = right_elbow.lerp(right_root.lerp(right_hand, 0.5) + Vector2(8, -15) * scale, fall_progress)
+    _stroke(image, left_root, left_elbow, 18 * scale, shirt)
+    _stroke(image, left_elbow, left_hand, 15 * scale, shirt)
+    _stroke(image, right_root, right_elbow, 18 * scale, shirt)
+    _stroke(image, right_elbow, right_hand, 15 * scale, shirt)
     _ellipse(image, left_hand, Vector2(10, 10) * scale, skin)
     _ellipse(image, right_hand, Vector2(10, 10) * scale, skin)
     # Head follows the torso rotation instead of floating above it.
