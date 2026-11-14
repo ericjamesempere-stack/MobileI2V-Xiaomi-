@@ -11,6 +11,12 @@ func _initialize() -> void:
     assert(scenes[1]["action"] == "trebuche")
     assert(scenes[2]["action"] == "chute")
     assert(scenes[3]["action"] == "releve")
+    assert(scenes[0]["continuity"]["preserve_last_pose"] == false)
+    for i in range(1, scenes.size()):
+        assert(scenes[i]["continuity"]["from_scene"] == scenes[i - 1]["id"])
+        assert(scenes[i]["continuity"]["previous_action"] == scenes[i - 1]["action"])
+        assert(scenes[i]["continuity"]["preserve_last_pose"] == true)
+        assert(scenes[i]["continuity"]["transition_frames"] > 0)
     for scene in scenes:
         assert(scene["end_frame"] > scene["start_frame"])
         assert(not scene["keyframes"].is_empty())
