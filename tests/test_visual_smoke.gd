@@ -77,5 +77,23 @@ func _initialize() -> void:
             push_error("Layered rig frame export failed")
             quit(1)
             return
+    var layered_first := Image.load_from_file("user://layered_preview/frame_000.png")
+    var layered_next := Image.load_from_file("user://layered_preview/frame_008.png")
+    if layered_first == null or layered_next == null:
+        push_error("Layered preview frames missing")
+        quit(1)
+        return
+    var layered_changed: int = 0
+    for yy in range(0, height, 4):
+        for xx in range(0, width, 4):
+            var color_a: Color = layered_first.get_pixel(xx, yy)
+            var color_b: Color = layered_next.get_pixel(xx, yy)
+            if absf(color_a.r - color_b.r) + absf(color_a.g - color_b.g) + absf(color_a.b - color_b.b) > 0.12:
+                layered_changed += 1
+    if layered_changed < 30:
+        push_error("Layered IK character is not visibly moving: %d pixels" % layered_changed)
+        quit(1)
+        return
+    print("LAYERED_IK_MOTION_OK changed_pixels=", layered_changed)
     print("VISUAL_SMOKE_OK user://visual_smoke 60 frames changed_pixels=", changed)
     quit(0)
