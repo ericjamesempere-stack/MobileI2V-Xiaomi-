@@ -70,6 +70,15 @@ func _initialize() -> void:
     assert(painted_pose["limbs"] == 4)
     assert(painted_pose["image"].get_size() == Vector2i(100, 100))
     assert(painted_pose["image"].get_pixel(0, 0).a < 0.01)
+    var motion_rig = load("res://scripts/continuous_rig.gd").new()
+    var intermediate: Dictionary = motion_rig.transition_between_actions(original_pose, moved_pose, 6)
+    assert(intermediate["ok"])
+    var motion: Dictionary = painter.render_motion_sequence(source, original_pose, intermediate["frames"], 8.0)
+    assert(motion["ok"])
+    assert(motion["count"] == 6)
+    assert(motion["frames"][0].get_size() == Vector2i(100, 100))
+    assert(motion["frames"][0].get_pixel(0, 0).a < 0.01)
+    assert(not painter.render_motion_sequence(source, original_pose, [])["ok"])
     original_pose[11]["visibility"] = 0.0
     assert(not painter.render_articulated_layers(source, original_pose, moved_pose)["ok"])
     # Produce an actual sequence of painted-limb frames, not just one pose.
