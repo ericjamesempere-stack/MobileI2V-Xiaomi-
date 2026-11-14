@@ -8,7 +8,7 @@ import math
 from pathlib import Path
 from PIL import Image, ImageDraw
 
-def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appearance=None, action="walk", previous_action=None, blend=1.0, phase_index=None):
+def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appearance=None, action="walk", previous_action=None, blend=1.0, phase_index=None, face_image=None):
     appearance = appearance or {}
     shirt_color = appearance.get("shirt", "#386eaa")
     pants_color = appearance.get("pants", "#25354b")
@@ -47,6 +47,11 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
         pen.line((shoulder,elbow,hand),fill=shirt_color,width=15,joint="curve")
         pen.ellipse((hand[0]-9,hand[1]-9,hand[0]+9,hand[1]+9),fill=skin_color)
     pen.ellipse((head[0]-32,head[1]-42,head[0]+32,head[1]+42),fill=skin_color,outline="#483c37",width=3)
+    if face_image is not None:
+        face = face_image.convert("RGB").resize((60, 78), Image.Resampling.LANCZOS)
+        mask = Image.new("L", face.size, 0)
+        ImageDraw.Draw(mask).ellipse((1, 1, 58, 76), fill=255)
+        image.paste(face, (head[0]-30, head[1]-39), mask)
     pen.pieslice((head[0]-34,head[1]-47,head[0]+34,head[1]+4),180,360,fill=hair_color)
     hair_style = appearance.get("hair_style", "short")
     if hair_style == "long":
@@ -55,9 +60,10 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     elif hair_style == "locs":
         for offset in (-31, -22, -13, 13, 22, 31):
             pen.line((head[0]+offset,head[1]-27,head[0]+offset + int(4*math.sin(phase)),head[1]+58), fill=hair_color, width=6)
-    for dx in (-12,12):
-        pen.ellipse((head[0]+dx-3,head[1]-6,head[0]+dx+3,head[1]),fill="#20242c")
-    pen.arc((head[0]-12,head[1]+8,head[0]+12,head[1]+23),0,180,fill="#51322d",width=2)
+    if face_image is None:
+        for dx in (-12,12):
+            pen.ellipse((head[0]+dx-3,head[1]-6,head[0]+dx+3,head[1]),fill="#20242c")
+        pen.arc((head[0]-12,head[1]+8,head[0]+12,head[1]+23),0,180,fill="#51322d",width=2)
     return image
 
 def render(folder: Path, seconds: int, fps: int, appearance=None, action="walk"):
