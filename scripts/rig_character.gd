@@ -87,6 +87,42 @@ func _compute_pose(t: float) -> Dictionary:
         ankle_l = Vector2(knee_l.x + 18.0 * s, GROUND_Y - 90.0 * lift_l)
         ankle_r = Vector2(knee_r.x - 18.0 * s, GROUND_Y - 90.0 * lift_r)
         head_tilt = 3.0 * s
+    elif motion_name == "chute":
+        # One-way fall with distinct body rotation, not the dance fallback.
+        var p: float = clampf(t, 0.0, 1.0)
+        var angle: float = p * PI * 0.48
+        var center := Vector2(355.0 + 115.0 * p, 575.0 + 175.0 * p)
+        var up := Vector2(sin(angle), -cos(angle))
+        var right := Vector2(cos(angle), sin(angle))
+        hip = center
+        chest = hip + up * 160.0
+        shoulder_l = chest - right * 67.0
+        shoulder_r = chest + right * 67.0
+        elbow_l = shoulder_l - right * 45.0 + up * 45.0
+        elbow_r = shoulder_r + right * 50.0 - up * 15.0
+        wrist_l = elbow_l - right * 25.0 + up * 35.0
+        wrist_r = elbow_r + right * 30.0 - up * 25.0
+        knee_l = hip - right * 40.0 - up * 120.0
+        knee_r = hip + right * 40.0 - up * 120.0
+        ankle_l = knee_l - up * 105.0
+        ankle_r = knee_r - up * 105.0
+        head_tilt = 0.0
+    elif motion_name == "saut":
+        var p: float = clampf(t, 0.0, 1.0)
+        var rise: float = 145.0 * sin(p * PI)
+        hip = Vector2(355.0, 575.0 - rise)
+        chest = hip + Vector2(0.0, -160.0)
+        shoulder_l = chest + Vector2(-67.0, -6.0)
+        shoulder_r = chest + Vector2(67.0, -6.0)
+        elbow_l = shoulder_l + Vector2(-55.0, -55.0)
+        elbow_r = shoulder_r + Vector2(55.0, -55.0)
+        wrist_l = elbow_l + Vector2(-15.0, -70.0)
+        wrist_r = elbow_r + Vector2(15.0, -70.0)
+        knee_l = hip + Vector2(-65.0, 105.0)
+        knee_r = hip + Vector2(65.0, 105.0)
+        ankle_l = knee_l + Vector2(-25.0, 95.0)
+        ankle_r = knee_r + Vector2(25.0, 95.0)
+        head_tilt = 0.0
     elif motion_name == "salut":
         var w: float = sin(t * TAU * 1.4)
         hip = Vector2(hip_x, 575.0)
