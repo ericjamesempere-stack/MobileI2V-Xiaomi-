@@ -38,7 +38,23 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
   if not motion_steps.is_empty():
    var step_index: int = mini(motion_steps.size() - 1, int(float(index) / float(count) * float(motion_steps.size())))
    active_prompt = str(motion_steps[step_index].get("description", prompt))
+  # A pose-conditioned model needs an actual pose image, not just a
+  # text instruction. Keep the identity reference unchanged across frames.
+  var action: String = "danse"
+  if bool(motion_plan.get("ok", false)):
+   action = load("res://scripts/story_motion_planner.gd").new().action_at(motion_plan, float(index) / float(maxi(1, count - 1)) * float(count))
+  var guide_generator: RefCounted = load("res://scripts/procedural_cartoon_generator.gd").new()
+  var guide: Image = guide_generator.render(prompt, float(index) * 0.5, Vector2i(360, 480), action)
+  if guide == null or guide.is_empty():
+   http.queue_free()
+   return {"ok": false, "error": "Guide de pose impossible a generer", "generated": frames.size()}
+  var pose_png: PackedByteArray = guide.save_png_to_buffer()
+  if pose_png.is_empty():
+   http.queue_free()
+   return {"ok": false, "error": "Encodage du guide de pose impossible", "generated": frames.size()}
   var payload := {
+   "pose_image_base64": Marshalls.raw_to_base64(pose_png),
+   "pose_action": action,
    "image_base64": reference_b64,
    "previous_image_base64": previous_b64,
    "prompt": active_prompt,
