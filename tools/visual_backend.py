@@ -95,13 +95,25 @@ def pose_change_report(first_landmarks, second_landmarks, threshold=0.035):
                 sum(float(points[i]["y"]) for i in torso) / 4)
     ax, ay = center(first_landmarks)
     bx, by = center(second_landmarks)
+    # Normalize by torso size so camera zoom does not masquerade as motion.
+    def torso_scale(points):
+        shoulder_dx = float(points[11]["x"]) - float(points[12]["x"])
+        shoulder_dy = float(points[11]["y"]) - float(points[12]["y"])
+        hip_dx = float(points[23]["x"]) - float(points[24]["x"])
+        hip_dy = float(points[23]["y"]) - float(points[24]["y"])
+        shoulder = (shoulder_dx ** 2 + shoulder_dy ** 2) ** 0.5
+        hip = (hip_dx ** 2 + hip_dy ** 2) ** 0.5
+        return max(shoulder, hip)
+    scale_a, scale_b = torso_scale(first_landmarks), torso_scale(second_landmarks)
+    if min(scale_a, scale_b) < 0.01:
+        return {"articulated": False, "reason": "torso_scale_unreliable", "usable_joints": 0}
     displacements = []
     for i in moving:
         a, b = first_landmarks[i], second_landmarks[i]
         if min(float(a.get("visibility", 1)), float(b.get("visibility", 1))) < 0.5:
             continue
-        dx = (float(b["x"]) - bx) - (float(a["x"]) - ax)
-        dy = (float(b["y"]) - by) - (float(a["y"]) - ay)
+        dx = ((float(b["x"]) - bx) / scale_b - (float(a["x"]) - ax) / scale_a)
+        dy = ((float(b["y"]) - by) / scale_b - (float(a["y"]) - ay) / scale_a)
         displacements.append((dx * dx + dy * dy) ** 0.5)
     if len(displacements) < 3:
         return {"articulated": False, "reason": "insufficient_visible_joints", "usable_joints": len(displacements)}
