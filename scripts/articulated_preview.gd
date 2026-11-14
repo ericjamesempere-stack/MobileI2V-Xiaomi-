@@ -85,7 +85,17 @@ func draw_frame(width: int, height: int, time: float) -> Image:
         painter.draw_segment(image, sleeve, Vector2(18, 5), Vector2(18, 39), root_point, middle_point, 12.0 * scale)
         painter.draw_segment(image, sleeve, Vector2(18, 39), Vector2(18, 74), middle_point, end_point, 9.0 * scale)
         _capsule(image, end_point, end_point, 9.0 * scale, skin)
-    _capsule(image, chest, hip, 33.0 * scale, shirt)
+    # Preserve a painted torso layer instead of covering the limbs with a
+    # featureless capsule. The source texture follows chest-to-hip motion.
+    var torso_art := Image.create(82, 130, false, Image.FORMAT_RGBA8)
+    torso_art.fill(Color(0, 0, 0, 0))
+    for py in range(5, 125):
+        for px in range(5, 77):
+            var waist_taper: float = 33.0 - 5.0 * float(py) / 130.0
+            if absf(float(px) - 41.0) <= waist_taper:
+                var cloth := 0.03 * sin(float(py) * 0.25 + float(px) * 0.13)
+                torso_art.set_pixel(px, py, Color(0.82 + cloth, 0.88 + cloth, 0.94 + cloth, 1.0))
+    painter.draw_segment(image, torso_art, Vector2(41, 5), Vector2(41, 125), chest, hip, 33.0 * scale)
     var head := chest + Vector2(0, -54) * scale
     _capsule(image, head, head, 28.0 * scale, skin)
     _capsule(image, head + Vector2(-9, -5) * scale, head + Vector2(-9, -5) * scale, 2.5 * scale, Color("25262a"))
