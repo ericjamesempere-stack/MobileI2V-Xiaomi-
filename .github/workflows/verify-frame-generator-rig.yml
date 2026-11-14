@@ -1,0 +1,23 @@
+name: Verify Frame Generator Rig Interface
+on:
+  push:
+    branches: [karma/storyboard-story-sequence-20261113]
+    paths:
+      - 'scripts/rig_character.gd'
+      - 'scripts/frame_generator.gd'
+      - 'tests/test_frame_generator_rig_interface.gd'
+      - '.github/workflows/verify-frame-generator-rig.yml'
+  workflow_dispatch:
+jobs:
+  rig-interface:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Godot 4.3
+        run: |
+          curl -fL --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.3-stable_linux.x86_64
+      - name: Validate rig interface
+        run: timeout 90s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_frame_generator_rig_interface.gd
