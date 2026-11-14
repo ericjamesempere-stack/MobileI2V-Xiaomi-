@@ -9,7 +9,10 @@ spec.loader.exec_module(m)
 def frame(offset=0):
     return {name:(x+offset,y) for name,x,y in
             [("hip",10,20),("shoulder",10,10),("head",10,0),
-             ("left_foot",0,30),("right_foot",20,30)]}
+             ("left_foot",0,30),("right_foot",20,30),
+             ("left_knee",4,25),("right_knee",16,25),
+             ("left_elbow",2,14),("right_elbow",18,14),
+             ("left_hand",0,19),("right_hand",20,19)]}
 
 class JointQualityTests(unittest.TestCase):
     def test_smooth_sequence(self):
@@ -18,7 +21,7 @@ class JointQualityTests(unittest.TestCase):
         self.assertEqual(report["max_joint_step_px"],2)
     def test_jump_detected(self):
         report=m.inspect([frame(0),frame(80)],max_step=65)
-        self.assertEqual(report["jump_count"],5)
+        self.assertEqual(report["jump_count"],11)
     def test_missing_joint_rejected(self):
         bad=frame()
         del bad["head"]
