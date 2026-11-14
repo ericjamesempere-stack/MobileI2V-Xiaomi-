@@ -72,6 +72,35 @@ class ComfyBridgeTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             self.assertFalse(health()["ready"])
 
+    def test_health_rejects_missing_workflow_file(self):
+        env = {"MOBILEI2V_API_TOKEN": "secret", "COMFYUI_URL": "http://127.0.0.1:8188",
+               "COMFYUI_WORKFLOW": "/path/that/does/not/exist.json",
+               "COMFYUI_REFERENCE_NODE": "1", "COMFYUI_POSE_NODE": "2",
+               "COMFYUI_OUTPUT_NODE": "3", "COMFYUI_PROMPT_NODE": "4"}
+        with patch.dict(os.environ, env, clear=True):
+            self.assertFalse(health()["ready"])
+
+    def test_health_accepts_configured_workflow_without_claiming_gpu(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as folder:
+            filename = Path(folder) / "workflow.json"
+            filename.write_text(json.dumps({
+                "1": {"class_type": "LoadImage", "inputs": {}},
+                "2": {"class_type": "LoadImage", "inputs": {}},
+                "3": {"class_type": "SaveImage", "inputs": {}},
+                "4": {"class_type": "CLIPTextEncode", "inputs": {}},
+            }))
+            env = {"MOBILEI2V_API_TOKEN": "secret", "COMFYUI_URL": "http://127.0.0.1:8188",
+                   "COMFYUI_WORKFLOW": str(filename), "COMFYUI_REFERENCE_NODE": "1",
+                   "COMFYUI_POSE_NODE": "2", "COMFYUI_OUTPUT_NODE": "3",
+                   "COMFYUI_PROMPT_NODE": "4"}
+            with patch.dict(os.environ, env, clear=True):
+                status = health()
+        self.assertTrue(status["ready"])
+        self.assertFalse(status["remote_verified"])
+
     def test_remote_url_is_rejected(self):
         env = {"MOBILEI2V_API_TOKEN": "secret", "COMFYUI_URL": "https://remote.example",
                "COMFYUI_WORKFLOW": "/tmp/w.json", "COMFYUI_REFERENCE_NODE": "1",
