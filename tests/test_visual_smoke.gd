@@ -59,7 +59,9 @@ func _initialize() -> void:
     var changed: int = 0
     for yy in range(0, height, 4):
         for xx in range(0, width, 4):
-            if first.get_pixel(xx, yy).distance_to(quarter.get_pixel(xx, yy)) > 0.12:
+            var a: Color = first.get_pixel(xx, yy)
+            var b: Color = quarter.get_pixel(xx, yy)
+            if absf(a.r - b.r) + absf(a.g - b.g) + absf(a.b - b.b) > 0.12:
                 changed += 1
     if changed < 30:
         push_error("Animation is frozen or nearly unchanged: %d changed sampled pixels" % changed)
