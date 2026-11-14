@@ -244,7 +244,20 @@ func save_rendered_frames(rendered: Dictionary, directory: String = "user://acti
             return {"ok": false, "error": "PNG write failed at frame %d" % i,
                 "code": save_error, "written": files.size()}
         files.append(filename)
-    return {"ok": true, "directory": directory, "files": files,
+    # Persist a manifest so an external encoder can validate the exact source.
+    var manifest_path: String = directory.path_join("sequence_manifest.json")
+    var manifest: Dictionary = {"format": "numbered_png", "fps": fps,
+        "frame_count": files.size(), "duration_seconds": float(files.size()) / float(fps),
+        "width": frames[0].get_width(), "height": frames[0].get_height(),
+        "pattern": "frame_%05d.png", "mp4_created": false,
+        "boundaries": rendered.get("boundaries", [])}
+    var handle: FileAccess = FileAccess.open(manifest_path, FileAccess.WRITE)
+    if handle == null:
+        return {"ok": false, "error": "Cannot write sequence manifest",
+            "code": FileAccess.get_open_error()}
+    handle.store_string(JSON.stringify(manifest, "  "))
+    handle.close()
+    return {"ok": true, "manifest_path": manifest_path, "directory": directory, "files": files,
         "count": files.size(), "fps": fps,
         "duration_seconds": float(files.size()) / float(fps),
         "status": "png_sequence_ready_for_encoder",
