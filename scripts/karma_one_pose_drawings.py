@@ -79,10 +79,14 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
         pen.line((hip,knee,foot), fill=pants_color, width=19, joint="curve")
         pen.ellipse((foot[0]-14,foot[1]-6,foot[0]+14,foot[1]+6),fill=pants_color)
     pen.line((hip,shoulder),fill=shirt_color,width=46)
+    arm_joints = {}
     for direction in [-1,1]:
         hand=(int(cx+direction*(60*arm_ratio+20*step)+70*fall_amount),int(shoulder[1]+85*arm_ratio-direction*18*step+20*fall_amount))
         elbow=(int(cx+direction*42*arm_ratio+70*fall_amount),min(floor-6,int(shoulder[1]+40*arm_ratio+10*fall_amount)))
         hand=(hand[0],min(floor-9,hand[1]))
+        side = "left" if direction == -1 else "right"
+        arm_joints[side+"_elbow"] = elbow
+        arm_joints[side+"_hand"] = hand
         pen.line((shoulder,elbow,hand),fill=shirt_color,width=15,joint="curve")
         pen.ellipse((hand[0]-9,hand[1]-9,hand[0]+9,hand[1]+9),fill=skin_color)
     pen.ellipse((head[0]-32,head[1]-42,head[0]+32,head[1]+42),fill=skin_color,outline="#483c37",width=3)
@@ -105,7 +109,9 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
         pen.arc((head[0]-12,head[1]+8,head[0]+12,head[1]+23),0,180,fill="#51322d",width=2)
     if return_joints:
         return image, {"hip":hip, "shoulder":shoulder, "head":head,
-                       "left_foot":left_foot, "right_foot":right_foot}
+                       "left_foot":left_foot, "right_foot":right_foot,
+                       "left_knee":left_knee, "right_knee":right_knee,
+                       **arm_joints}
     return image
 
 def render(folder: Path, seconds: int, fps: int, appearance=None, action="walk"):
