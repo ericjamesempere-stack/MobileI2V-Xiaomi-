@@ -15,6 +15,7 @@ var action := "danse"
 var sequence: Array[String] = []
 var sequence_index := 0
 var loaded_path := ""
+var isolate_mode: CheckBox
 var photo_mode: CheckBox
 var speed_slider: HSlider
 var duration_slider: HSlider
@@ -42,6 +43,10 @@ func _ready() -> void:
     info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     column.add_child(info)
     _add_button(column, "1. Choisir une photo (facultatif)", _choose_photo)
+    isolate_mode = CheckBox.new()
+    isolate_mode.text = "Extraire le sujet (fond uni, experimental)"
+    isolate_mode.button_pressed = false
+    column.add_child(isolate_mode)
     photo_mode = CheckBox.new()
     photo_mode.text = "Mode photo corps entier (experimental)"
     photo_mode.button_pressed = true
@@ -132,6 +137,11 @@ func _photo_selected(path: String) -> void:
     if err != OK:
         status.text = "Image illisible : %s" % error_string(err)
         return
+    if isolate_mode.button_pressed:
+        var extractor = load("res://scripts/subject_extractor.gd")
+        var extracted: Image = extractor.extract(img)
+        if extracted != null:
+            img = extracted
     head_image = img
     loaded_path = path
     img.save_png("user://mobilei2v_v49_photo.png")
@@ -143,7 +153,7 @@ func _photo_selected(path: String) -> void:
         character.set("photo_puppet", false)
     character.queue_redraw()
     var rig_status: String = str(character.get("status_message"))
-    status.text = "Photo chargee. " + rig_status
+    status.text = ("Sujet extrait (fond uni). " if isolate_mode.button_pressed else "Photo chargee. ") + rig_status
 
 func _duration_changed(value: float) -> void:
     duration = value
