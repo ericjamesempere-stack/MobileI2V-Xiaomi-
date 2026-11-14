@@ -796,17 +796,29 @@ func _create_storyboard() -> void:
     if prompt_text.is_empty():
         generator_status.text = "Ecris une histoire pour creer le storyboard"
         return
-    var refs: Array = []
-    for i in range(user_photos.size()):
-        if user_photos[i] != null:
-            refs.append("photo_%d" % i)
-    var project: Dictionary = StoryStudio.storyboard(prompt_text, 15.0, "manga", refs)
-    var save_dir := "user://storyboards"
+    var save_dir := "user://storyboards/story_%d" % Time.get_ticks_msec()
     var error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(save_dir))
     if error != OK:
         generator_status.text = "Erreur creation dossier storyboard"
         return
-    var output := "%s/story_%d.json" % [save_dir, Time.get_ticks_msec()]
+    var refs: Array = []
+    for i in range(user_photos.size()):
+        var photo: Texture2D = user_photos[i]
+        if photo == null:
+            continue
+        var photo_path := "%s/reference_%d.png" % [save_dir, i]
+        var image: Image = photo.get_image()
+        if image == null or image.is_empty():
+            generator_status.text = "Image de reference illisible"
+            return
+        error = image.save_png(photo_path)
+        if error != OK:
+            generator_status.text = "Erreur sauvegarde image %d" % i
+            return
+        refs.append(photo_path)
+    var project: Dictionary = StoryStudio.storyboard(prompt_text, 15.0, "manga", refs)
+    project["reference_paths"] = refs
+    var output := "%s/storyboard.json" % save_dir
     var file := FileAccess.open(output, FileAccess.WRITE)
     if file == null:
         generator_status.text = "Erreur sauvegarde storyboard"
@@ -814,7 +826,7 @@ func _create_storyboard() -> void:
     file.store_string(JSON.stringify(project, "  "))
     file.close()
     var scenes: Array = project["scenes"]
-    generator_status.text = "Storyboard %d scenes sauvegarde (dessins non generes)" % scenes.size()
+    generator_status.text = "Storyboard %d scenes et %d images sauvegardes" % [scenes.size(), refs.size()]
 
 func _generate_frames() -> void:
     if frame_generator != null and frame_generator.get("busy"):
