@@ -160,3 +160,23 @@ func render_pose_transitions(transition_plan: Dictionary, width: int = 360, heig
             "to_scene": transition.get("to_scene", ""), "images": images,
             "count": images.size(), "status": "rendered_skeleton"})
     return {"ok": true, "frames": rendered, "format": "rgba8", "transparent_background": transparent_background}
+
+# Connect a planned scene to the generic keyframe renderer.
+# Motion poses must be supplied by a detector, animator or future generator.
+# Unknown free-text actions are never silently replaced with idle motion.
+func render_scene_from_keyframes(scene: Dictionary, artwork: Image,
+        source_pose: Array, approved_keyframes: Array, frame_count: int = 60) -> Dictionary:
+    if str(scene.get("id", "")).is_empty():
+        return {"ok": false, "error": "Missing scene ID"}
+    if approved_keyframes.size() < 2:
+        return {"ok": false, "error": "No approved keyframe sequence for: " +
+            str(scene.get("requested_motion", scene.get("action", "unknown"))),
+            "requires_pose_generation": true}
+    var solver: RefCounted = load("res://scripts/pose_keyframe_solver.gd").new()
+    var rendered: Dictionary = solver.render_artwork_sequence(artwork, source_pose,
+        approved_keyframes, frame_count)
+    if not bool(rendered.get("ok", false)):
+        return rendered
+    rendered["scene_id"] = scene["id"]
+    rendered["requested_motion"] = str(scene.get("requested_motion", ""))
+    return rendered
