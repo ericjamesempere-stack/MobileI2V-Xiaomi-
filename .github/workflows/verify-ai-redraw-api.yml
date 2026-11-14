@@ -17,4 +17,4 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r ai_redraw/requirements-api.txt
-      - run: python -m pytest -q ai_redraw/test_server.py
+      - name: Install ffmpeg\n        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg\n      - run: python -m pytest -q ai_redraw/test_server.py ai_redraw/test_video.py
