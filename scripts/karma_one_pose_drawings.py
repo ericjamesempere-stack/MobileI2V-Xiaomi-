@@ -55,8 +55,8 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     foot_spread = 28 + 27*crouch_amount
     left_foot = (int(cx-foot_spread-27*step+10*fall_amount), floor-int(13*max(0,step)))
     right_foot = (int(cx+foot_spread-27*step+10*fall_amount), floor-int(13*max(0,-step)))
-    left_knee = (int((hip[0]+left_foot[0])/2-15), int((hip[1]+left_foot[1])/2))
-    right_knee = (int((hip[0]+right_foot[0])/2+15), int((hip[1]+right_foot[1])/2))
+    left_knee = (int((hip[0]+left_foot[0])/2-15), min(floor,int((hip[1]+left_foot[1])/2)))
+    right_knee = (int((hip[0]+right_foot[0])/2+15), min(floor,int((hip[1]+right_foot[1])/2)))
     for knee, foot in [(left_knee,left_foot),(right_knee,right_foot)]:
         pen.line((hip,knee,foot), fill=pants_color, width=19, joint="curve")
         pen.ellipse((foot[0]-14,foot[1]-6,foot[0]+14,foot[1]+6),fill=pants_color)
@@ -64,6 +64,7 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     for direction in [-1,1]:
         hand=(int(cx+direction*(60*arm_ratio+20*step)+115*fall_amount),int(shoulder[1]+85*arm_ratio-direction*18*step+20*fall_amount))
         elbow=(int(cx+direction*42*arm_ratio+115*fall_amount),int(shoulder[1]+40*arm_ratio+10*fall_amount))
+        hand=(hand[0],min(floor-9,hand[1]))
         pen.line((shoulder,elbow,hand),fill=shirt_color,width=15,joint="curve")
         pen.ellipse((hand[0]-9,hand[1]-9,hand[0]+9,hand[1]+9),fill=skin_color)
     pen.ellipse((head[0]-32,head[1]-42,head[0]+32,head[1]+42),fill=skin_color,outline="#483c37",width=3)
