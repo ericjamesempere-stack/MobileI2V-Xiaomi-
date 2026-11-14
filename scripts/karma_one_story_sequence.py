@@ -14,7 +14,7 @@ ACTIONS = {
     "walk": ("marche", "marcher", "walk", "walking"),
     "run": ("court", "courir", "course", "run", "running"),
     "dance": ("danse", "danser", "dance", "dancing"),
-    "stand": ("immobile", "debout", "attend", "stand", "stop"),
+    "stand": ("immobile", "debout", "attend", "stand", "stop", "se relève", "se releve", "se relever", "relève", "releve", "gets up", "get up", "stands up"),
     "crouch": ("accroupi", "accroupit", "accroupir", "crouch", "squat"),
     "fall": ("tombe", "tomber", "chute", "fall", "falls", "falling"),
 }
