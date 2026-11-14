@@ -1,8 +1,11 @@
-"""Sequential redraw using actual diffusion inference, with bounded resources.
-Each output becomes the next input. A fixed seed reduces variation but does not
-guarantee identity or correct pose. No automatic cloud uploads are performed.
+"""Generate pose sequences with explicit identity-drift controls.
+Default 'reference' mode reuses the ORIGINAL reference for each pose instead of
+feeding progressively altered faces back into diffusion. This reduces
+compounding drift but does not guarantee likeness or precise pose control.
 """
 import io
+import json
+import zipfile
 from PIL import Image
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
@@ -17,6 +20,7 @@ async def redraw_sequence(
     actions: str = Form("standing,running,falling"),
     strength: float = Form(0.45),
     seed: int = Form(1234),
+    identity_mode: str = Form("reference"),
 ):
     steps = [x.strip() for x in actions.split(",") if x.strip()]
     if not 1 <= len(steps) <= 8:
@@ -25,21 +29,39 @@ async def redraw_sequence(
         raise HTTPException(422, "Prompt too long")
     if not 0.1 <= strength <= 0.95:
         raise HTTPException(422, "Invalid strength")
-    current = validate_image(await reference.read())
+    if identity_mode not in ("reference", "previous"):
+        raise HTTPException(422, "identity_mode must be reference or previous")
+    original = validate_image(await reference.read())
+    current = original
     outputs = []
     try:
         for index, action in enumerate(steps):
-            current = redraw(current, prompt, action, strength, seed)
+            source = original if identity_mode == "reference" else current
+            current = redraw(source, prompt, action, strength, seed)
+            if not isinstance(current, Image.Image) or current.width < 32 or current.height < 32:
+                raise ValueError("Invalid model output")
             buffer = io.BytesIO()
             current.save(buffer, format="PNG")
             outputs.append((f"frame_{index:03d}.png", buffer.getvalue()))
     except Exception as exc:
         raise HTTPException(503, f"Inference failed: {type(exc).__name__}") from exc
-    import zipfile
+    manifest = {
+        "engine": "diffusers_img2img",
+        "actions": steps,
+        "identity_mode": identity_mode,
+        "strength": strength,
+        "seed": seed,
+        "identity_verified": False,
+        "pose_verified": False,
+        "note": "Model output must be reviewed; pose and likeness are not guaranteed.",
+    }
     archive = io.BytesIO()
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as z:
         for name, data in outputs:
             z.writestr(name, data)
+        z.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
     archive.seek(0)
-    return StreamingResponse(archive, media_type="application/zip",
-                             headers={"Content-Disposition": 'attachment; filename="redraw_sequence.zip"'})
+    return StreamingResponse(
+        archive, media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="redraw_sequence.zip"'},
+    )
