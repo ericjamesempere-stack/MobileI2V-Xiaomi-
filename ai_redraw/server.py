@@ -97,3 +97,6 @@ app.include_router(video_router)
 
 from .create_video import router as create_video_router
 app.include_router(create_video_router)
+
+from .animate_anything import router as animate_anything_router
+app.include_router(animate_anything_router)
