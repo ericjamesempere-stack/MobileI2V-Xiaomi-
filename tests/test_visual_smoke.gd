@@ -49,5 +49,21 @@ func _initialize() -> void:
             push_error("Failed to save " + path)
             quit(1)
             return
-    print("VISUAL_SMOKE_OK user://visual_smoke 60 frames")
+    # Guard against a frozen animation or a broken alpha compositor.
+    var first := Image.load_from_file("user://visual_smoke/frame_000.png")
+    var quarter := Image.load_from_file("user://visual_smoke/frame_008.png")
+    if first == null or quarter == null:
+        push_error("Visual smoke frames could not be reloaded")
+        quit(1)
+        return
+    var changed: int = 0
+    for yy in range(0, height, 4):
+        for xx in range(0, width, 4):
+            if first.get_pixel(xx, yy).distance_to(quarter.get_pixel(xx, yy)) > 0.12:
+                changed += 1
+    if changed < 30:
+        push_error("Animation is frozen or nearly unchanged: %d changed sampled pixels" % changed)
+        quit(1)
+        return
+    print("VISUAL_SMOKE_OK user://visual_smoke 60 frames changed_pixels=", changed)
     quit(0)
