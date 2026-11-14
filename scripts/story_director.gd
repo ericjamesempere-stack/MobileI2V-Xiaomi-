@@ -30,7 +30,10 @@ func build(story: String, duration_seconds: float, reference_image: String = "")
     for index in range(steps.size()):
         var step: Dictionary = steps[index]
         var action: String = str(step.get("action", "repos"))
+        var supported_motion: bool = ACTIONS.has(action)
         var spec: Dictionary = ACTIONS.get(action, ACTIONS["repos"])
+        if not supported_motion:
+            warnings.append("Scene %d : action %s reconnue, mais aucun mouvement 2D correspondant n est implemente." % [index + 1, action])
         var visual: Dictionary = router.select_engine(action, not reference_image.is_empty())
         var needs_reference_redraw: bool = not reference_image.is_empty() and str(visual["engine"]) == "rig_2d"
         if needs_reference_redraw:
@@ -50,14 +53,14 @@ func build(story: String, duration_seconds: float, reference_image: String = "")
             "action": action,
             "start_frame": start_frame,
             "end_frame": end_frame,
-            "rig_motion": spec["rig"] if bool(visual["implemented"]) else "none",
+            "rig_motion": spec["rig"] if bool(visual["implemented"]) and supported_motion else "none",
             "visual_engine": visual["engine"],
             "visual_engine_status": visual["status"],
-            "requires_visual_generation": not bool(visual["implemented"]) or needs_reference_redraw,
+            "requires_visual_generation": not supported_motion or not bool(visual["implemented"]) or needs_reference_redraw,
             "keyframes": frames,
             "background": "preserve",
             "character_id": "main",
-            "status": "needs_reference_redraw" if needs_reference_redraw else "pending_draw"
+            "status": "needs_motion_implementation" if not supported_motion else ("needs_reference_redraw" if needs_reference_redraw else "pending_draw")
         })
     return {
         "schema_version": SCHEMA_VERSION,
