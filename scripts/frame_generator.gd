@@ -20,12 +20,20 @@ func generate(prompt: String, duration: float = 5.0, face: Texture2D = null) -> 
         return ""
     busy = true
     var count := ceili(duration * FPS)
-    var directory := "user://generated/sequence_%d" % Time.get_unix_time_from_system()
+    var directory := "user://generated/sequence_%d_%d" % [Time.get_unix_time_from_system(), Time.get_ticks_msec()]
     var error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(directory))
     if error != OK:
         busy = false
         failed.emit("Impossible de creer le dossier : %d" % error)
         return ""
+    var metadata := {"prompt": prompt, "duration_seconds": duration, "fps": FPS, "width": SIZE.x, "height": SIZE.y, "frames": count, "format": "png", "renderer": "articulated_2d", "actions": MotionPlanner.story_actions(prompt)}
+    var metadata_file := FileAccess.open(directory + "/sequence.json", FileAccess.WRITE)
+    if metadata_file == null:
+        busy = false
+        failed.emit("Impossible de sauvegarder les metadonnees")
+        return ""
+    metadata_file.store_string(JSON.stringify(metadata, "  "))
+    metadata_file.close()
     var viewport := SubViewport.new()
     viewport.size = SIZE
     viewport.transparent_bg = false
@@ -85,8 +93,7 @@ func generate(prompt: String, duration: float = 5.0, face: Texture2D = null) -> 
             return ""
         if i % 30 == 0 or i == count - 1:
             progress.emit(i + 1, count)
-        # Yield each frame so Android can process input and redraw.
-        await get_tree().process_frame
+        # Keep one frame in memory at a time; avoid accumulating images.
     viewport.queue_free()
     busy = false
     finished.emit(directory, count)
