@@ -60,3 +60,19 @@ func frames_between(a: Array, b: Array, fps: int, seconds: float) -> Array:
     for i in range(count):
         frames.append(interpolate_pose(a, b, float(i) / float(count - 1)))
     return frames
+
+# Bridge two story actions with genuine articulated landmark positions.
+# Unlike pixel crossfades, every intermediate frame contains a new skeleton pose.
+func transition_between_actions(previous_landmarks: Array, next_landmarks: Array, transition_frames: int = 6) -> Dictionary:
+    var previous_check: Dictionary = validate_landmarks(previous_landmarks)
+    if not bool(previous_check.get("ok", false)):
+        return {"ok": false, "error": "Invalid previous pose: " + str(previous_check.get("error", "")), "frames": []}
+    var next_check: Dictionary = validate_landmarks(next_landmarks)
+    if not bool(next_check.get("ok", false)):
+        return {"ok": false, "error": "Invalid next pose: " + str(next_check.get("error", "")), "frames": []}
+    var count: int = clampi(transition_frames, 0, 30)
+    var frames: Array = []
+    for i in range(count):
+        var fraction: float = float(i + 1) / float(count + 1)
+        frames.append(interpolate_pose(previous_landmarks, next_landmarks, fraction))
+    return {"ok": true, "frames": frames, "count": frames.size(), "type": "articulated_landmark_transition"}
