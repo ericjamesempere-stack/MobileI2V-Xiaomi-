@@ -1,0 +1,50 @@
+name: Character Composite Video Preview
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - karma/storyboard-story-sequence-20261113
+    paths:
+      - 'scripts/painted_limb_warp.gd'
+      - 'scripts/continuous_rig.gd'
+      - 'tests/test_painted_limb_warp.gd'
+      - '.github/workflows/character-composite-video-preview.yml'
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.3
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o /tmp/godot.zip https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp
+          chmod +x /tmp/Godot_v4.3-stable_linux.x86_64
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Render painted character frames
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --quit
+          /tmp/Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_painted_limb_warp.gd
+      - name: Encode and validate MP4
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preview
+          first="$(find "$HOME/.local/share/godot/app_userdata" -type f -path '*/character_preview/frame_000.png' -print -quit)"
+          test -n "$first" || { echo "Missing rendered character frames"; exit 1; }
+          frames="$(dirname "$first")"
+          test "$(find "$frames" -maxdepth 1 -name 'frame_*.png' | wc -l)" -eq 60
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 -i "$frames/frame_%03d.png" -vf "scale=360:360:flags=neighbor,format=yuv420p" -c:v libx264 -movflags +faststart preview/character_composite_preview.mp4
+          ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames,width,height -of default=noprint_wrappers=1 preview/character_composite_preview.mp4 | tee preview/video_metadata.txt
+          test -s preview/character_composite_preview.mp4
+      - name: Upload preview video
+        uses: actions/upload-artifact@v4
+        with:
+          name: character-composite-preview-mp4
+          path: preview/
+          if-no-files-found: error
