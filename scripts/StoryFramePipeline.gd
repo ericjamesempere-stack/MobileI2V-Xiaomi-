@@ -100,3 +100,39 @@ static func export_png_sequence(project: Dictionary, directory: String, fps: int
     manifest_file.store_string(JSON.stringify(manifest, "  "))
     manifest_file.close()
     return {"ok": true, "directory": directory, "manifest": directory + "/manifest.json", "frame_count": frame_paths.size(), "video_encoded": false}
+
+# Import real model-produced images from per-scene folders, without assuming
+# that a request file means the image was generated.
+static func import_rendered_scenes(project: Dictionary, root: String) -> Dictionary:
+    if not root.begins_with("user://"):
+        return {"ok": false, "error": "invalid_project_root"}
+    var scenes: Array = project.get("scenes", [])
+    var imported := 0
+    for i in range(scenes.size()):
+        var folder := "%s/rendered/scene_%03d" % [root, i]
+        var dir := DirAccess.open(folder)
+        if dir == null:
+            return {"ok": false, "error": "missing_scene_folder", "scene": i, "imported": imported}
+        var names: Array[String] = []
+        dir.list_dir_begin()
+        while true:
+            var filename := dir.get_next()
+            if filename.is_empty():
+                break
+            if not dir.current_is_dir() and filename.to_lower().ends_with(".png"):
+                names.append(filename)
+        dir.list_dir_end()
+        names.sort()
+        if names.is_empty():
+            return {"ok": false, "error": "no_generated_images", "scene": i, "imported": imported}
+        var paths: Array[String] = []
+        for filename in names:
+            paths.append(folder + "/" + filename)
+        var outcome: Dictionary = attach_scene_frames(project, i, paths)
+        if not outcome.get("ok", false):
+            return {"ok": false, "error": outcome.get("error", "invalid_scene"), "scene": i, "imported": imported}
+        project = outcome["project"]
+        imported += 1
+    project["render_status"] = "frames_imported"
+    project["capability"] = "real_frames_imported"
+    return {"ok": true, "project": project, "imported": imported}
