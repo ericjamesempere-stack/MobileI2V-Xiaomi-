@@ -35,6 +35,21 @@ func _initialize() -> void:
             if pixel.r > 0.15:
                 red_edge_count += 1
     assert(red_edge_count > 10, "Warped semi-transparent edge was lost")
+    # Verify that the elbow/knee seam is filled using the painted source
+    # without replacing its original color with a synthetic joint circle.
+    var seam_source := Image.create(60, 60, false, Image.FORMAT_RGBA8)
+    seam_source.fill(Color(0, 0, 0, 0))
+    for y in range(14, 46):
+        for x in range(27, 34):
+            seam_source.set_pixel(x, y, Color(0.9, 0.4, 0.1, 1.0))
+    var seam_output := Image.create(60, 60, false, Image.FORMAT_RGBA8)
+    seam_output.fill(Color(0.1, 0.1, 0.1, 1.0))
+    painter.draw_segment(seam_output, seam_source, Vector2(30, 14), Vector2(30, 30), Vector2(20, 15), Vector2(29, 29), 4.0)
+    painter.draw_segment(seam_output, seam_source, Vector2(30, 30), Vector2(30, 45), Vector2(29, 29), Vector2(43, 38), 4.0)
+    painter.draw_joint(seam_output, seam_source, Vector2(30, 30), Vector2(29, 29), 3.0)
+    var seam_pixel: Color = seam_output.get_pixel(29, 29)
+    assert(seam_pixel.r > 0.7 and seam_pixel.g > 0.25, "Joint seam failed to preserve original painted pigment")
+    assert(seam_output.get_pixel(5, 5).r < 0.2, "Joint seam overwrote the background")
     # Produce an actual sequence of painted-limb frames, not just one pose.
     DirAccess.make_dir_recursive_absolute("user://painted_warp")
     for frame in range(60):
