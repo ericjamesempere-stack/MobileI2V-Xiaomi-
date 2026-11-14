@@ -19,6 +19,13 @@ func _initialize() -> void:
     var teleported: Array = result["frames"].duplicate(true)
     teleported[20][15]["x"] = float(teleported[20][15]["x"]) + 0.5
     assert(not solver.validate_joint_velocity(teleported)["ok"])
+    var repaired: Dictionary = solver.repair_isolated_spikes(teleported)
+    assert(repaired["ok"])
+    assert(repaired["repair_count"] == 1)
+    assert(solver.validate_joint_velocity(repaired["frames"])["ok"])
+    assert(not solver.validate_joint_velocity(teleported)["ok"], "Source frames must not be modified")
+    var clean: Dictionary = solver.repair_isolated_spikes(result["frames"])
+    assert(clean["ok"] and clean["repair_count"] == 0)
     var lengths: Dictionary = solver.validate_bone_lengths(result["frames"])
     assert(lengths["ok"], "Rigid translation must preserve bone lengths")
     var distorted: Array = result["frames"].duplicate(true)
