@@ -262,3 +262,35 @@ func save_rendered_frames(rendered: Dictionary, directory: String = "user://acti
         "duration_seconds": float(files.size()) / float(fps),
         "status": "png_sequence_ready_for_encoder",
         "mp4_created": false}
+
+# Build a reusable walk/run cycle from a neutral 33-point pose. This is
+# deterministic 2D animation, not an inferred movement from a photograph.
+func generate_gait_keyframes(neutral_pose: Array, cycles: int = 2,
+        running: bool = false) -> Dictionary:
+    var rig: RefCounted = Rig.new()
+    var check: Dictionary = rig.validate_landmarks(neutral_pose)
+    if not bool(check.get("ok", false)) or cycles < 1 or cycles > 20:
+        return {"ok": false, "error": "Invalid neutral pose or cycle count"}
+    var samples: int = cycles * 8
+    var frames: Array = []
+    var amplitude: float = 0.045 if running else 0.025
+    for i in range(samples + 1):
+        var phase: float = TAU * float(i) / 8.0
+        var pose: Array = neutral_pose.duplicate(true)
+        for joint in [15, 17, 19, 21, 27, 29, 31]:
+            pose[joint]["x"] = clampf(float(pose[joint]["x"]) +
+                amplitude * sin(phase), 0.0, 1.0)
+        for joint in [16, 18, 20, 22, 28, 30, 32]:
+            pose[joint]["x"] = clampf(float(pose[joint]["x"]) -
+                amplitude * sin(phase), 0.0, 1.0)
+        for joint in [27, 29, 31]:
+            pose[joint]["y"] = clampf(float(pose[joint]["y"]) -
+                amplitude * 0.5 * maxf(0.0, cos(phase)), 0.0, 1.0)
+        for joint in [28, 30, 32]:
+            pose[joint]["y"] = clampf(float(pose[joint]["y"]) -
+                amplitude * 0.5 * maxf(0.0, -cos(phase)), 0.0, 1.0)
+        frames.append(pose)
+    return {"ok": true, "frames": frames, "count": frames.size(),
+        "action": "course" if running else "marche",
+        "limitations": ["simple 2D procedural gait, no ground contact physics",
+            "requires a valid neutral landmark pose"]}
