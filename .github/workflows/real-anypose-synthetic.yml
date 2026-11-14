@@ -1,6 +1,12 @@
 name: Real AnyPose Synthetic Image Test
 
 on:
+  push:
+    branches:
+      - karma/storyboard-story-sequence-20261113
+    paths:
+      - 'tools/smoke_anypose_synthetic.py'
+      - '.github/workflows/real-anypose-synthetic.yml'
   workflow_dispatch:
 
 permissions:
