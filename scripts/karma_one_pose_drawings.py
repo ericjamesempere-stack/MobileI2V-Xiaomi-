@@ -15,7 +15,7 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     skin_color = appearance.get("skin", "#b98766")
     hair_color = appearance.get("hair", "#332725")
     phase = 2 * math.pi * ((index if phase_index is None else phase_index) / 12.0)
-    speeds = {"walk": 0.8, "run": 1.8, "dance": 1.2, "stand": 0.0, "crouch": 0.0}
+    speeds = {"walk": 0.8, "run": 1.8, "dance": 1.2, "stand": 0.0, "crouch": 0.0, "fall": 0.0}
     if action not in speeds:
         raise ValueError(f"Unsupported action: {action}")
     target_speed = speeds[action]
@@ -44,14 +44,17 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     crouch_amount = old_crouch*(1-smooth) + new_crouch*smooth if previous_action else new_crouch
     hip_height = 100 - 45*crouch_amount
     torso_height = 105 - 25*crouch_amount
-    hip = (cx, floor - int(hip_height*leg_ratio) - bob)
-    shoulder = (cx, hip[1] - int(torso_height*torso_ratio))
-    head = (cx, shoulder[1] - int(62*head_ratio))
+    old_fall = 1.0 if previous_action == "fall" else 0.0
+    new_fall = 1.0 if action == "fall" else 0.0
+    fall_amount = old_fall*(1-smooth) + new_fall*smooth if previous_action else new_fall
+    hip = (cx + int(24*fall_amount), floor - int(hip_height*leg_ratio) - bob + int(48*fall_amount))
+    shoulder = (cx + int(115*fall_amount), hip[1] - int(torso_height*torso_ratio*(1-fall_amount)) - int(18*fall_amount))
+    head = (shoulder[0] + int(52*fall_amount), shoulder[1] - int(62*head_ratio*(1-fall_amount)) - int(10*fall_amount))
     pen.line((30, floor, width-30, floor), fill="#799ba0", width=3)
     # Each drawing is freshly rasterized from a new articulated pose.
     foot_spread = 28 + 27*crouch_amount
-    left_foot = (int(cx-foot_spread-27*step), floor-int(13*max(0,step)))
-    right_foot = (int(cx+foot_spread-27*step), floor-int(13*max(0,-step)))
+    left_foot = (int(cx-foot_spread-27*step+10*fall_amount), floor-int(13*max(0,step)))
+    right_foot = (int(cx+foot_spread-27*step+10*fall_amount), floor-int(13*max(0,-step)))
     left_knee = (int((hip[0]+left_foot[0])/2-15), int((hip[1]+left_foot[1])/2))
     right_knee = (int((hip[0]+right_foot[0])/2+15), int((hip[1]+right_foot[1])/2))
     for knee, foot in [(left_knee,left_foot),(right_knee,right_foot)]:
@@ -59,8 +62,8 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
         pen.ellipse((foot[0]-14,foot[1]-6,foot[0]+14,foot[1]+6),fill=pants_color)
     pen.line((hip,shoulder),fill=shirt_color,width=46)
     for direction in [-1,1]:
-        hand=(int(cx+direction*(60*arm_ratio+20*step)),int(shoulder[1]+85*arm_ratio-direction*18*step))
-        elbow=(int(cx+direction*42*arm_ratio),int(shoulder[1]+40*arm_ratio))
+        hand=(int(cx+direction*(60*arm_ratio+20*step)+115*fall_amount),int(shoulder[1]+85*arm_ratio-direction*18*step+20*fall_amount))
+        elbow=(int(cx+direction*42*arm_ratio+115*fall_amount),int(shoulder[1]+40*arm_ratio+10*fall_amount))
         pen.line((shoulder,elbow,hand),fill=shirt_color,width=15,joint="curve")
         pen.ellipse((hand[0]-9,hand[1]-9,hand[0]+9,hand[1]+9),fill=skin_color)
     pen.ellipse((head[0]-32,head[1]-42,head[0]+32,head[1]+42),fill=skin_color,outline="#483c37",width=3)
@@ -98,7 +101,7 @@ if __name__ == "__main__":
     p.add_argument("--seconds",type=int,default=3)
     p.add_argument("--fps",type=int,default=24)
     p.add_argument("--appearance", type=Path, help="Optional JSON character palette; manual, not photo extraction")
-    p.add_argument("--action", choices=["walk", "run", "dance", "stand", "crouch"], default="walk")
+    p.add_argument("--action", choices=["walk", "run", "dance", "stand", "crouch", "fall"], default="walk")
     args=p.parse_args()
     appearance=json.loads(args.appearance.read_text(encoding="utf-8")) if args.appearance else None
     print(f"Generated {render(args.folder,args.seconds,args.fps,appearance,args.action)} distinct pose drawings")
