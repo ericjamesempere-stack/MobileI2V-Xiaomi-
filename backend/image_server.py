@@ -142,3 +142,43 @@ def generate(req: GenerateRequest, authorization: str | None = Header(default=No
         "model": os.getenv("MOBILEI2V_MODEL", "stabilityai/sd-turbo"),
         "note": "Experimental img2img; no temporal pose conditioning or identity guarantee",
     }
+
+
+class SequenceRequest(BaseModel):
+    image_base64: str
+    prompt: str = Field(min_length=1, max_length=2000)
+    total_frames: int = Field(default=6, ge=2, le=24)
+    reference_strength: float = Field(default=0.85, ge=0.0, le=1.0)
+
+
+@app.post("/generate_sequence")
+def generate_sequence(req: SequenceRequest, authorization: str | None = Header(default=None)):
+    """One request generates a complete ordered sequence, chaining each prior frame.
+
+    This is keyframe generation, not smooth motion or video synthesis.
+    """
+    expected_token = os.getenv("MOBILEI2V_API_TOKEN", "")
+    if expected_token and not hmac.compare_digest(authorization or "", f"Bearer {expected_token}"):
+        raise HTTPException(401, "Unauthorized")
+    if not torch.cuda.is_available():
+        raise HTTPException(503, "GPU unavailable: image generation requires CUDA")
+    # Validate reference once, before loading the diffusion model.
+    decode_image(req.image_base64)
+    frames = []
+    previous = req.image_base64
+    for index in range(req.total_frames):
+        single = GenerateRequest(
+            image_base64=req.image_base64,
+            previous_image_base64=previous,
+            prompt=req.prompt,
+            frame_index=index,
+            total_frames=req.total_frames,
+            reference_strength=req.reference_strength,
+            temporal_position=index / max(1, req.total_frames - 1),
+        )
+        result = generate(single, authorization)
+        previous = result["image_base64"]
+        frames.append({"index": index, "image_base64": previous,
+                       "action": action_stage(req.prompt, single.temporal_position)})
+    return {"frames": frames, "count": len(frames),
+            "note": "Experimental sequential keyframes; motion and identity not guaranteed"}
