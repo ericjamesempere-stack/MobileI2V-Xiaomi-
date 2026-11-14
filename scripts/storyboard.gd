@@ -1017,6 +1017,8 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
             var radius: float = limb["radius"]
             pixel_warp.draw_segment(result, foreground, root_point, rest_middle, root_point, solution["middle"], radius)
             pixel_warp.draw_segment(result, foreground, rest_middle, rest_end, solution["middle"], solution["end"], radius * 0.82)
+            # Blend the original painted elbow/knee over the two segment ends.
+            pixel_warp.draw_joint(result, foreground, rest_middle, solution["middle"], radius * 0.78)
         var path: String = "%s/pose_%02d.png" % [folder,i]
         if result.save_png(path) != OK:
             status.text = "Erreur sauvegarde pose."
