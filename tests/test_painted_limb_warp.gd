@@ -73,6 +73,7 @@ func _initialize() -> void:
     ], 12, 8.0)
     assert(multi_action["ok"], "Generic keyframes must render actual character frames")
     assert(multi_action["count"] == 12)
+    assert(multi_action["repair_count"] == 0)
     var painted_pose: Dictionary = painter.render_articulated_layers(source, original_pose, moved_pose, 8.0)
     assert(painted_pose["ok"])
     var opaque_artwork := Image.create(100, 100, false, Image.FORMAT_RGBA8)
