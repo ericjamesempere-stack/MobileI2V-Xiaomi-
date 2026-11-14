@@ -54,5 +54,22 @@ func _initialize() -> void:
             push_error("No visible alternating gait for %s: %d" % [gait, lower_body_changes])
             quit(1)
             return
+    # The transition must have a distinct leaning intermediate pose,
+    # not just upright and horizontal endpoint drawings.
+    var upright: Image = generator.render("personnage", 0.0, Vector2i(360, 480), "chute")
+    var leaning: Image = generator.render("personnage", 0.5, Vector2i(360, 480), "chute")
+    var grounded: Image = generator.render("personnage", 1.0, Vector2i(360, 480), "chute")
+    var from_upright := 0
+    var from_grounded := 0
+    for y in range(70, 340, 4):
+        for x in range(40, 330, 4):
+            if upright.get_pixel(x, y) != leaning.get_pixel(x, y):
+                from_upright += 1
+            if grounded.get_pixel(x, y) != leaning.get_pixel(x, y):
+                from_grounded += 1
+    if from_upright < 40 or from_grounded < 40:
+        push_error("Fall intermediate pose is not visibly distinct")
+        quit(1)
+        return
     print("ARTICULATED_ACTION_FRAMES_OK changed_pairs=", changed_pairs)
     quit(0)
