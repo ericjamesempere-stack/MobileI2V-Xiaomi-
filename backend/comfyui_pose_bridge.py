@@ -108,6 +108,14 @@ def generate(req: Request, authorization: str | None = Header(default=None)):
         reachable = upstream(out_id)
         if ref_id not in reachable or pose_id not in reachable:
             raise ValueError("Reference and pose must both feed the output workflow")
+        # Mere graph connectivity is insufficient: a template can blend
+        # reference and pose as raw pixels while ignoring skeletal guidance.
+        # Require an explicit ControlNet node on the output dependency path.
+        pose_control_classes = ("ControlNetApply", "ControlNetApplyAdvanced",
+                                "ACN_AdvancedControlNetApply", "ApplyControlNet")
+        if not any(any(token in str(workflow[node_id].get("class_type", "")) for token in pose_control_classes)
+                   for node_id in reachable):
+            raise ValueError("A ControlNet pose conditioning node must feed the output")
         workflow = copy.deepcopy(workflow)
         workflow[ref_id]["inputs"]["image"] = upload(base, reference, "mobilei2v_ref_" + uuid.uuid4().hex)
         workflow[pose_id]["inputs"]["image"] = upload(base, pose, "mobilei2v_pose_" + uuid.uuid4().hex)
