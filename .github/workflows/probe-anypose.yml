@@ -1,0 +1,19 @@
+name: Probe AnyPose public API (read only)
+
+on:
+  push:
+    branches:
+      - karma/storyboard-story-sequence-20261113
+    paths:
+      - "tools/probe_anypose_http.py"
+      - ".github/workflows/probe-anypose.yml"
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect public Gradio config without generating images
+        run: python3 tools/probe_anypose_http.py
