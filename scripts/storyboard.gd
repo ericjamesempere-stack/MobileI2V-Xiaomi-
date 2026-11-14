@@ -87,10 +87,11 @@ func _ready() -> void:
     contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     root_box.add_child(contact_sheet)
     _button("IMPORTER 18 DESSINS DEJA CREES (V5)", _choose_pose_sheet)
+    _button("GENERER DE NOUVEAUX DESSINS (MOTEUR HTTPS)", _generate_image_sequence)
     _button("EXPORTER LE FILM MP4 (APRES VERIFICATION)", _export_board_mp4)
     var advanced_box := VBoxContainer.new()
     root_box.add_child(advanced_box)
-    advanced_box.visible = false
+    advanced_box.visible = true
     _button("OPTIONS AVANCEES : AFFICHER / MASQUER", func() -> void: advanced_box.visible = not advanced_box.visible)
     var advanced_title := Label.new()
     advanced_title.text = "OPTIONS AVANCEES (facultatives)"
@@ -104,7 +105,7 @@ func _ready() -> void:
     _button("Detecter le squelette (serveur externe)", _request_pose, advanced_box)
     _button("Poses avec articulations detectees", _generate_detected_board, advanced_box)
     _button("IA externe (secours facultatif)", _request_ai_board, advanced_box)
-    _button("Generer images successives (moteur HTTPS)", _generate_image_sequence, advanced_box)
+    _label("Generation IA : un moteur HTTPS image-vers-image doit etre configure. Sans moteur, aucune nouvelle pose IA ne peut etre produite.", 16)
     _button("Mouvement de camera sur photo (sans IA)", _generate_from_photo, advanced_box)
     _button("Dessiner un personnage generique (sans photo)", _generate_text_cartoon, advanced_box)
     _button("DEMO : planches personnage articule", _generate_layered_demo, advanced_box)
@@ -635,6 +636,10 @@ func _generate_image_sequence() -> void:
     )
     ai_running = true
     var count: int = clampi(ceili(float(duration_input.value) * 4.0), 2, 120)
+    if not endpoint.begins_with("https://"):
+        status.text = "Moteur IA non configure. Indique son adresse HTTPS dans Options avancees. Aucun modele generatif integre a cette APK."
+        generator.queue_free()
+        return
     var result: Dictionary = await generator.call("generate", original, action_input.text, endpoint, count, false)
     ai_running = false
     generator.queue_free()
