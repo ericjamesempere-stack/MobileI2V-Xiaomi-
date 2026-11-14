@@ -10,7 +10,8 @@ static func extract(image: Image, tolerance: float = 0.12) -> Image:
  var h := img.get_height()
  var count := w * h
  if count > 4000000:
-  img.resize(mini(w, 1600), mini(h, 1600), Image.INTERPOLATE_LANCZOS)
+  var scale: float = minf(1600.0 / float(w), 1600.0 / float(h))
+  img.resize(maxi(1, roundi(w * scale)), maxi(1, roundi(h * scale)), Image.INTERPOLATE_LANCZOS)
   w = img.get_width()
   h = img.get_height()
   count = w * h
@@ -34,7 +35,7 @@ static func extract(image: Image, tolerance: float = 0.12) -> Image:
   var index := queue[cursor]
   cursor += 1
   var x := index % w
-  var y := index / w
+  var y: int = int(index / w)
   if x > 0:
    _seed(img, x-1, y, w, seen, queue, bg, threshold)
   if x+1 < w:
