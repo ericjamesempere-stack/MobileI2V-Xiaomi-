@@ -96,6 +96,23 @@ jobs:
           timeout 120s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --import 2>&1 | tee import.log
           if grep -E 'SCRIPT ERROR|Parse Error|ConfigFile parse error' import.log; then exit 1; fi
 
+      - name: Validate animation engine before APK export
+        run: |
+          set -euo pipefail
+          for test in \
+            tests/test_story_studio.gd \
+            tests/test_story_action_planner.gd \
+            tests/test_story_frame_pipeline.gd \
+            tests/test_procedural_pose_renderer.gd \
+            tests/test_story_sequence_player.gd; do
+            echo "Running $test"
+            timeout 90s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script "res://$test" 2>&1 | tee -a animation-tests.log
+          done
+          if grep -E 'SCRIPT ERROR|Parse Error|Assertion failed|ERROR:' animation-tests.log; then
+            echo "Animation engine validation failed" >&2
+            exit 1
+          fi
+
       - name: Write explicit Godot 4.3 Android export preset values
         run: |
           set -euo pipefail
@@ -166,6 +183,7 @@ jobs:
             import.log
             configure.log
             export.log
+            animation-tests.log
             signing-check.log
             apk-badging.txt
             export_presets.cfg
