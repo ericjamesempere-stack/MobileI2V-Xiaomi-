@@ -207,5 +207,5 @@ func _draw() -> void:
 
 func update_pose(seconds: float, action: String = "danse") -> void:
     motion_name = action
-    phase = seconds * motion_speed
+    phase = seconds if action == "chute" or action == "saut" else seconds * motion_speed
     queue_redraw()
