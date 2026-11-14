@@ -921,19 +921,21 @@ func _prepare_pose_guides() -> void:
         if i % 4 == 0:
             status.text = "Preparation des poses : %d/%d" % [i + 1, count]
             await get_tree().process_frame
-    sources = new_sources
-    paths = new_paths
-    plan.clear()
-    accepted.clear()
-    for i in range(sources.size()):
-        plan.append(i)
-        accepted.append(true)
-    v5_sheet_loaded = true
-    frame_index = 0
-    _refresh()
-    _build_contact_sheet()
-    _save()
-    status.text = "%d guides de pose sauvegardes. Ce sont des dessins cartoon de reference, PAS le personnage redessine par IA." % count
+    # Pose guides are NOT output frames: keep the previous film and its
+    # validation/export state intact. Show the guide atlas separately.
+    var thumb_w: int = 96
+    var thumb_h: int = 128
+    var cols: int = 4
+    var rows: int = ceili(float(new_sources.size()) / float(cols))
+    var board := Image.create(thumb_w * cols, thumb_h * rows, false, Image.FORMAT_RGBA8)
+    board.fill(Color("1a2530"))
+    for slot in range(new_sources.size()):
+        var thumb: Image = new_sources[slot].get_image()
+        thumb.resize(thumb_w - 8, thumb_h - 8, Image.INTERPOLATE_BILINEAR)
+        board.blit_rect(thumb, Rect2i(0, 0, thumb.get_width(), thumb.get_height()), Vector2i((slot % cols) * thumb_w + 4, int(slot / cols) * thumb_h + 4))
+    contact_sheet.texture = ImageTexture.create_from_image(board)
+    contact_caption.text = "GUIDES DE POSE : %d images (pas des images IA finales)" % new_sources.size()
+    status.text = "%d guides de pose sauvegardes dans %s. Aucun film existant modifie ; IA non executee." % [count, folder]
 
 func _generate_text_cartoon() -> void:
     var story: String = action_input.text.strip_edges()
