@@ -16,6 +16,10 @@ static func render(project: Dictionary, root: String, fps: int = 12) -> Dictiona
         var allowed := ["run", "walk", "jump", "fall", "wave", "dance"] if kind == "character" or kind == "unknown" else ["run", "walk", "jump", "fall", "dance"] if kind == "animal" else ["travel", "fly", "jump", "fall", "land", "stop"]
         if not allowed.has(str(scene.get("motion_action", ""))):
             return {"ok": false, "error": "unsupported_demo_motion", "scene_id": scene.get("id", "")}
+    var continuity := MotionContinuityPlanner.timeline(project, fps)
+    if not continuity.get("ok", false):
+        return {"ok": false, "error": continuity.get("error", "continuity_failed")}
+    var states: Array = continuity["frames"]
     var generated := 0
     for i in range(scenes.size()):
         var scene: Dictionary = scenes[i]
@@ -26,7 +30,8 @@ static func render(project: Dictionary, root: String, fps: int = 12) -> Dictiona
         for j in range(count):
             var progress := float(j) / float(maxi(1, count - 1))
             var kind := str(scene.get("subject_type", ""))
-            var svg := _pose_svg(str(scene["motion_action"]), progress) if kind == "character" or kind == "unknown" else SubjectPoseLibrary.render_svg(kind, str(scene["motion_action"]), progress)
+            var motion_state: Dictionary = states[generated]
+            var svg := _pose_svg(str(scene["motion_action"]), progress, motion_state) if kind == "character" or kind == "unknown" else SubjectPoseLibrary.render_svg(kind, str(scene["motion_action"]), progress)
             var image := Image.new()
             if image.load_svg_from_buffer(svg.to_utf8_buffer(), 1.0) != OK:
                 return {"ok": false, "error": "svg_render_failed", "scene": i, "frame": j}
@@ -35,41 +40,42 @@ static func render(project: Dictionary, root: String, fps: int = 12) -> Dictiona
             generated += 1
     return {"ok": true, "frames": generated, "mode": "offline_procedural_subject_demo", "video_encoded": false}
 
-static func _pose_svg(action: String, t: float) -> String:
+static func _pose_svg(action: String, t: float, state: Dictionary = {}) -> String:
     var phase := t * TAU * 2.0
     var stride := sin(phase)
     var swing := cos(phase)
     var torso_angle := 0.0
-    var hip_x := 128.0
-    var hip_y := 265.0
+    var hip_x := 128.0 + fmod(float(state.get("x", 0.0)), 120.0) - float(state.get("altitude", 0.0)) * 0.0
+    var hip_y := 265.0 + float(state.get("y", 0.0)) - float(state.get("altitude", 0.0))
     var left_arm := -0.35
     var right_arm := 0.35
     var left_leg := -0.25
     var right_leg := 0.25
     match action:
         "run":
-            hip_x += t * 50.0
+            if state.is_empty(): hip_x += t * 50.0
             hip_y += absf(stride) * -10.0
             left_arm = -0.7 * stride
             right_arm = 0.7 * stride
             left_leg = 0.85 * stride
             right_leg = -0.85 * stride
         "walk":
-            hip_x += t * 35.0
+            if state.is_empty(): hip_x += t * 35.0
             left_arm = -0.4 * stride
             right_arm = 0.4 * stride
             left_leg = 0.5 * stride
             right_leg = -0.5 * stride
         "jump":
-            hip_y -= 85.0 * sin(PI * t)
+            if state.is_empty(): hip_y -= 85.0 * sin(PI * t)
             left_arm = -0.6
             right_arm = 0.6
             left_leg = -0.2 + 0.35 * sin(PI * t)
             right_leg = 0.2 - 0.35 * sin(PI * t)
         "fall":
             torso_angle = t * 1.35
-            hip_y += 80.0 * t
-            hip_x += 30.0 * t
+            if state.is_empty():
+                hip_y += 80.0 * t
+                hip_x += 30.0 * t
             left_arm = -0.7 * t
             right_arm = 0.7 * t
         "wave":
