@@ -84,6 +84,14 @@ func _initialize() -> void:
     assert(connected["count"] == 19)
     assert(connected["boundaries"].size() == 2)
     assert(connected["frames"][0] is Image)
+    var saved: Dictionary = generic_solver.save_rendered_frames(
+        connected, "user://test_multi_action_frames", 30)
+    assert(saved["ok"], "Multi-action PNG frames must be saved")
+    assert(saved["count"] == 19)
+    assert(not saved["mp4_created"], "PNG frames must never be mislabeled MP4")
+    assert(FileAccess.file_exists(saved["files"][0]))
+    assert(FileAccess.file_exists(saved["files"][-1]))
+
     var painted_pose: Dictionary = painter.render_articulated_layers(source, original_pose, moved_pose, 8.0)
     assert(painted_pose["ok"])
     var opaque_artwork := Image.create(100, 100, false, Image.FORMAT_RGBA8)
