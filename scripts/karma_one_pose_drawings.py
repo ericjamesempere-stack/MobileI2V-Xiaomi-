@@ -38,14 +38,20 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     head_ratio = ratio("head_size", 1.0)
     cx, floor = width // 2, int(height * 0.86)
     bob = int(5 * abs(math.sin(phase)))
-    crouch = action == "crouch"
-    hip = (cx, floor - int((55 if crouch else 100)*leg_ratio) - bob)
-    shoulder = (cx, hip[1] - int((80 if crouch else 105)*torso_ratio))
+    # Interpolate joint geometry, not just movement speed, across action boundaries.
+    old_crouch = 1.0 if previous_action == "crouch" else 0.0
+    new_crouch = 1.0 if action == "crouch" else 0.0
+    crouch_amount = old_crouch*(1-smooth) + new_crouch*smooth if previous_action else new_crouch
+    hip_height = 100 - 45*crouch_amount
+    torso_height = 105 - 25*crouch_amount
+    hip = (cx, floor - int(hip_height*leg_ratio) - bob)
+    shoulder = (cx, hip[1] - int(torso_height*torso_ratio))
     head = (cx, shoulder[1] - int(62*head_ratio))
     pen.line((30, floor, width-30, floor), fill="#799ba0", width=3)
     # Each drawing is freshly rasterized from a new articulated pose.
-    left_foot = (int(cx-(55 if crouch else 28)-27*step), floor-int(13*max(0,step)))
-    right_foot = (int(cx+(55 if crouch else 28)-27*step), floor-int(13*max(0,-step)))
+    foot_spread = 28 + 27*crouch_amount
+    left_foot = (int(cx-foot_spread-27*step), floor-int(13*max(0,step)))
+    right_foot = (int(cx+foot_spread-27*step), floor-int(13*max(0,-step)))
     left_knee = (int((hip[0]+left_foot[0])/2-15), int((hip[1]+left_foot[1])/2))
     right_knee = (int((hip[0]+right_foot[0])/2+15), int((hip[1]+right_foot[1])/2))
     for knee, foot in [(left_knee,left_foot),(right_knee,right_foot)]:
