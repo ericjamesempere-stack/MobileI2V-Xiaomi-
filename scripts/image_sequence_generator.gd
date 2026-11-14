@@ -26,16 +26,23 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
  var reference_b64: String = Marshalls.raw_to_base64(source_png)
  var previous_b64: String = reference_b64
  var frames: Array[Image] = []
+ var motion_plan: Dictionary = load("res://scripts/story_motion_planner.gd").new().plan(prompt, float(count))
+ var motion_steps: Array = motion_plan.get("steps", [])
  for index in range(count):
   if cancel_requested:
    return {"ok": false, "error": "Generation annulee", "generated": frames.size()}
   var http := HTTPRequest.new()
   http.timeout = 120.0
   add_child(http)
+  var active_prompt: String = prompt
+  if not motion_steps.is_empty():
+   var step_index: int = mini(motion_steps.size() - 1, int(float(index) / float(count) * float(motion_steps.size())))
+   active_prompt = str(motion_steps[step_index].get("description", prompt))
   var payload := {
    "image_base64": reference_b64,
    "previous_image_base64": previous_b64,
-   "prompt": prompt,
+   "prompt": active_prompt,
+   "full_story": prompt,
    "frame_index": index,
    "total_frames": count,
    "loop": loop,
