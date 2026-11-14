@@ -204,6 +204,20 @@ jobs:
           stat -c 'APK size: %s bytes' build/MobileI2V_V50_ARM64_FIXED.apk
           sha256sum build/MobileI2V_V50_ARM64_FIXED.apk
 
+      - name: Verify APK launch metadata and report plugin presence
+        run: |
+          set -euo pipefail
+          APK=build/MobileI2V_V50_ARM64_FIXED.apk
+          unzip -Z1 "$APK" > build/apk-files.txt
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$APK" | grep -E "^(package:|launchable-activity:|native-code:)" | tee build/apk-runtime-metadata.txt
+          grep -q "launchable-activity:" build/apk-runtime-metadata.txt
+          if grep -Eiq '(^|/)(MP4Exporter|mp4exporter)(/|\.|$)' build/apk-files.txt; then
+            echo "Native MP4 plugin candidate found in packaged APK." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "WARNING: MP4 plugin not detected in APK; native export remains unverified." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "APK launch metadata validated; physical device runtime not tested." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Report MP4 plugin packaging status
         run: |
           set -euo pipefail
