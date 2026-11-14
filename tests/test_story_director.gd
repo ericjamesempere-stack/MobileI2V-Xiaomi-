@@ -20,7 +20,13 @@ func _initialize() -> void:
     for scene in scenes:
         for pose in scene["keyframes"]:
             pose["status"] = "approved"
-    assert(director.validate_for_animation(project)["ok"])
+    assert(not director.validate_for_animation(project)["ok"], "Approved flags alone cannot replace missing images and hashes")
+    var missing_motion: Dictionary = director.build("Il entre dans le métro puis court.", 6.0)
+    assert(missing_motion["scenes"].size() == 2)
+    assert(missing_motion["scenes"][0]["action"] == "metro")
+    assert(missing_motion["scenes"][0]["rig_motion"] == "none")
+    assert(missing_motion["scenes"][0]["status"] == "needs_motion_implementation")
+    assert(bool(missing_motion["scenes"][0]["requires_visual_generation"]))
     var unsupported: Dictionary = director.build("Une voiture a un accident et les secours arrivent.", 180.0)
     assert(not unsupported["warnings"].is_empty(), "Unsupported semantic actions must not be silently invented")
     print("STORY_DIRECTOR_TESTS_OK")
