@@ -23,7 +23,9 @@ func draw_segment(dst: Image, artwork: Image, source_a: Vector2, source_b: Vecto
             var relative := Vector2(float(x), float(y)) - target_a
             var along: float = relative.dot(target_forward)
             var side: float = relative.dot(target_side)
-            if along < -half_width or along > target_length + half_width or absf(side) > half_width:
+            # Do not extrapolate the painted texture beyond its bone endpoints:
+            # endpoint overlap is handled explicitly by draw_joint().
+            if along < 0.0 or along > target_length or absf(side) > half_width:
                 continue
             var source_point := source_a + source_forward * (along / target_length * source_length) + source_side * side
             # Bilinear alpha-aware sampling avoids hard nearest-neighbour
