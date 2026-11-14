@@ -10,9 +10,9 @@ import os
 import threading
 from functools import lru_cache
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel, Field
-from PIL import Image, ImageChops, ImageEnhance
+from PIL import Image
 import torch
 from diffusers import AutoPipelineForImage2Image
 
@@ -63,8 +63,11 @@ def pipeline():
 
 
 def fit(image: Image.Image) -> Image.Image:
-    # Dimensions divisible by 8 for diffusion VAE.
-    return image.resize((512, 512), Image.Resampling.LANCZOS)
+    # Preserve the original aspect ratio, within SD-Turbo-friendly bounds.
+    scale = min(512 / image.width, 512 / image.height)
+    width = max(64, round(image.width * scale / 8) * 8)
+    height = max(64, round(image.height * scale / 8) * 8)
+    return image.resize((width, height), Image.Resampling.LANCZOS)
 
 
 @app.get("/health")
@@ -78,11 +81,16 @@ def health():
 
 
 @app.post("/generate")
-def generate(req: GenerateRequest):
+def generate(req: GenerateRequest, authorization: str | None = Header(default=None)):
+    expected_token = os.getenv("MOBILEI2V_API_TOKEN", "")
+    if expected_token and authorization != f"Bearer {expected_token}":
+        raise HTTPException(401, "Unauthorized")
     if req.frame_index >= req.total_frames:
         raise HTTPException(400, "frame_index exceeds total_frames")
     reference = fit(decode_image(req.image_base64))
     previous = fit(decode_image(req.previous_image_base64)) if req.previous_image_base64 else reference
+    if previous.size != reference.size:
+        previous = previous.resize(reference.size, Image.Resampling.LANCZOS)
     # Reference anchoring limits drift, but does not guarantee identity preservation.
     reference_weight = min(0.4, max(0.1, req.reference_strength * 0.35))
     conditioning = Image.blend(previous, reference, reference_weight)
