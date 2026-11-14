@@ -38,3 +38,13 @@ def test_reject_invalid_size():
     with pytest.raises(ValueError, match="Incorrect drawing size"):
         generate_drawings(plan, Image.new("RGB", (128, 128)),
                           lambda req: Image.new("RGB", (64, 64)))
+
+def test_reject_nonadjacent_repeated_drawing():
+    plan = plan_storyboard("A forest changes over time.", 1, 4, 128, 128)
+    def renderer(req):
+        image = Image.new("RGB", (128, 128), "navy")
+        x = [5, 25, 5, 50][req.frame_index]
+        ImageDraw.Draw(image).rectangle((x, 20, x + 10, 40), fill="white")
+        return image
+    with pytest.raises(ValueError, match="Repeated drawing"):
+        generate_drawings(plan, Image.new("RGB", (128, 128)), renderer)
