@@ -36,6 +36,18 @@ jobs:
           test "$(find "$FRAMES_DIR" -name 'frame_*.png' | wc -l)" -eq 60
           ffmpeg -hide_banner -loglevel error -y -framerate 30 -i "$FRAMES_DIR/frame_%03d.png" -c:v libx264 -pix_fmt yuv420p -movflags +faststart visual_smoke.mp4
           ffprobe -v error -show_entries format=duration -of default=nw=1 visual_smoke.mp4
+      - name: Encode layered IK character preview
+        run: |
+          FRAMES_DIR="$(find "$HOME/.local/share/godot/app_userdata" -type d -name layered_preview -print -quit)"
+          test -n "$FRAMES_DIR"
+          test "$(find "$FRAMES_DIR" -name 'frame_*.png' | wc -l)" -eq 60
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 -i "$FRAMES_DIR/frame_%03d.png" -c:v libx264 -pix_fmt yuv420p -movflags +faststart layered_ik_preview.mp4
+      - name: Upload layered IK preview MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobilei2v-layered-ik-preview-mp4
+          path: layered_ik_preview.mp4
+          if-no-files-found: error
       - name: Upload visual smoke test MP4
         uses: actions/upload-artifact@v4
         with:
