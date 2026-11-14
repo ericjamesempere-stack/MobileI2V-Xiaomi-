@@ -33,13 +33,21 @@ def derive(landmarks):
     torso=distance(shoulder,hip)
     if torso < 0.025:
         raise ValueError("Torso is too short for reliable estimation")
+    shoulder_width=distance(landmarks["left_shoulder"],landmarks["right_shoulder"])
+    hip_width=distance(landmarks["left_hip"],landmarks["right_hip"])
+    if shoulder_width < 0.015 or hip_width < 0.015:
+        raise ValueError("Body shoulders or hips are too narrow for reliable estimation")
     leg_lengths=[]
     arm_lengths=[]
     for side in ("left","right"):
-        leg_lengths.append(distance(landmarks[f"{side}_hip"],landmarks[f"{side}_knee"])+
-                           distance(landmarks[f"{side}_knee"],landmarks[f"{side}_ankle"]))
-        arm_lengths.append(distance(landmarks[f"{side}_shoulder"],landmarks[f"{side}_elbow"])+
-                           distance(landmarks[f"{side}_elbow"],landmarks[f"{side}_wrist"]))
+        upper_leg=distance(landmarks[f"{side}_hip"],landmarks[f"{side}_knee"])
+        lower_leg=distance(landmarks[f"{side}_knee"],landmarks[f"{side}_ankle"])
+        upper_arm=distance(landmarks[f"{side}_shoulder"],landmarks[f"{side}_elbow"])
+        lower_arm=distance(landmarks[f"{side}_elbow"],landmarks[f"{side}_wrist"])
+        if min(upper_leg,lower_leg,upper_arm,lower_arm) < 0.01:
+            raise ValueError(f"Degenerate limb segment on {side} side")
+        leg_lengths.append(upper_leg+lower_leg)
+        arm_lengths.append(upper_arm+lower_arm)
     # Calibrate to renderer default lengths (legs ~100, torso ~105, arms ~85)
     def safe_ratio(value, reference):
         return round(max(0.5,min(1.5,value/reference)),3)
