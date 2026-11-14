@@ -7,6 +7,7 @@ The previous accepted frame is also supplied to improve temporal continuity.
 All produced drawings are checked for resolution and gross visual drift.
 """
 from dataclasses import dataclass
+import hashlib
 from collections.abc import Callable
 from PIL import Image, ImageChops, ImageStat
 from .storyboard_plan import StoryboardPlan
@@ -36,6 +37,7 @@ def generate_drawings(plan: StoryboardPlan, reference: Image.Image,
         raise ValueError("Invalid frame count")
     original = reference.convert("RGB").copy()
     drawings = []
+    seen_hashes = set()
     scene_index = 0
     for index in range(plan.total_frames):
         while (scene_index + 1 < len(plan.scenes) and
@@ -53,6 +55,9 @@ def generate_drawings(plan: StoryboardPlan, reference: Image.Image,
         if image.size != (plan.width, plan.height):
             raise ValueError(f"Incorrect drawing size at frame {index}: {image.size}")
         image = image.convert("RGB")
+        digest = hashlib.sha256(image.tobytes()).hexdigest()
+        if reject_duplicates and digest in seen_hashes:
+            raise ValueError(f"Repeated drawing at frame {index}")
         if drawings:
             small_a = drawings[-1].resize((64, 64))
             small_b = image.resize((64, 64))
@@ -62,5 +67,6 @@ def generate_drawings(plan: StoryboardPlan, reference: Image.Image,
                 raise ValueError(f"Duplicate drawing at frame {index}")
             if change > max_mean_change:
                 raise ValueError(f"Visual discontinuity at frame {index}: {change:.2f}")
+        seen_hashes.add(digest)
         drawings.append(image.copy())
     return drawings
