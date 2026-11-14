@@ -188,3 +188,33 @@ func generate_action_sequence(segments: Array, transition_frames: int = 6) -> Di
         "boundaries": boundaries, "status": "multi_action_pose_sequence",
         "limitations": ["requires approved poses for every action",
             "bridges interpolate but do not enforce physics"]}
+
+# Render a whole multi-action timeline through the same repaired-pose pipeline.
+# The first action's reference artwork and source pose are reused consistently.
+func render_action_sequence(artwork: Image, source_pose: Array,
+        segments: Array, transition_frames: int = 6,
+        limb_half_width: float = 9.0) -> Dictionary:
+    var timeline: Dictionary = generate_action_sequence(segments, transition_frames)
+    if not bool(timeline.get("ok", false)):
+        return timeline
+    var repair: Dictionary = repair_isolated_spikes(timeline["frames"])
+    if not bool(repair.get("ok", false)):
+        return repair
+    var velocity: Dictionary = validate_joint_velocity(repair["frames"])
+    if not bool(velocity.get("ok", false)):
+        return {"ok": false, "error": "Unresolved joint velocity discontinuities",
+            "violations": velocity["violations"]}
+    var painter: RefCounted = load("res://scripts/painted_limb_warp.gd").new()
+    var images: Array = []
+    for pose in repair["frames"]:
+        var result: Dictionary = painter.render_composite_preview(
+            artwork, source_pose, pose, limb_half_width)
+        if not bool(result.get("ok", false)):
+            return {"ok": false, "error": "Multi-action render failed at frame %d: %s" %
+                [images.size(), str(result.get("error", "unknown"))]}
+        images.append(result["image"])
+    return {"ok": true, "frames": images, "count": images.size(),
+        "boundaries": timeline["boundaries"], "repair_count": repair["repair_count"],
+        "status": "multi_action_articulated_frames",
+        "limitations": ["requires supplied artwork and approved action keyframes",
+            "does not infer motion from text or encode MP4"]}
