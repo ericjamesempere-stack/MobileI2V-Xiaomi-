@@ -18,6 +18,8 @@ ACTIONS = {
     "crouch": ("accroupi", "accroupit", "accroupir", "crouch", "squat"),
     "fall": ("tombe", "tomber", "chute", "fall", "falls", "falling"),
     "stumble": ("trébuche", "trébucher", "trebuche", "trebucher", "perd l'équilibre", "stumble", "stumbles", "trip", "trips"),
+    "wave": ("salue", "saluer", "fait coucou", "wave", "waves", "waving"),
+    "jump": ("saute", "sauter", "bondit", "jump", "jumps", "jumping"),
 }
 
 def load(name):
