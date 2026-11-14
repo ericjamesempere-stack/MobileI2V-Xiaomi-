@@ -15,7 +15,7 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     skin_color = appearance.get("skin", "#b98766")
     hair_color = appearance.get("hair", "#332725")
     phase = 2 * math.pi * ((index if phase_index is None else phase_index) / 12.0)
-    speeds = {"walk": 0.8, "run": 1.8, "dance": 1.2, "stand": 0.0}
+    speeds = {"walk": 0.8, "run": 1.8, "dance": 1.2, "stand": 0.0, "crouch": 0.0}
     if action not in speeds:
         raise ValueError(f"Unsupported action: {action}")
     target_speed = speeds[action]
@@ -38,13 +38,14 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     head_ratio = ratio("head_size", 1.0)
     cx, floor = width // 2, int(height * 0.86)
     bob = int(5 * abs(math.sin(phase)))
-    hip = (cx, floor - int(100*leg_ratio) - bob)
-    shoulder = (cx, hip[1] - int(105*torso_ratio))
+    crouch = action == "crouch"
+    hip = (cx, floor - int((55 if crouch else 100)*leg_ratio) - bob)
+    shoulder = (cx, hip[1] - int((80 if crouch else 105)*torso_ratio))
     head = (cx, shoulder[1] - int(62*head_ratio))
     pen.line((30, floor, width-30, floor), fill="#799ba0", width=3)
     # Each drawing is freshly rasterized from a new articulated pose.
-    left_foot = (int(cx-28-27*step), floor-int(13*max(0,step)))
-    right_foot = (int(cx+28-27*step), floor-int(13*max(0,-step)))
+    left_foot = (int(cx-(55 if crouch else 28)-27*step), floor-int(13*max(0,step)))
+    right_foot = (int(cx+(55 if crouch else 28)-27*step), floor-int(13*max(0,-step)))
     left_knee = (int((hip[0]+left_foot[0])/2-15), int((hip[1]+left_foot[1])/2))
     right_knee = (int((hip[0]+right_foot[0])/2+15), int((hip[1]+right_foot[1])/2))
     for knee, foot in [(left_knee,left_foot),(right_knee,right_foot)]:
@@ -91,7 +92,7 @@ if __name__ == "__main__":
     p.add_argument("--seconds",type=int,default=3)
     p.add_argument("--fps",type=int,default=24)
     p.add_argument("--appearance", type=Path, help="Optional JSON character palette; manual, not photo extraction")
-    p.add_argument("--action", choices=["walk", "run", "dance", "stand"], default="walk")
+    p.add_argument("--action", choices=["walk", "run", "dance", "stand", "crouch"], default="walk")
     args=p.parse_args()
     appearance=json.loads(args.appearance.read_text(encoding="utf-8")) if args.appearance else None
     print(f"Generated {render(args.folder,args.seconds,args.fps,appearance,args.action)} distinct pose drawings")
