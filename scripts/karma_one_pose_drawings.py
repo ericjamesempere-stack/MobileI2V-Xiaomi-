@@ -37,7 +37,9 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     arm_ratio = ratio("arm_length", 1.0)
     head_ratio = ratio("head_size", 1.0)
     cx, floor = width // 2, int(height * 0.86)
-    bob = int(5 * abs(math.sin(phase)))
+    # Two vertical impulses per stride: running has a stronger aerial phase.
+    locomotion = max(0.0, min(1.0, speed / 1.8))
+    bob = int(3 * abs(math.sin(phase)) + 7 * locomotion * max(0.0, math.cos(2*phase)))
     # Interpolate joint geometry, not just movement speed, across action boundaries.
     old_crouch = 1.0 if previous_action == "crouch" else 0.0
     new_crouch = 1.0 if action == "crouch" else 0.0
@@ -48,7 +50,9 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     old_fall = fall_levels.get(previous_action, 0.0)
     new_fall = fall_levels.get(action, 0.0)
     fall_amount = old_fall*(1-smooth) + new_fall*smooth if previous_action else new_fall
-    hip = (cx + int(24*fall_amount), floor - int(hip_height*leg_ratio) - bob + int(48*fall_amount))
+    # Opposing pelvis sway helps transfer weight toward the support foot.
+    sway = int(7 * locomotion * math.sin(phase))
+    hip = (cx + sway + int(24*fall_amount), floor - int(hip_height*leg_ratio) - bob + int(48*fall_amount))
     shoulder = (cx + int(70*fall_amount), hip[1] - int(torso_height*torso_ratio*(1-fall_amount)) - int(18*fall_amount))
     head = (shoulder[0] + int(32*fall_amount), shoulder[1] - int(62*head_ratio*(1-fall_amount)) - int(10*fall_amount))
     pen.line((30, floor, width-30, floor), fill="#799ba0", width=3)
@@ -61,8 +65,8 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     right_lift = max(0.0, -math.sin(phase)) * 16 * gait
     left_foot = (int(cx-foot_spread-27*step+10*fall_amount), floor-int(left_lift))
     right_foot = (int(cx+foot_spread+27*step+10*fall_amount), floor-int(right_lift))
-    left_knee = (int((hip[0]+left_foot[0])/2-15), min(floor,int((hip[1]+left_foot[1])/2)))
-    right_knee = (int((hip[0]+right_foot[0])/2+15), min(floor,int((hip[1]+right_foot[1])/2)))
+    left_knee = (int((hip[0]+left_foot[0])/2-15-9*left_lift/16), min(floor,int((hip[1]+left_foot[1])/2-8*left_lift/16)))
+    right_knee = (int((hip[0]+right_foot[0])/2+15+9*right_lift/16), min(floor,int((hip[1]+right_foot[1])/2-8*right_lift/16)))
     for knee, foot in [(left_knee,left_foot),(right_knee,right_foot)]:
         pen.line((hip,knee,foot), fill=pants_color, width=19, joint="curve")
         pen.ellipse((foot[0]-14,foot[1]-6,foot[0]+14,foot[1]+6),fill=pants_color)
