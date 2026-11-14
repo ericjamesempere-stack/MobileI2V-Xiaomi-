@@ -15,6 +15,11 @@ func _initialize() -> void:
     ], 61)
     assert(result["ok"])
     assert(result["count"] == 61)
+    var lengths: Dictionary = solver.validate_bone_lengths(result["frames"])
+    assert(lengths["ok"], "Rigid translation must preserve bone lengths")
+    var distorted: Array = result["frames"].duplicate(true)
+    distorted[30][15]["x"] = float(distorted[30][15]["x"]) + 0.4
+    assert(not solver.validate_bone_lengths(distorted)["ok"], "Sudden arm stretching must be flagged")
     assert(absf(float(result["frames"][0][11]["x"]) - 0.4) < 0.001)
     assert(absf(float(result["frames"][60][11]["x"]) - 0.6) < 0.001)
     assert(not solver.generate([{"time": 0.0, "pose": _pose(0.0)}], 30)["ok"])
