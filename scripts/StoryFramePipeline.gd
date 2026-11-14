@@ -9,6 +9,8 @@ static func attach_scene_frames(project: Dictionary, scene_index: int, paths: Ar
         return {"ok": false, "error": "invalid_scene"}
     if paths.is_empty():
         return {"ok": false, "error": "no_frames"}
+    if paths.size() > 9000:
+        return {"ok": false, "error": "too_many_source_frames"}
     var validated: Array[String] = []
     var expected_size := Vector2i.ZERO
     for item in paths:
@@ -41,6 +43,7 @@ static func timeline(project: Dictionary, fps: int = 12) -> Dictionary:
         return {"ok": false, "error": "invalid_fps"}
     var scenes: Array = project.get("scenes", [])
     var result: Array[String] = []
+    var required_frames := 0
     var expected_size: Array = []
     for scene in scenes:
         if not scene.has("frame_paths"):
@@ -54,6 +57,9 @@ static func timeline(project: Dictionary, fps: int = 12) -> Dictionary:
         elif dims != expected_size:
             return {"ok": false, "error": "inconsistent_scene_dimensions"}
         var count := maxi(1, roundi(float(scene["duration_seconds"]) * float(fps)))
+        required_frames += count
+        if required_frames > 18000:
+            return {"ok": false, "error": "frame_limit_exceeded"}
         for i in range(count):
             var source_index := mini(frames.size() - 1, int(float(i) * float(frames.size()) / float(count)))
             result.append(str(frames[source_index]))
@@ -73,6 +79,14 @@ static func export_png_sequence(project: Dictionary, directory: String, fps: int
     if error != OK:
         return {"ok": false, "error": "cannot_create_directory", "code": error}
     var frame_paths: Array = plan["frames"]
+    # Prevent silently filling long scenes with repeated stills: this would
+    # produce a slideshow, not the user-requested character animation.
+    var scenes: Array = project.get("scenes", [])
+    for scene in scenes:
+        var source_count: int = scene.get("frame_paths", []).size()
+        var expected_count := maxi(1, roundi(float(scene["duration_seconds"]) * float(fps)))
+        if source_count < expected_count:
+            return {"ok": false, "error": "insufficient_motion_frames", "scene_id": scene.get("id", ""), "available": source_count, "required": expected_count}
     for i in range(frame_paths.size()):
         var source_path: String = str(frame_paths[i])
         if not FileAccess.file_exists(source_path):
