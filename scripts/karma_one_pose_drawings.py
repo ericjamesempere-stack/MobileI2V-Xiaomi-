@@ -8,14 +8,14 @@ import math
 from pathlib import Path
 from PIL import Image, ImageDraw
 
-def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appearance=None):
+def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appearance=None, action="walk"):
     appearance = appearance or {}
     shirt_color = appearance.get("shirt", "#386eaa")
     pants_color = appearance.get("pants", "#25354b")
     skin_color = appearance.get("skin", "#b98766")
     hair_color = appearance.get("hair", "#332725")
     phase = 2 * math.pi * (index / 12.0)
-    speed = 1.0 if index < count // 2 else 1.8
+    speed = {"walk": 0.8, "run": 1.8, "dance": 1.2, "stand": 0.0}.get(action, 0.8)
     step = math.sin(phase) * speed
     image = Image.new("RGB", (width, height), "#e7f0f4")
     pen = ImageDraw.Draw(image)
@@ -53,13 +53,13 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     pen.arc((head[0]-12,head[1]+8,head[0]+12,head[1]+23),0,180,fill="#51322d",width=2)
     return image
 
-def render(folder: Path, seconds: int, fps: int, appearance=None):
+def render(folder: Path, seconds: int, fps: int, appearance=None, action="walk"):
     if seconds < 1 or seconds > 300 or fps not in (24,30):
         raise ValueError("Duration 1..300 seconds; fps 24 or 30")
     folder.mkdir(parents=True,exist_ok=True)
     count=seconds*fps
     for i in range(count):
-        draw_pose(i,count,appearance=appearance).save(folder / f"frame_{i:06d}.png")
+        draw_pose(i,count,appearance=appearance,action=action).save(folder / f"frame_{i:06d}.png")
     return count
 
 if __name__ == "__main__":
@@ -68,6 +68,7 @@ if __name__ == "__main__":
     p.add_argument("--seconds",type=int,default=3)
     p.add_argument("--fps",type=int,default=24)
     p.add_argument("--appearance", type=Path, help="Optional JSON character palette; manual, not photo extraction")
+    p.add_argument("--action", choices=["walk", "run", "dance", "stand"], default="walk")
     args=p.parse_args()
     appearance=json.loads(args.appearance.read_text(encoding="utf-8")) if args.appearance else None
-    print(f"Generated {render(args.folder,args.seconds,args.fps,appearance)} distinct pose drawings")
+    print(f"Generated {render(args.folder,args.seconds,args.fps,appearance,args.action)} distinct pose drawings")
