@@ -114,3 +114,35 @@ func validate_joint_velocity(frames: Array, max_step: float = 0.15) -> Dictionar
         "status": "joint_velocity_checked",
         "limitations": ["threshold is in normalized image coordinates per frame",
             "does not distinguish fast intentional motion from tracking errors"]}
+
+# Repair isolated joint-tracking spikes by replacing the bad sample with the
+# midpoint of its two neighbors. Deliberate sustained fast motion is retained.
+# Original frames are never mutated; every repair is reported.
+func repair_isolated_spikes(frames: Array, max_step: float = 0.15,
+        neighbor_tolerance: float = 0.05) -> Dictionary:
+    if frames.size() < 3 or max_step <= 0.0 or neighbor_tolerance < 0.0:
+        return {"ok": false, "error": "Need 3+ frames and valid thresholds"}
+    var rig: RefCounted = Rig.new()
+    for i in range(frames.size()):
+        var check: Dictionary = rig.validate_landmarks(frames[i])
+        if not bool(check.get("ok", false)):
+            return {"ok": false, "error": "Invalid pose at frame %d" % i}
+    var output: Array = frames.duplicate(true)
+    var repairs: Array = []
+    for i in range(1, frames.size() - 1):
+        for joint in rig.REQUIRED:
+            var a: Dictionary = frames[i - 1][joint]
+            var p: Dictionary = frames[i][joint]
+            var z: Dictionary = frames[i + 1][joint]
+            var va := Vector2(float(a["x"]), float(a["y"]))
+            var vp := Vector2(float(p["x"]), float(p["y"]))
+            var vz := Vector2(float(z["x"]), float(z["y"]))
+            if vp.distance_to(va) > max_step and vp.distance_to(vz) > max_step and va.distance_to(vz) <= neighbor_tolerance:
+                var midpoint: Vector2 = va.lerp(vz, 0.5)
+                output[i][joint]["x"] = midpoint.x
+                output[i][joint]["y"] = midpoint.y
+                repairs.append({"frame": i, "joint": joint, "type": "isolated_spike"})
+    return {"ok": true, "frames": output, "repairs": repairs,
+        "repair_count": repairs.size(), "status": "isolated_spikes_repaired",
+        "limitations": ["only isolated spikes, not arbitrary bad motion",
+            "no biomechanical constraints or full-body physics"]}
