@@ -40,5 +40,19 @@ func _initialize() -> void:
         push_error("Fall-to-rise pose discontinuity: %d mismatched samples" % mismatched)
         quit(1)
         return
+    # A walking/running cycle must have visibly alternating airborne feet.
+    # Compare the lower body at quarter-cycle offsets, not just the face.
+    for gait in ["marche", "course"]:
+        var first: Image = generator.render("personnage", 0.0, Vector2i(360, 480), gait)
+        var quarter: Image = generator.render("personnage", 0.25, Vector2i(360, 480), gait)
+        var lower_body_changes := 0
+        for y in range(310, 440, 4):
+            for x in range(40, 320, 4):
+                if first.get_pixel(x, y) != quarter.get_pixel(x, y):
+                    lower_body_changes += 1
+        if lower_body_changes < 20:
+            push_error("No visible alternating gait for %s: %d" % [gait, lower_body_changes])
+            quit(1)
+            return
     print("ARTICULATED_ACTION_FRAMES_OK changed_pairs=", changed_pairs)
     quit(0)
