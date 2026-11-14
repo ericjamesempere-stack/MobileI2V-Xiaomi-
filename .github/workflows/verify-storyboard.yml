@@ -24,6 +24,20 @@ jobs:
       - name: Import project and parse scripts
         run: |
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --editor --path . --import --quit
+      - name: Render articulated visual smoke test
+        run: |
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_visual_smoke.gd
+          FRAMES_DIR="$(find "$HOME/.local/share/godot/app_userdata" -type d -name visual_smoke -print -quit)"
+          test -n "$FRAMES_DIR"
+          test "$(find "$FRAMES_DIR" -name 'frame_*.png' | wc -l)" -eq 60
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 -i "$FRAMES_DIR/frame_%03d.png" -c:v libx264 -pix_fmt yuv420p -movflags +faststart visual_smoke.mp4
+          ffprobe -v error -show_entries format=duration -of default=nw=1 visual_smoke.mp4
+      - name: Upload visual smoke test MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobilei2v-visual-smoke-mp4
+          path: visual_smoke.mp4
+          if-no-files-found: error
       - name: Test test_story_motion_planner.gd
         timeout-minutes: 2
         run: |
