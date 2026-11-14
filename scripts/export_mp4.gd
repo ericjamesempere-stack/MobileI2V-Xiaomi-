@@ -83,9 +83,7 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
         return
     var total: int = maxi(1, roundi(clampf(duration, 0.5, 60.0) * float(FPS)))
     var written: int = 0
-    var interpolator: RefCounted = load("res://scripts/frame_interpolator.gd").new()
     var previous_pair: String = ""
-    var shift: Vector2i = Vector2i.ZERO
     var image_a: Image = null
     var image_b: Image = null
     for n in range(total):
@@ -119,11 +117,13 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
             image_b.convert(Image.FORMAT_RGB8)
             image_a.resize(360, 480, Image.INTERPOLATE_BILINEAR)
             image_b.resize(360, 480, Image.INTERPOLATE_BILINEAR)
-            shift = interpolator.estimate_shift(image_a, image_b, 12) if index != next_index else Vector2i.ZERO
             previous_pair = pair
         var progress: float = position - float(slot)
         var eased: float = progress * progress * (3.0 - 2.0 * progress)
-        var img: Image = image_a.duplicate() if hold_keyframes or index == next_index else interpolator.blend(image_a, image_b, eased, shift)
+        # Pixel crossfades create translucent double bodies rather than genuine
+        # in-between poses. Keep each validated drawing intact until a real
+        # articulated interpolation backend is available.
+        var img: Image = image_a.duplicate() if hold_keyframes or index == next_index or eased < 0.5 else image_b.duplicate()
         img.resize(WIDTH, HEIGHT, Image.INTERPOLATE_BILINEAR)
         img.convert(Image.FORMAT_RGBA8)
         var frame_ok: Variant = encoder.call("push_frame_rgba", img.get_data())
@@ -135,7 +135,7 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
             return
         written += 1
         if n % 8 == 0:
-            _set_status("MP4 interpole : %d / %d" % [n + 1, total])
+            _set_status("MP4 poses distinctes : %d / %d" % [n + 1, total])
             await get_tree().process_frame
     var result: String = str(encoder.call("finish"))
     exporting = false
