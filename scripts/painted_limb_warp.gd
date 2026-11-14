@@ -26,13 +26,28 @@ func draw_segment(dst: Image, artwork: Image, source_a: Vector2, source_b: Vecto
             if along < -half_width or along > target_length + half_width or absf(side) > half_width:
                 continue
             var source_point := source_a + source_forward * (along / target_length * source_length) + source_side * side
-            var sx := roundi(source_point.x)
-            var sy := roundi(source_point.y)
-            if sx < 0 or sy < 0 or sx >= artwork.get_width() or sy >= artwork.get_height():
+            # Bilinear alpha-aware sampling avoids hard nearest-neighbour
+            # pixel staircases along rotated clothing and silhouette edges.
+            var sx: int = floori(source_point.x)
+            var sy: int = floori(source_point.y)
+            var tx: float = source_point.x - float(sx)
+            var ty: float = source_point.y - float(sy)
+            var weighted_alpha: float = 0.0
+            var premultiplied := Vector3.ZERO
+            for oy in range(2):
+                for ox in range(2):
+                    var px: int = sx + ox
+                    var py: int = sy + oy
+                    if px < 0 or py < 0 or px >= artwork.get_width() or py >= artwork.get_height():
+                        continue
+                    var weight: float = (tx if ox == 1 else 1.0 - tx) * (ty if oy == 1 else 1.0 - ty)
+                    var sample: Color = artwork.get_pixel(px, py)
+                    var contribution: float = weight * sample.a
+                    weighted_alpha += contribution
+                    premultiplied += Vector3(sample.r, sample.g, sample.b) * contribution
+            if weighted_alpha <= 0.001:
                 continue
-            var pigment: Color = artwork.get_pixel(sx, sy)
-            if pigment.a <= 0.0:
-                continue
-            var opacity: float = pigment.a * clampf(half_width + 0.5 - absf(side), 0.0, 1.0)
+            var pigment_rgb: Vector3 = premultiplied / weighted_alpha
+            var opacity: float = weighted_alpha * clampf(half_width + 0.5 - absf(side), 0.0, 1.0)
             var original: Color = dst.get_pixel(x, y)
-            dst.set_pixel(x, y, original.lerp(Color(pigment.r, pigment.g, pigment.b, 1.0), opacity))
+            dst.set_pixel(x, y, original.lerp(Color(pigment_rgb.x, pigment_rgb.y, pigment_rgb.z, 1.0), opacity))
