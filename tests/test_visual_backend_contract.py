@@ -93,13 +93,15 @@ class VisualBackendContract(unittest.TestCase):
             def from_pretrained(cls, *args, **kwargs): return cls()
             def to(self, device): return self
             def __call__(self, **kwargs):
-                return types.SimpleNamespace(images=[Image.new("RGB", (64, 64), (10, 20, 30))])
+                color = (10, 20, 30) if "crouched" in kwargs["prompt"] else (30, 20, 10)
+                return types.SimpleNamespace(images=[Image.new("RGB", (64, 64), color)])
         fake_diffusers = types.SimpleNamespace(AutoPipelineForImage2Image=FakePipeline)
         fake_torch = types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: False), float32="float32", float16="float16")
         with patch.dict(sys.modules, {"diffusers": fake_diffusers, "torch": fake_torch}), patch.dict(os.environ, {"MOBILEI2V_IMAGE_MODEL": "mock"}):
-            response = self.client.post("/generate/storyboard", json={"image_base64": source_b64(), "prompt": "standing", "num_images": 2})
+            response = self.client.post("/generate/storyboard", json={"image_base64": source_b64(), "prompt": "character", "num_images": 2, "target_poses": ["crouched", "standing"]})
         self.assertEqual(response.status_code, 200, response.json)
         self.assertEqual(len(response.json["images"]), 2)
+        self.assertEqual(len(set(response.json["pixel_sha256"])), 2)
         self.assertTrue(base64.b64decode(response.json["images"][0]).startswith(b"\x89PNG\r\n\x1a\n"))
 
 
