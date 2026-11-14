@@ -11,7 +11,7 @@ const ACTIONS := {
     "saut": {"keyframes": ["anticipation", "takeoff", "airborne", "landing"], "rig": "jump"},
     "trebuche": {"keyframes": ["balance", "stumble", "recover"], "rig": "stumble"},
     "chute": {"keyframes": ["standing", "falling", "ground"], "rig": "fall"},
-    "releve": {"keyframes": ["ground", "kneeling", "standing"], "rig": "stand"},
+    "releve": {"keyframes": ["crouched", "half_standing", "standing"], "rig": "stand"},
     "salut": {"keyframes": ["neutral", "wave", "neutral"], "rig": "wave"},
     "repos": {"keyframes": ["neutral"], "rig": "idle"}
 }
@@ -32,6 +32,9 @@ func build(story: String, duration_seconds: float, reference_image: String = "")
         var action: String = str(step.get("action", "repos"))
         var spec: Dictionary = ACTIONS.get(action, ACTIONS["repos"])
         var visual: Dictionary = router.select_engine(action, not reference_image.is_empty())
+        var needs_reference_redraw: bool = not reference_image.is_empty() and str(visual["engine"]) == "rig_2d"
+        if needs_reference_redraw:
+            warnings.append("Scene %d : rig 2D disponible mais redessin du personnage de reference non valide." % [index + 1])
         if not bool(visual["implemented"]):
             warnings.append("Scene %d : moteur %s non disponible." % [index + 1, visual["engine"]])
         var start_frame: int = clampi(roundi(float(step.get("start", 0.0)) * FPS), 0, total_frames - 1)
@@ -50,11 +53,11 @@ func build(story: String, duration_seconds: float, reference_image: String = "")
             "rig_motion": spec["rig"] if bool(visual["implemented"]) else "none",
             "visual_engine": visual["engine"],
             "visual_engine_status": visual["status"],
-            "requires_visual_generation": not bool(visual["implemented"]),
+            "requires_visual_generation": not bool(visual["implemented"]) or needs_reference_redraw,
             "keyframes": frames,
             "background": "preserve",
             "character_id": "main",
-            "status": "pending_draw"
+            "status": "needs_reference_redraw" if needs_reference_redraw else "pending_draw"
         })
     return {
         "schema_version": SCHEMA_VERSION,
