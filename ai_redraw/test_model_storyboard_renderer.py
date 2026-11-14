@@ -29,7 +29,7 @@ def test_empty_model_result_is_rejected():
     with pytest.raises(RuntimeError, match="sequence"):
         renderer(make_request(0))
 
-def test_scene_change_reanchors_to_original_reference():
+def test_scene_change_keeps_last_frame_for_motion_continuity():
     colors = []
     def provider(source, *_):
         colors.append(source.getpixel((0, 0)))
@@ -40,7 +40,7 @@ def test_scene_change_reanchors_to_original_reference():
     renderer(make_request(1, 0))
     renderer(make_request(2, 1))
     assert colors[0] == (255, 0, 0)
-    assert colors[1] == (255, 0, 0)
+    assert colors[1] == (0, 128, 0)
 
 def test_batch_size_is_respected():
     calls = []
