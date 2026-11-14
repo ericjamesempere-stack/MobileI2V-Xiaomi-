@@ -963,11 +963,18 @@ func _generate_text_cartoon() -> void:
     if not bool(motion.get("ok", false)):
         status.text = "Impossible de comprendre le scenario."
         return
+    # The planner recognizes more concepts than this offline cartoon renderer
+    # can draw. Never silently substitute a generic dancing character.
+    var supported_actions: Array[String] = ["repos", "marche", "course", "saut", "chute", "trebuche", "releve", "danse", "salut"]
     for step in motion.get("steps", []):
-        if str(step.get("action", "inconnu")) == "inconnu":
-            status.text = "Mouvement non reconnu : %s. Aucun dessin existant efface." % str(step.get("description", ""))
+        var requested_action: String = str(step.get("action", "inconnu"))
+        if not supported_actions.has(requested_action):
+            status.text = "Geste non disponible en dessin local (%s) : %s. Projet conserve." % [requested_action, str(step.get("description", ""))]
             return
-    var count: int = clampi(ceili(float(duration_input.value) * 4.0), 12, 120)
+    # More actual articulated drawings per second, rather than filling a
+    # 30-fps MP4 by repeatedly crossfading a handful of static pictures.
+    # Keep the cap modest for Android RAM and storage.
+    var count: int = clampi(ceili(float(duration_input.value) * 8.0), 12, 240)
     sources.clear()
     paths.clear()
     plan.clear()
