@@ -43,28 +43,30 @@ func generate(prompt: String, duration: float = 5.0, face: Texture2D = null) -> 
     viewport.add_child(rig)
     if face != null:
         rig.reference_head = face
-    var action: String = MotionPlanner.action_from_text(prompt)
-    var action_start: float = duration * 0.65
     for i in range(count):
         var t := float(i) / float(FPS)
-        var frame_action := action
-        if action == "run_fall":
-            frame_action = "marche" if t < duration * 0.65 else "chute"
-        elif action == "run":
-            frame_action = "marche"
-        elif action == "wave":
-            frame_action = "salut"
-        elif action == "dance":
-            frame_action = "danse"
-        elif action == "fall":
-            frame_action = "chute"
-        elif action == "jump":
-            frame_action = "saut"
-        var pose_time: float = t
-        if action == "run_fall" and frame_action == "chute":
-            pose_time = (t - action_start) * 2.0 / maxf(duration - action_start, 0.01)
-        elif action == "fall" or action == "jump":
-            pose_time = t * 2.0 / duration
+        var instruction: Dictionary = MotionPlanner.story_action_at(prompt, t, duration)
+        var action: String = instruction["action"]
+        var local_time: float = instruction["local_time"]
+        var segment_duration: float = instruction["segment_duration"]
+        var frame_action := "danse"
+        var pose_time := local_time
+        match action:
+            "run":
+                frame_action = "marche"
+            "wave":
+                frame_action = "salut"
+            "dance":
+                frame_action = "danse"
+            "fall":
+                frame_action = "chute"
+                pose_time = local_time * 2.0 / segment_duration
+            "jump":
+                frame_action = "saut"
+                pose_time = local_time * 2.0 / segment_duration
+            "idle":
+                frame_action = "salut"
+                pose_time = 0.0
         rig.update_pose(pose_time, frame_action)
         await get_tree().process_frame
         await RenderingServer.frame_post_draw
