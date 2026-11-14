@@ -15,6 +15,19 @@ def frame(offset=0):
              ("left_hand",0,19),("right_hand",20,19)]}
 
 class JointQualityTests(unittest.TestCase):
+    def test_joint_angles_straight_and_folded(self):
+        self.assertAlmostEqual(m.joint_angle((0,0),(1,0),(2,0)),180)
+        self.assertAlmostEqual(m.joint_angle((0,0),(1,0),(1,1)),90)
+        self.assertIsNone(m.joint_angle((1,0),(1,0),(2,0)))
+
+    def test_extreme_elbow_angle_warning(self):
+        joints=frame()
+        joints["left_elbow"]=(5,10)
+        joints["left_hand"]=(10,10)
+        report=m.inspect([joints])
+        self.assertTrue(any(w["issue"]=="extreme_elbow_flexion"
+                            for w in report["anatomy_warnings"]))
+
     def test_anatomy_reports_floor_penetration(self):
         joints=frame()
         joints["left_foot"]=(0,440)
