@@ -35,8 +35,17 @@ func render(description: String, phase: float = 0.0, size: Vector2i = Vector2i(3
     elif action == "releve":
         lift = -(1.0 - minf(1.0, phase)) * 42.0 * scale
         swing = (1.0 - minf(1.0, phase)) * 1.4
+    # At the start of a fall, the body leans forward before reaching the
+    # ground. The same curve runs backward when the character stands up.
+    var balance_progress: float = 0.0
+    if action == "chute" or action == "trebuche":
+        balance_progress = clampf(phase, 0.0, 1.0)
+    elif action == "releve":
+        balance_progress = 1.0 - clampf(phase, 0.0, 1.0)
+    var lean: float = sin(balance_progress * PI) * 32.0 * scale
     var hip := Vector2(cx, floor_y - 104 * scale - lift)
     var shoulder := Vector2(cx, floor_y - 210 * scale - lift)
+    shoulder.x += lean
     # A fall must actually rotate the torso toward the ground.
     # Previously only vertical offsets changed: the figure remained standing.
     var fall_progress: float = 0.0
