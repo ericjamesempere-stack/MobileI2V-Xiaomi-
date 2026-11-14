@@ -5,6 +5,7 @@ requests, queue indefinitely, or require login; failure is reported honestly.
 """
 import json
 import os
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -35,6 +36,10 @@ def main():
         pose = root / "pose.png"
         make_figure(reference)
         make_figure(pose, arms_up=True)
+        artifact_dir = Path(os.environ.get("MOBILEI2V_TEST_ARTIFACTS", "/tmp/mobilei2v_anypose_artifacts"))
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(reference, artifact_dir / "reference.png")
+        shutil.copy2(pose, artifact_dir / "pose.png")
         client = Client("abidlabs/Qwen-Image-Edit-2511-AnyPose", verbose=False)
         job = client.submit(
             handle_file(str(reference)), handle_file(str(pose)),
@@ -51,6 +56,7 @@ def main():
             raise RuntimeError("AnyPose returned no local image")
         with Image.open(path) as output:
             output.verify()
+        shutil.copy2(path, artifact_dir / "generated.png")
         print(json.dumps({"remote_inference": "success", "output_image": "verified", "privacy": "synthetic inputs only"}))
 
 
