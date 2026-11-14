@@ -44,6 +44,14 @@ class VisualBackendContract(unittest.TestCase):
         self.assertTrue(result.json["detected"])
         self.assertEqual(len(result.json["landmarks"]), 33)
 
+    def test_invalid_base64_returns_client_error(self):
+        response = self.client.post("/pose", json={"image_base64": "not-valid-@@@"})
+        self.assertEqual(response.status_code, 400, response.json)
+
+    def test_missing_image_returns_client_error(self):
+        response = self.client.post("/pose", json={})
+        self.assertEqual(response.status_code, 400, response.json)
+
     def test_tasks_pose_landmarker_contract(self):
         class Landmark:
             x, y, z, visibility = 0.5, 0.4, 0.0, 0.99
