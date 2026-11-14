@@ -77,14 +77,22 @@ func render_artwork_sequence(artwork: Image, source_pose: Array, keyframes: Arra
     if not bool(plan.get("ok", false)):
         return plan
     var painter: RefCounted = load("res://scripts/painted_limb_warp.gd").new()
+    var repair: Dictionary = repair_isolated_spikes(plan["frames"])
+    if not bool(repair.get("ok", false)):
+        return repair
+    var velocity: Dictionary = validate_joint_velocity(repair["frames"])
+    if not bool(velocity.get("ok", false)):
+        return {"ok": false, "error": "Unresolved joint velocity discontinuities",
+            "violations": velocity["violations"], "repair_count": repair["repair_count"]}
     var rendered: Array = []
-    for pose in plan["frames"]:
+    for pose in repair["frames"]:
         var result: Dictionary = painter.render_composite_preview(artwork, source_pose, pose, limb_half_width)
         if not bool(result.get("ok", false)):
             return {"ok": false, "error": "Character render failed at frame %d: %s" %
                 [rendered.size(), str(result.get("error", "unknown"))]}
         rendered.append(result["image"])
     return {"ok": true, "frames": rendered, "count": rendered.size(),
+        "repair_count": repair["repair_count"],
         "status": "articulated_artwork_frames",
         "limitations": ["requires transparent artwork and approved source/keyframe poses",
             "not automatic photo segmentation or free-text motion generation"]}
