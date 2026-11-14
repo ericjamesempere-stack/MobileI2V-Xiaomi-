@@ -6,6 +6,7 @@ GPU recommended. Expose HTTPS only through a trusted authenticated proxy.
 """
 import base64
 import io
+import hmac
 import os
 import re
 import threading
@@ -98,7 +99,7 @@ def health():
 @app.post("/generate")
 def generate(req: GenerateRequest, authorization: str | None = Header(default=None)):
     expected_token = os.getenv("MOBILEI2V_API_TOKEN", "")
-    if expected_token and authorization != f"Bearer {expected_token}":
+    if expected_token and not hmac.compare_digest(authorization or "", f"Bearer {expected_token}"):
         raise HTTPException(401, "Unauthorized")
     if req.frame_index >= req.total_frames:
         raise HTTPException(400, "frame_index exceeds total_frames")
