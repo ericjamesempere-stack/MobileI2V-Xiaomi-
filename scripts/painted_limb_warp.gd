@@ -90,6 +90,16 @@ func render_articulated_layers(artwork: Image, source_landmarks: Array, target_l
         return {"ok": false, "error": "Source and target body landmarks required"}
     if artwork.is_empty() or artwork.get_width() < 32 or artwork.get_height() < 32:
         return {"ok": false, "error": "Character artwork missing"}
+    # Reject opaque photographs: warping their background as clothing creates ghosts.
+    var transparent_samples: int = 0
+    var sample_count: int = 0
+    for py in range(0, artwork.get_height(), maxi(1, artwork.get_height() / 16)):
+        for px in range(0, artwork.get_width(), maxi(1, artwork.get_width() / 16)):
+            sample_count += 1
+            if artwork.get_pixel(px, py).a < 0.1:
+                transparent_samples += 1
+    if sample_count == 0 or float(transparent_samples) / float(sample_count) < 0.05:
+        return {"ok": false, "error": "Transparent character cutout required; opaque photograph cannot be safely warped"}
     var image := Image.create(artwork.get_width(), artwork.get_height(), false, Image.FORMAT_RGBA8)
     image.fill(Color.TRANSPARENT)
     var w: float = float(artwork.get_width())
