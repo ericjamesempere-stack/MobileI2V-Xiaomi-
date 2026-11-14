@@ -24,6 +24,10 @@ jobs:
       - name: Import project and parse scripts
         run: |
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --editor --path . --import --quit
+      - name: Install video encoder for visual smoke test
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
       - name: Render articulated visual smoke test
         run: |
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_visual_smoke.gd
