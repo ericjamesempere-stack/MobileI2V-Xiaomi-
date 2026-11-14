@@ -68,6 +68,69 @@ class ComfyBridgeTests(unittest.TestCase):
             self.assertIn("person running then falling", sent[0]["3"]["inputs"]["text"])
             self.assertEqual(sent[0]["1"]["inputs"]["image"], "uploaded.png")
 
+    def test_previous_frame_reaches_temporal_node(self):
+        """Verify that the generated previous frame is uploaded, not discarded."""
+        import json
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import Mock
+        from PIL import Image
+        import io
+        workflow = {
+            "1": {"class_type": "LoadImage", "inputs": {"image": "ref.png"}},
+            "2": {"class_type": "LoadImage", "inputs": {"image": "pose.png"}},
+            "3": {"class_type": "CLIPTextEncode", "inputs": {"text": "old"}},
+            "4": {"class_type": "ControlNetApplyAdvanced", "inputs": {"image": ["2", 0], "positive": ["3", 0]}},
+            "5": {"class_type": "ImageBlend", "inputs": {"image1": ["1", 0], "image2": ["4", 0]}},
+            "6": {"class_type": "SaveImage", "inputs": {"images": ["7", 0]}},
+            "7": {"class_type": "ImageBlend", "inputs": {"image1": ["5", 0], "image2": ["8", 0]}},
+            "8": {"class_type": "LoadImage", "inputs": {"image": "previous.png"}},
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            filename = Path(folder) / "workflow.json"
+            filename.write_text(json.dumps(workflow))
+            env = {"MOBILEI2V_API_TOKEN": "secret", "COMFYUI_URL": "http://127.0.0.1:8188",
+                   "COMFYUI_WORKFLOW": str(filename), "COMFYUI_REFERENCE_NODE": "1",
+                   "COMFYUI_POSE_NODE": "2", "COMFYUI_OUTPUT_NODE": "6",
+                   "COMFYUI_PROMPT_NODE": "3", "COMFYUI_PREVIOUS_NODE": "8"}
+            uploads = []
+            sent = []
+            def fake_post(url, **kwargs):
+                response = Mock()
+                response.raise_for_status.return_value = None
+                if url.endswith("/upload/image"):
+                    uploads.append(kwargs["files"]["image"][1])
+                    response.json.return_value = {"name": "upload_" + str(len(uploads)) + ".png"}
+                elif url.endswith("/prompt"):
+                    sent.append(kwargs["json"]["prompt"])
+                    response.json.return_value = {"prompt_id": "job123"}
+                else:
+                    raise AssertionError(url)
+                return response
+            def fake_get(url, **kwargs):
+                response = Mock()
+                response.raise_for_status.return_value = None
+                if "/history/" in url:
+                    response.json.return_value = {"job123": {"outputs": {"6": {"images": [{"filename": "out.png"}]}}}}
+                elif url.endswith("/view"):
+                    buffer = io.BytesIO()
+                    Image.new("RGB", (8, 8), "green").save(buffer, format="PNG")
+                    response.content = buffer.getvalue()
+                else:
+                    raise AssertionError(url)
+                return response
+            req = Request(image_base64=png_b64("blue"), pose_image_base64=png_b64("red"),
+                          previous_image_base64=png_b64("yellow"), prompt="falling",
+                          frame_index=1, total_frames=2, temporal_position=1.0)
+            with patch.dict(os.environ, env, clear=True):
+                with patch("backend.comfyui_pose_bridge.requests.post", side_effect=fake_post):
+                    with patch("backend.comfyui_pose_bridge.requests.get", side_effect=fake_get):
+                        result = generate(req, authorization="Bearer secret")
+            self.assertEqual(result["frame_index"], 1)
+            self.assertEqual(len(uploads), 3)
+            self.assertEqual(sent[0]["8"]["inputs"]["image"], "upload_3.png")
+            self.assertNotEqual(uploads[2], uploads[0])
+
     def test_no_configuration_is_not_ready(self):
         with patch.dict(os.environ, {}, clear=True):
             self.assertFalse(health()["ready"])
