@@ -15,6 +15,7 @@ Do not expose publicly without authentication and HTTPS.
 import base64
 import io
 import os
+import numpy as np
 
 from flask import Flask, jsonify, request
 from PIL import Image
@@ -39,7 +40,6 @@ def pose():
     global _pose_model
     try:
         import mediapipe as mp
-        import numpy as np
         image = decode_image(request.get_json(force=True)["image_base64"])
         task_path = os.environ.get("MOBILEI2V_POSE_TASK", "").strip()
         if task_path:
