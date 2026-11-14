@@ -638,6 +638,7 @@ func _generate_image_sequence() -> void:
     ai_running = true
     var count: int = clampi(ceili(float(duration_input.value) * 4.0), 2, 120)
     if not endpoint.begins_with("https://"):
+        ai_running = false
         status.text = "Moteur IA non configure. Indique son adresse HTTPS dans Options avancees. Aucun modele generatif integre a cette APK."
         generator.queue_free()
         return
