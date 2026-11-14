@@ -2,7 +2,7 @@ name: Build Android APK MobileI2V V50
 
 on:
   push:
-    branches: [main]
+    branches: [main, karma/storyboard-story-sequence-20261113]
   pull_request:
     branches: [main]
   workflow_dispatch:
