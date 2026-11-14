@@ -53,10 +53,25 @@ func draw_frame(width: int, height: int, time: float) -> Image:
         _capsule(image, chain["root"], chain["middle"], 15.0 * scale, pants)
         _capsule(image, chain["middle"], chain["end"], 12.0 * scale, pants)
         _capsule(image, chain["end"], chain["end"] + Vector2(13, 1) * scale, 8.0 * scale, Color("222936"))
+    # Painted sleeve pixels are warped along both IK bones. Each segment
+    # is a separate transparent layer, preserving original artwork detail.
+    var painter = preload("res://scripts/painted_limb_warp.gd").new()
+    var sleeve := Image.create(36, 80, false, Image.FORMAT_RGBA8)
+    sleeve.fill(Color(0, 0, 0, 0))
+    for py in range(5, 75):
+        for px in range(5, 31):
+            var distance_from_axis := absf(float(px) - 18.0)
+            var sleeve_radius := 12.0 if py < 39 else 9.0
+            if distance_from_axis <= sleeve_radius:
+                var weave := 0.045 * sin(float(py) * 0.65 + float(px) * 0.9)
+                sleeve.set_pixel(px, py, Color(0.82 + weave, 0.88 + weave, 0.94 + weave, 1.0))
     for chain in [left_arm, right_arm]:
-        _capsule(image, chain["root"], chain["middle"], 13.0 * scale, shirt)
-        _capsule(image, chain["middle"], chain["end"], 10.0 * scale, shirt)
-        _capsule(image, chain["end"], chain["end"], 9.0 * scale, skin)
+        var root_point: Vector2 = chain["root"]
+        var middle_point: Vector2 = chain["middle"]
+        var end_point: Vector2 = chain["end"]
+        painter.draw_segment(image, sleeve, Vector2(18, 5), Vector2(18, 39), root_point, middle_point, 12.0 * scale)
+        painter.draw_segment(image, sleeve, Vector2(18, 39), Vector2(18, 74), middle_point, end_point, 9.0 * scale)
+        _capsule(image, end_point, end_point, 9.0 * scale, skin)
     _capsule(image, chest, hip, 33.0 * scale, shirt)
     var head := chest + Vector2(0, -54) * scale
     _capsule(image, head, head, 28.0 * scale, skin)
