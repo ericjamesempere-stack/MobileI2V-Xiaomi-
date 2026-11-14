@@ -131,6 +131,34 @@ class ComfyBridgeTests(unittest.TestCase):
             self.assertEqual(sent[0]["8"]["inputs"]["image"], "upload_3.png")
             self.assertNotEqual(uploads[2], uploads[0])
 
+    def test_strict_identity_rejects_pixel_blend_without_adapter(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        workflow = {
+            "1": {"class_type": "LoadImage", "inputs": {"image": "ref.png"}},
+            "2": {"class_type": "LoadImage", "inputs": {"image": "pose.png"}},
+            "3": {"class_type": "CLIPTextEncode", "inputs": {"text": "old"}},
+            "4": {"class_type": "ControlNetApplyAdvanced", "inputs": {"image": ["2", 0], "positive": ["3", 0]}},
+            "5": {"class_type": "ImageBlend", "inputs": {"image1": ["1", 0], "image2": ["4", 0]}},
+            "6": {"class_type": "SaveImage", "inputs": {"images": ["5", 0]}},
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            filename = Path(folder) / "workflow.json"
+            filename.write_text(json.dumps(workflow))
+            env = {"MOBILEI2V_API_TOKEN": "secret", "COMFYUI_URL": "http://127.0.0.1:8188",
+                   "COMFYUI_WORKFLOW": str(filename), "COMFYUI_REFERENCE_NODE": "1",
+                   "COMFYUI_POSE_NODE": "2", "COMFYUI_OUTPUT_NODE": "6",
+                   "COMFYUI_PROMPT_NODE": "3", "COMFYUI_REQUIRE_IDENTITY_ADAPTER": "1"}
+            req = Request(image_base64=png_b64("blue"), pose_image_base64=png_b64("red"),
+                          prompt="running", frame_index=0, total_frames=2)
+            with patch.dict(os.environ, env, clear=True):
+                with patch("backend.comfyui_pose_bridge.upload") as upload:
+                    with self.assertRaises(HTTPException) as error:
+                        generate(req, authorization="Bearer secret")
+                    upload.assert_not_called()
+            self.assertEqual(error.exception.status_code, 503)
+
     def test_no_configuration_is_not_ready(self):
         with patch.dict(os.environ, {}, clear=True):
             self.assertFalse(health()["ready"])
