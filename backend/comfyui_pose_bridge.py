@@ -47,10 +47,20 @@ def config():
 @app.get("/health")
 def health():
     try:
-        config()
+        _, base, workflow_path, ids = config()
+        with open(workflow_path, encoding="utf-8") as stream:
+            workflow = json.load(stream)
+        prompt_node = os.environ.get("COMFYUI_PROMPT_NODE", "").strip()
+        if (not isinstance(workflow, dict) or not prompt_node
+                or any(node_id not in workflow for node_id in ids + [prompt_node])
+                or workflow[ids[0]].get("class_type") != "LoadImage"
+                or workflow[ids[1]].get("class_type") != "LoadImage"
+                or workflow[ids[2]].get("class_type") != "SaveImage"
+                or workflow[prompt_node].get("class_type") != "CLIPTextEncode"):
+            raise ValueError("ComfyUI workflow configuration is incomplete")
         return {"ready": True, "remote_verified": False, "backend": "comfyui",
-                "note": "Configuration present; no GPU inference has been verified"}
-    except HTTPException:
+                "note": "Workflow file and node types present; GPU inference not verified"}
+    except (HTTPException, OSError, ValueError, KeyError, json.JSONDecodeError, TypeError):
         return {"ready": False, "remote_verified": False, "backend": "comfyui"}
 
 
