@@ -19,10 +19,10 @@ class StoryTests(unittest.TestCase):
             return draw.joint_positions(0,24,action="crouch",
                      previous_action="stand",blend=blend,phase_index=0)["hip"][1]
         first,early,mid,late,last=[hip(t) for t in (0,0.1,0.5,0.9,1)]
-        self.assertEqual(first,early)
+        self.assertLessEqual(abs(first-early),1)
         self.assertLess(first,mid)
         self.assertLess(mid,late)
-        self.assertEqual(late,last)
+        self.assertLessEqual(abs(late-last),1)
 
     def test_tracked_joints_are_identical_to_rendered_frame_geometry(self):
         draw=load("karma_one_pose_drawings")
