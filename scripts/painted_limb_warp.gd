@@ -370,3 +370,19 @@ func analyze_silhouette_consistency(frames: Array, max_area_change: float = 0.30
         "abrupt_scale_pairs": abrupt_scale_pairs,
         "status": "silhouette_area_checked",
         "limitations": ["alpha-only silhouette", "does not measure identity or anatomy"]}
+
+# Run both checks on the original transparent RGBA frames before compositing
+# onto a solid video background. Fail closed when either check reports an issue.
+func validate_character_sequence(frames: Array, max_jump_ratio: float = 0.65, max_area_change: float = 0.30) -> Dictionary:
+    var temporal: Dictionary = analyze_frame_sequence(frames, max_jump_ratio)
+    if not bool(temporal.get("ok", false)):
+        return {"ok": false, "error": "Temporal continuity failed",
+            "temporal": temporal}
+    var silhouette: Dictionary = analyze_silhouette_consistency(frames, max_area_change)
+    if not bool(silhouette.get("ok", false)):
+        return {"ok": false, "error": "Silhouette continuity failed",
+            "temporal": temporal, "silhouette": silhouette}
+    return {"ok": true, "status": "character_sequence_preflight_passed",
+        "frame_count": frames.size(), "temporal": temporal,
+        "silhouette": silhouette,
+        "limitations": ["heuristic preflight only", "no anatomical or identity validation"]}
