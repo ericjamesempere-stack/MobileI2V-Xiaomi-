@@ -154,3 +154,37 @@ func repair_isolated_spikes(frames: Array, max_step: float = 0.15,
         "repair_count": repairs.size(), "status": "isolated_spikes_repaired",
         "limitations": ["only isolated spikes, not arbitrary bad motion",
             "no biomechanical constraints or full-body physics"]}
+
+# Concatenate multiple approved action timelines, preserving the last pose of
+# the preceding action. Each segment has its own keyframes and frame count.
+func generate_action_sequence(segments: Array, transition_frames: int = 6) -> Dictionary:
+    if segments.is_empty() or transition_frames < 0 or transition_frames > 30:
+        return {"ok": false, "error": "Invalid action sequence or transition length"}
+    var rig: RefCounted = Rig.new()
+    var all_frames: Array = []
+    var boundaries: Array = []
+    for index in range(segments.size()):
+        var segment: Dictionary = segments[index]
+        var result: Dictionary = generate(segment.get("keyframes", []),
+            int(segment.get("frame_count", 0)))
+        if not bool(result.get("ok", false)):
+            return {"ok": false, "error": "Segment %d: %s" %
+                [index, str(result.get("error", "invalid keyframes"))]}
+        var poses: Array = result["frames"]
+        var transition_count: int = 0
+        if not all_frames.is_empty():
+            var bridge: Dictionary = rig.transition_between_actions(
+                all_frames[-1], poses[0], transition_frames)
+            if not bool(bridge.get("ok", false)):
+                return {"ok": false, "error": "Cannot join segment %d" % index}
+            all_frames.append_array(bridge["frames"])
+            transition_count = bridge["count"]
+        var start_frame: int = all_frames.size()
+        all_frames.append_array(poses)
+        boundaries.append({"action": str(segment.get("action", "unknown")),
+            "start_frame": start_frame, "end_frame": all_frames.size() - 1,
+            "transition_frames": transition_count})
+    return {"ok": true, "frames": all_frames, "count": all_frames.size(),
+        "boundaries": boundaries, "status": "multi_action_pose_sequence",
+        "limitations": ["requires approved poses for every action",
+            "bridges interpolate but do not enforce physics"]}
