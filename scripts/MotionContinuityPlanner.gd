@@ -18,7 +18,7 @@ static func timeline(project: Dictionary, fps: int = 12) -> Dictionary:
         var action := str(scene.get("motion_action", "unsupported"))
         if action == "unsupported":
             return {"ok": false, "error": "unsupported_action", "scene": i}
-        var count := maxi(2, roundi(float(scene.get("duration_seconds", 1.0)) * fps))
+        var count := maxi(1, roundi(float(scene.get("duration_seconds", 1.0)) * fps))
         var start := position
         var start_altitude := altitude
         var target := position
@@ -34,7 +34,7 @@ static func timeline(project: Dictionary, fps: int = 12) -> Dictionary:
             "stop": pass
         var first_frame := frame_states.size()
         for j in range(count):
-            var t := float(j) / float(count - 1)
+            var t := float(j) / float(maxi(1, count - 1))
             var ease := t * t * (3.0 - 2.0 * t)
             var x := lerpf(start.x, target.x, ease)
             var y := lerpf(start.y, target.y, ease)
