@@ -88,3 +88,29 @@ func render_artwork_sequence(artwork: Image, source_pose: Array, keyframes: Arra
         "status": "articulated_artwork_frames",
         "limitations": ["requires transparent artwork and approved source/keyframe poses",
             "not automatic photo segmentation or free-text motion generation"]}
+
+# Detect implausible single-frame joint teleportation in normalized coordinates.
+# This is a conservative diagnostic, not a physics solver.
+func validate_joint_velocity(frames: Array, max_step: float = 0.15) -> Dictionary:
+    if frames.size() < 2 or max_step <= 0.0:
+        return {"ok": false, "error": "Invalid sequence or velocity threshold"}
+    var rig: RefCounted = Rig.new()
+    var violations: Array = []
+    for i in range(frames.size()):
+        var check: Dictionary = rig.validate_landmarks(frames[i])
+        if not bool(check.get("ok", false)):
+            return {"ok": false, "error": "Invalid pose at frame %d" % i}
+        if i == 0:
+            continue
+        for joint in rig.REQUIRED:
+            var previous: Dictionary = frames[i - 1][joint]
+            var current: Dictionary = frames[i][joint]
+            var dx: float = float(current["x"]) - float(previous["x"])
+            var dy: float = float(current["y"]) - float(previous["y"])
+            var distance: float = sqrt(dx * dx + dy * dy)
+            if distance > max_step:
+                violations.append({"frame": i, "joint": joint, "step": distance})
+    return {"ok": violations.is_empty(), "violations": violations,
+        "status": "joint_velocity_checked",
+        "limitations": ["threshold is in normalized image coordinates per frame",
+            "does not distinguish fast intentional motion from tracking errors"]}
