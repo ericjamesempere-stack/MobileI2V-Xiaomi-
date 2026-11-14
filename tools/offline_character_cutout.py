@@ -13,9 +13,20 @@ import numpy as np
 
 
 def isolate(input_path: Path, output_path: Path, mask_path: Path, iterations: int = 7) -> dict:
-    image = cv2.imread(str(input_path), cv2.IMREAD_COLOR)
-    if image is None:
+    original = cv2.imread(str(input_path), cv2.IMREAD_UNCHANGED)
+    if original is None:
         raise ValueError(f"Cannot read image: {input_path}")
+    if original.ndim != 3 or original.shape[2] not in (3, 4):
+        raise ValueError("Expected RGB or RGBA artwork")
+    # Do not destroy an already isolated character: retain its alpha.
+    if original.shape[2] == 4 and np.any(original[:, :, 3] < 250):
+        alpha = original[:, :, 3]
+        if not cv2.imwrite(str(output_path), original) or not cv2.imwrite(str(mask_path), alpha):
+            raise IOError("Unable to write output images")
+        return {"width": original.shape[1], "height": original.shape[0],
+                "foreground_fraction": float(np.count_nonzero(alpha) / alpha.size),
+                "method": "existing_alpha"}
+    image = original[:, :, :3]
     height, width = image.shape[:2]
     if width < 50 or height < 50:
         raise ValueError("Image too small for background separation")
