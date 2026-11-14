@@ -60,7 +60,7 @@ def decode_image(encoded: str) -> Image.Image:
         if img.width * img.height > MAX_PIXELS:
             raise ValueError("Image exceeds pixel limit")
         return img.convert("RGB")
-    except (ValueError, OSError) as exc:
+    except (ValueError, OSError, base64.binascii.Error) as exc:
         raise HTTPException(400, str(exc)) from exc
 
 
@@ -70,7 +70,7 @@ def pipeline():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.float16 if device == "cuda" else torch.float32
     pipe = AutoPipelineForImage2Image.from_pretrained(
-        model, torch_dtype=dtype, safety_checker=None
+        model, torch_dtype=dtype
     )
     pipe.to(device)
     pipe.set_progress_bar_config(disable=True)
