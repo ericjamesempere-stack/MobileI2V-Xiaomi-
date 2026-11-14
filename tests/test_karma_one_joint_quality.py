@@ -15,6 +15,19 @@ def frame(offset=0):
              ("left_hand",0,19),("right_hand",20,19)]}
 
 class JointQualityTests(unittest.TestCase):
+    def test_extremity_trajectory_acceleration_is_reported(self):
+        first=frame()
+        second=frame()
+        third=frame()
+        third["right_hand"]=(100,19)
+        report=m.inspect([first,second,third],max_step=100)
+        self.assertEqual(report["jump_count"],0)
+        self.assertTrue(any(w["joint"]=="right_hand" for w in report["trajectory_warnings"]))
+
+    def test_uniform_translation_has_no_acceleration_warning(self):
+        report=m.inspect([frame(0),frame(5),frame(10)])
+        self.assertEqual(report["trajectory_warning_count"],0)
+
     def test_abrupt_elbow_rotation_is_reported(self):
         first=frame()
         second=frame()
