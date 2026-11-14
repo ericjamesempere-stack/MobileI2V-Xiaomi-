@@ -24,7 +24,7 @@ def fit(image):
 
 
 def action_stage(story, progress):
-    parts = [x.strip() for x in re.split(r"(?i)\\b(?:et puis|puis|ensuite|then|afterwards|suddenly)\\b|[.;\\n]", story) if x.strip()]
+    parts = [x.strip() for x in re.split(r"(?i)\b(?:et puis|puis|ensuite|then|afterwards|suddenly)\b|[.;\n]", story) if x.strip()]
     return parts[min(len(parts) - 1, int(min(max(progress, 0), 0.99999) * len(parts)))] if parts else story
 
 @spaces.GPU(duration=45)
