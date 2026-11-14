@@ -117,6 +117,7 @@ jobs:
           test -s multi_action_character.mp4
           N="$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 multi_action_character.mp4)"
           test "$N" = "66"
+          python3 -m pip install --quiet pillow
           # Verify the encoded video actually changes pose across frames;
           # a static image exported as MP4 is not a successful animation.
           ffmpeg -hide_banner -loglevel error -i multi_action_character.mp4 -f framemd5 multi_action_framemd5.txt
