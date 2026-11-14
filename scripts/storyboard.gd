@@ -465,6 +465,26 @@ func _joint_mask(x: float, y: float, ax: Vector2, bx: Vector2, radius: float) ->
     var t: float = clampf((Vector2(x,y) - ax).dot(d) / maxf(d.length_squared(), 0.01), 0.0, 1.0)
     return clampf((radius - (Vector2(x,y) - (ax + d*t)).length()) / 4.0, 0.0, 1.0)
 
+func _erase_limb(dst: Image, a: Vector2, b: Vector2, radius: float, background: Color) -> void:
+    # Clear the original limb footprint before drawing its new position.
+    # Do not erase the shoulder/hip joint itself: keep a small connection
+    # to the stationary torso to avoid visible gaps at the attachment.
+    var x0: int = maxi(0, floori(minf(a.x, b.x) - radius - 4.0))
+    var x1: int = mini(dst.get_width() - 1, ceili(maxf(a.x, b.x) + radius + 4.0))
+    var y0: int = maxi(0, floori(minf(a.y, b.y) - radius - 4.0))
+    var y1: int = mini(dst.get_height() - 1, ceili(maxf(a.y, b.y) + radius + 4.0))
+    var axis: Vector2 = b - a
+    var axis_len_sq: float = maxf(axis.length_squared(), 0.01)
+    for yy in range(y0, y1 + 1):
+        for xx in range(x0, x1 + 1):
+            var point := Vector2(float(xx), float(yy))
+            var along: float = clampf((point - a).dot(axis) / axis_len_sq, 0.0, 1.0)
+            if along < 0.18:
+                continue
+            var amount: float = _joint_mask(float(xx), float(yy), a, b, radius)
+            if amount > 0.0:
+                dst.set_pixel(xx, yy, dst.get_pixel(xx, yy).lerp(background, amount))
+
 func _limb_copy(dst: Image, src: Image, a: Vector2, b: Vector2, angle: float, radius: float) -> void:
     var ca: float = cos(angle)
     var sa: float = sin(angle)
@@ -899,6 +919,13 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
                 arm_angle = 0.03
                 leg_angle = 0.02
         var result: Image = base.duplicate()
+        # Clear all original limb locations first, then composite rotated
+        # patches. Otherwise the old arms and legs remain as ghost limbs.
+        var studio_color := Color("25364a")
+        _erase_limb(result, shoulder_l, arm_l, 18.0, studio_color)
+        _erase_limb(result, shoulder_r, arm_r, 18.0, studio_color)
+        _erase_limb(result, hip_l, leg_l, 22.0, studio_color)
+        _erase_limb(result, hip_r, leg_r, 22.0, studio_color)
         _limb_copy(result, foreground, shoulder_l, arm_l, arm_angle * sin(phase) + lean, 18.0)
         # Sample every moving limb from the transparent cutout. Sampling
         # the composited base copied solid studio-background rectangles
