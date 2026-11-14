@@ -787,7 +787,34 @@ func _build_generator_controls() -> void:
     var generate_button: Button = _button("Generer images", Vector2(492, 755), Vector2(214, 46))
     generate_button.pressed.connect(_generate_frames)
     generator_status = _label(Vector2(12, 804), 16, Color("d0e5f4"))
-    generator_status.text = "Generation locale 2D, 5 secondes, 150 images"
+    generator_status.text = "Mode 2D provisoire : pas encore de generation universelle"
+    var storyboard_button: Button = _button("Storyboard BD", Vector2(492, 814), Vector2(214, 46))
+    storyboard_button.pressed.connect(_create_storyboard)
+
+func _create_storyboard() -> void:
+    var prompt_text: String = generator_prompt.text.strip_edges()
+    if prompt_text.is_empty():
+        generator_status.text = "Ecris une histoire pour creer le storyboard"
+        return
+    var refs: Array = []
+    for i in range(user_photos.size()):
+        if user_photos[i] != null:
+            refs.append("photo_%d" % i)
+    var project: Dictionary = StoryStudio.storyboard(prompt_text, 15.0, "manga", refs)
+    var save_dir := "user://storyboards"
+    var error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(save_dir))
+    if error != OK:
+        generator_status.text = "Erreur creation dossier storyboard"
+        return
+    var output := "%s/story_%d.json" % [save_dir, Time.get_ticks_msec()]
+    var file := FileAccess.open(output, FileAccess.WRITE)
+    if file == null:
+        generator_status.text = "Erreur sauvegarde storyboard"
+        return
+    file.store_string(JSON.stringify(project, "  "))
+    file.close()
+    var scenes: Array = project["scenes"]
+    generator_status.text = "Storyboard %d scenes sauvegarde (dessins non generes)" % scenes.size()
 
 func _generate_frames() -> void:
     if frame_generator != null and frame_generator.get("busy"):
