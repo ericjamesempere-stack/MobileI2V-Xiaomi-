@@ -726,6 +726,16 @@ func _automatic_local_movie() -> void:
     if sources.is_empty():
         status.text = "Aucun dessin genere. Export annule."
         return
+    # Check image-to-image continuity before accepting the generated sequence.
+    var continuity = load("res://scripts/frame_continuity_check.gd")
+    var continuity_report: Dictionary = continuity.inspect(sources)
+    if not bool(continuity_report.get("ok", false)):
+        status.text = "Sequence invalide : " + str(continuity_report.get("reason", "images absentes"))
+        return
+    var average_change: float = float(continuity_report.get("average_difference", 0.0))
+    if average_change < 0.003:
+        status.text = "Animation refusee : les dessins sont quasiment identiques. Aucun mouvement reel detecte."
+        return
     # Never export stale frames when a generation was rejected or failed.
     status.text = "Etape 2/3 : validation de %d dessins." % sources.size()
     _approve_all()
