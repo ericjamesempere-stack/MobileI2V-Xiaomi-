@@ -938,6 +938,9 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
     accepted.clear()
     var folder: String = imported_path.get_base_dir() + ("/mediapipe_board" if use_detected else "/articulated_board")
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder))
+    # Reuse rigging engines across frames to avoid repeated script loads and allocations.
+    var ik_solver: RefCounted = load("res://scripts/two_bone_ik.gd").new()
+    var pixel_warp: RefCounted = load("res://scripts/painted_limb_warp.gd").new()
     for i in range(count):
         var seconds: float = float(i) / float(count) * float(duration_input.value)
         var action: String = story_planner.action_at(story_plan, seconds) if bool(story_plan.get("ok", false)) else "marche"
@@ -983,8 +986,6 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
         # Animate the original imported drawing with two articulated bones
         # per limb. The artwork pixels are sampled from the transparent
         # source image, not replaced with procedural colored capsules.
-        var ik_solver: RefCounted = load("res://scripts/two_bone_ik.gd").new()
-        var pixel_warp: RefCounted = load("res://scripts/painted_limb_warp.gd").new()
         for limb in [
             {"root": shoulder_l, "end": arm_l, "angle": arm_angle * sin(phase) + lean, "radius": 18.0, "bend": -1.0},
             {"root": shoulder_r, "end": arm_r, "angle": -arm_angle * sin(phase) + lean, "radius": 18.0, "bend": 1.0},
