@@ -144,7 +144,16 @@ func _initialize() -> void:
         var t: float = float(frame_id) / 59.0
         var travel: Dictionary = painter.translate_body_landmarks(original_pose, 0.12 * t, 0.03 * sin(t * TAU), 0.015 * sin(t * TAU * 2.0))
         assert(travel["ok"])
-        var preview: Dictionary = painter.render_composite_preview(source, original_pose, travel["landmarks"], 8.0)
+        # Move arm and leg joints independently: a translated still image is not animation.
+        var animated_pose: Array = travel["landmarks"]
+        var gait: float = sin(t * TAU * 2.0)
+        animated_pose[15]["x"] = float(animated_pose[15]["x"]) + 0.10 * gait
+        animated_pose[16]["x"] = float(animated_pose[16]["x"]) - 0.10 * gait
+        animated_pose[27]["x"] = float(animated_pose[27]["x"]) - 0.08 * gait
+        animated_pose[28]["x"] = float(animated_pose[28]["x"]) + 0.08 * gait
+        animated_pose[15]["y"] = float(animated_pose[15]["y"]) - 0.03 * absf(gait)
+        animated_pose[16]["y"] = float(animated_pose[16]["y"]) - 0.03 * absf(gait)
+        var preview: Dictionary = painter.render_composite_preview(source, original_pose, animated_pose, 8.0)
         assert(preview["ok"])
         transparent_preview_frames.append(preview["image"])
         var canvas := Image.create(100, 100, false, Image.FORMAT_RGBA8)
