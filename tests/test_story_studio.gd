@@ -49,7 +49,7 @@ func _run() -> void:
     var custom_story: Dictionary = studio.storyboard("une maison puis un arbre", 24.0, "bd")
     assert(custom_story["scenes"].size() == 2)
     assert(is_equal_approx(float(custom_story["scenes"][1]["start_seconds"]), 12.0))
-    var mixed: Dictionary = studio.storyboard("La moto roule Puis tombe; ENSUITE repart\\nTHEN stops", 5.0)
+    var mixed: Dictionary = studio.storyboard("La moto roule Puis tombe; ENSUITE repart\nTHEN stops", 5.0)
     assert(mixed["scenes"].size() == 5, "Case-insensitive actions and punctuation must split scenes")
     assert(mixed["scenes"][0]["description"] == "La moto roule")
     assert(mixed["scenes"][1]["description"] == "tombe")
