@@ -28,6 +28,8 @@ _draw_model = None
 
 def decode_image(data):
     raw = base64.b64decode(data, validate=True)
+    if len(raw) > 12 * 1024 * 1024:
+        raise ValueError("Image payload exceeds 12 MiB")
     with Image.open(io.BytesIO(raw)) as opened:
         if opened.width * opened.height > 16_000_000:
             raise ValueError("Image too large")
