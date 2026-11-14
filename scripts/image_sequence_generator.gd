@@ -28,6 +28,12 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
  var frames: Array[Image] = []
  var motion_plan: Dictionary = load("res://scripts/story_motion_planner.gd").new().plan(prompt, float(count))
  var motion_steps: Array = motion_plan.get("steps", [])
+ # Do not silently draw a generic dancing/standing figure for an action
+ # that the offline pose catalog cannot represent. Ask for a supported
+ # movement instead of returning misleading generated frames.
+ for step in motion_steps:
+  if bool(step.get("needs_generation", false)):
+   return {"ok": false, "error": "Mouvement sans guide de pose : %s. Aucun dessin trompeur ne sera genere." % str(step.get("description", ""))}
  for index in range(count):
   if cancel_requested:
    return {"ok": false, "error": "Generation annulee", "generated": frames.size()}
