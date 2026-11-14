@@ -686,6 +686,17 @@ func _automatic_local_movie() -> void:
     if action_input.text.strip_edges().is_empty():
         status.text = "Decris les mouvements avant de lancer."
         return
+    # Reset only the in-memory result of the previous generation.
+    # Previously, a failed generation could export an old storyboard as
+    # though it were the newly requested video. Saved projects are untouched.
+    sources.clear()
+    paths.clear()
+    plan.clear()
+    accepted.clear()
+    frame_index = 0
+    preview.texture = null
+    contact_sheet.texture = null
+    contact_caption.text = "Nouvelle planche en cours de generation."
     status.text = "Etape 1/3 : creation automatique de la planche."
     if not imported_path.is_empty():
         if not FileAccess.file_exists(imported_path):
