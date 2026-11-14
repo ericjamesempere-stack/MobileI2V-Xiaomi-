@@ -17,6 +17,24 @@ func _initialize() -> void:
     assert(lower.b > lower.r, "Painted lower sleeve lost its original blue pixels")
     var outside: Color = destination.get_pixel(50, 10)
     assert(outside.b < 0.5, "Background outside limb was overwritten")
+    # Regression: alpha interpolation must keep colored edge pixels
+    # without leaking RGB from fully transparent neighboring texels.
+    var edge_source := Image.create(12, 12, false, Image.FORMAT_RGBA8)
+    edge_source.fill(Color(0, 1, 0, 0))
+    for y in range(2, 10):
+        for x in range(4, 7):
+            edge_source.set_pixel(x, y, Color(1, 0, 0, 1))
+    var edge_output := Image.create(24, 24, false, Image.FORMAT_RGBA8)
+    edge_output.fill(Color(0, 0, 0, 1))
+    painter.draw_segment(edge_output, edge_source, Vector2(5, 2), Vector2(5, 9), Vector2(7.3, 4.2), Vector2(17.1, 16.4), 2.0)
+    var red_edge_count: int = 0
+    for yy in range(24):
+        for xx in range(24):
+            var pixel: Color = edge_output.get_pixel(xx, yy)
+            assert(pixel.g < 0.01, "Transparent green fringe leaked into warped red artwork")
+            if pixel.r > 0.15:
+                red_edge_count += 1
+    assert(red_edge_count > 10, "Warped semi-transparent edge was lost")
     # Produce an actual sequence of painted-limb frames, not just one pose.
     DirAccess.make_dir_recursive_absolute("user://painted_warp")
     for frame in range(60):
