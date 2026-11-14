@@ -1,5 +1,7 @@
 import importlib.util
 import unittest
+from unittest.mock import patch
+import builtins
 from pathlib import Path
 from PIL import Image
 
@@ -29,6 +31,17 @@ class StoryTests(unittest.TestCase):
         a=m.draw_pose(2,24,appearance={"shirt":"#ff00ff"},action="walk")
         b=m.draw_pose(2,24,appearance={"shirt":"#00ff00"},action="walk")
         self.assertNotEqual(a.tobytes(), b.tobytes())
+    def test_auto_face_detector_missing_dependency_is_explicit(self):
+        detector=load("karma_one_face_detector")
+        original_import=builtins.__import__
+        def reject_cv2(name,*args,**kwargs):
+            if name=="cv2":
+                raise ImportError("simulated missing optional dependency")
+            return original_import(name,*args,**kwargs)
+        with patch("builtins.__import__",side_effect=reject_cv2):
+            with self.assertRaisesRegex(RuntimeError,"opencv-python"):
+                detector.detect_face_box(Path("nonexistent.png"))
+
     def test_photo_face_texture_changes_articulated_drawing(self):
         m=load("karma_one_pose_drawings")
         photo=Image.new("RGB",(80,100),"#ff5500")
