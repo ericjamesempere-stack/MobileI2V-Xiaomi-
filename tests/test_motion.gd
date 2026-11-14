@@ -17,8 +17,7 @@ func _run() -> void:
     assert(actions == ["run", "fall", "jump", "dance"], "Story actions out of order")
     assert(planner.story_action_at("court puis tombe", 0.5, 4.0)["action"] == "run")
     assert(planner.story_action_at("court puis tombe", 2.5, 4.0)["action"] == "fall")
-    var rig := Control.new()
-    rig.set_script(rig_script)
+    var rig = rig_script.new()
     root.add_child(rig)
     var standing: Dictionary = rig._compute_pose(0.0)
     rig.motion_name = "chute"
