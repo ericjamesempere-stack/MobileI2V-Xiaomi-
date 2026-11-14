@@ -16,6 +16,11 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 
+POSE_EDGES = [(11, 12), (11, 13), (13, 15), (12, 14), (14, 16),
+              (11, 23), (12, 24), (23, 24), (23, 25), (25, 27),
+              (24, 26), (26, 28), (27, 29), (28, 30)]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("image")
@@ -40,7 +45,7 @@ def main():
     if len(points) != 33:
         sys.exit(f"FAILED: expected 33 landmarks, got {len(points)}")
     draw = ImageDraw.Draw(image)
-    for connection in mp.solutions.pose.POSE_CONNECTIONS if hasattr(mp, "solutions") else []:
+    for connection in POSE_EDGES:
         a, b = tuple(connection)
         draw.line((points[a].x * image.width, points[a].y * image.height,
                    points[b].x * image.width, points[b].y * image.height),
