@@ -22,7 +22,9 @@ class StoryTests(unittest.TestCase):
                                       proportions={"leg_length":1.2})
         self.assertEqual(joints,measured)
         self.assertEqual(image.size,(360,480))
-        self.assertEqual(set(joints),{"hip","shoulder","head","left_foot","right_foot"})
+        self.assertEqual(set(joints),{"hip","shoulder","head","left_foot","right_foot",
+                         "left_knee","right_knee","left_elbow","right_elbow",
+                         "left_hand","right_hand"})
 
     def test_transition_reaches_target_even_for_two_frame_action(self):
         story=load("karma_one_story_sequence")
