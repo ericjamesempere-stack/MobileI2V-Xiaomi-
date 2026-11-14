@@ -6,6 +6,7 @@ on:
       - 'scripts/karma_one_pose_drawings.py'
       - 'scripts/karma_one_pipeline.py'
       - 'scripts/karma_one_story_sequence.py'
+      - 'tests/test_karma_one_story.py'
       - 'scripts/karma_one_photo_palette.py'
       - 'tests/test_karma_one_photo_palette.py'
       - 'tests/test_karma_one_assembler.py'
@@ -42,6 +43,8 @@ jobs:
           PY
           python3 scripts/karma_one_pipeline.py photo_palette_demo.mp4 --seconds 1 --fps 24 --photo reference_test.png --regions regions_test.json
           test "$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 photo_palette_demo.mp4)" = "24"
+      - name: Test story and articulated drawing regressions
+        run: python3 -m unittest discover -s tests -p test_karma_one_story.py -v
       - name: Verify multi-action story animation
         run: |
           python3 scripts/karma_one_story_sequence.py story_actions.mp4 --story "marche puis court puis danse" --seconds 3 --fps 24
