@@ -19,3 +19,6 @@ jobs:
         run: |
           ./Godot_v4.5-stable_linux.x86_64 --headless --editor --path . --import --quit
           ./Godot_v4.5-stable_linux.x86_64 --headless --path . --quit-after 30
+
+      - name: Test generated frame continuity
+        run: ./Godot_v4.5-stable_linux.x86_64 --headless --path . --script res://tests/test_continuity.gd
