@@ -134,6 +134,8 @@ static func import_rendered_scenes(project: Dictionary, root: String) -> Diction
         return {"ok": false, "error": "invalid_project_root"}
     var scenes: Array = project.get("scenes", [])
     var imported := 0
+    # Work on a copy: failed imports must never leave half-updated scenes.
+    var candidate: Dictionary = project.duplicate(true)
     for i in range(scenes.size()):
         var folder := "%s/rendered/scene_%03d" % [root, i]
         var dir := DirAccess.open(folder)
@@ -154,11 +156,11 @@ static func import_rendered_scenes(project: Dictionary, root: String) -> Diction
         var paths: Array[String] = []
         for filename in names:
             paths.append(folder + "/" + filename)
-        var outcome: Dictionary = attach_scene_frames(project, i, paths)
+        var outcome: Dictionary = attach_scene_frames(candidate, i, paths)
         if not outcome.get("ok", false):
             return {"ok": false, "error": outcome.get("error", "invalid_scene"), "scene": i, "imported": imported}
-        project = outcome["project"]
+        candidate = outcome["project"]
         imported += 1
-    project["render_status"] = "frames_imported"
-    project["capability"] = "real_frames_imported"
-    return {"ok": true, "project": project, "imported": imported}
+    candidate["render_status"] = "frames_imported"
+    candidate["capability"] = "real_frames_imported"
+    return {"ok": true, "project": candidate, "imported": imported}
