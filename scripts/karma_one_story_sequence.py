@@ -16,6 +16,7 @@ ACTIONS = {
     "dance": ("danse", "danser", "dance", "dancing"),
     "stand": ("immobile", "debout", "attend", "stand", "stop"),
     "crouch": ("accroupi", "accroupit", "accroupir", "crouch", "squat"),
+    "fall": ("tombe", "tomber", "chute", "fall", "falls", "falling"),
 }
 
 def load(name):
