@@ -41,7 +41,9 @@ func export_rig_mp4(rig: Control, current_scene: int, start_clock: float) -> voi
     for n in range(frame_count):
         var t: float = float(n) / float(FPS)
         holder.call("update_pose", t, motion_name)
-        RenderingServer.force_draw()
+        # Let the render thread draw this pose before reading the texture.
+        # Without a frame boundary, exports can repeat the previous image.
+        await RenderingServer.frame_post_draw
         var img: Image = viewport.get_texture().get_image()
         if img == null or img.is_empty():
             continue
@@ -53,7 +55,6 @@ func export_rig_mp4(rig: Control, current_scene: int, start_clock: float) -> voi
         written += 1
         if n % 15 == 0:
             _set_status("Export video : %d / %d frames" % [n + 1, frame_count])
-            await get_tree().process_frame
     var result_text: String
     if plugin_ok and exporter != null:
         var out_path: String = str(exporter.call("finish"))
