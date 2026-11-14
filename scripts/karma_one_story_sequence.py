@@ -87,6 +87,9 @@ def produce(story, output, seconds, fps=24, appearance=None, face_photo=None, fa
     assembler = load("karma_one_frame_assembler")
     frames_dir = output.parent / (output.stem + "_drawings")
     frames_dir.mkdir(parents=True, exist_ok=True)
+    # Re-running a shorter story must not accidentally reuse stale old frames.
+    for stale in frames_dir.glob("frame_*.png"):
+        stale.unlink()
     boundaries = []
     joint_samples = []
     transition_frames = max(2, round(fps * 0.25))
