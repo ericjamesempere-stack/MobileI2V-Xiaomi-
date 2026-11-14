@@ -991,17 +991,25 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
         # Clear all original limb locations first, then composite rotated
         # patches. Otherwise the old arms and legs remain as ghost limbs.
         var studio_color := Color("25364a")
-        _erase_limb(result, shoulder_l, arm_l, 18.0, studio_color)
-        _erase_limb(result, shoulder_r, arm_r, 18.0, studio_color)
-        _erase_limb(result, hip_l, leg_l, 22.0, studio_color)
-        _erase_limb(result, hip_r, leg_r, 22.0, studio_color)
+        # Scale limb thickness with the detected silhouette rather than
+        # applying fixed 18/22 px brushes to small and large characters.
+        var arm_radius: float = clampf(sw * 0.085, 4.0, 24.0)
+        var leg_radius: float = clampf(sw * 0.105, 5.0, 30.0)
+        _erase_limb(result, shoulder_l, elbow_l, arm_radius, studio_color)
+        _erase_limb(result, elbow_l, arm_l, arm_radius, studio_color)
+        _erase_limb(result, shoulder_r, elbow_r, arm_radius, studio_color)
+        _erase_limb(result, elbow_r, arm_r, arm_radius, studio_color)
+        _erase_limb(result, hip_l, knee_l, leg_radius, studio_color)
+        _erase_limb(result, knee_l, leg_l, leg_radius, studio_color)
+        _erase_limb(result, hip_r, knee_r, leg_radius, studio_color)
+        _erase_limb(result, knee_r, leg_r, leg_radius, studio_color)
         # Animate the original imported drawing with two articulated bones
         # per limb. The artwork pixels are sampled from the transparent
         # source image, not replaced with procedural colored capsules.
         for limb in [
-            {"root": shoulder_l, "middle": elbow_l, "end": arm_l, "angle": arm_angle * sin(phase) + lean, "radius": 18.0, "bend": -1.0},
+            {"root": shoulder_l, "middle": elbow_l, "end": arm_l, "angle": arm_angle * sin(phase) + lean, "radius": arm_radius, "bend": -1.0},
             {"root": shoulder_r, "middle": elbow_r, "end": arm_r, "angle": -arm_angle * sin(phase) + lean, "radius": 18.0, "bend": 1.0},
-            {"root": hip_l, "middle": knee_l, "end": leg_l, "angle": -leg_angle * sin(phase) + lean, "radius": 22.0, "bend": -1.0},
+            {"root": hip_l, "middle": knee_l, "end": leg_l, "angle": -leg_angle * sin(phase) + lean, "radius": leg_radius, "bend": -1.0},
             {"root": hip_r, "middle": knee_r, "end": leg_r, "angle": leg_angle * sin(phase) + lean, "radius": 22.0, "bend": 1.0}
         ]:
             var root_point: Vector2 = limb["root"]
