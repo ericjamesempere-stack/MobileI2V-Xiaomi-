@@ -8,6 +8,7 @@ var photo_puppet: bool = false
 var source_bounds: Rect2 = Rect2(0.0, 0.0, 1.0, 1.0)
 var motion_speed: float = 0.85
 var status_message: String = ""
+var facial_expression: String = "neutral"
 
 const INK: Color = Color("172536")
 const SKIN: Color = Color("c38b6c")
@@ -187,4 +188,8 @@ func _draw() -> void:
 func update_pose(seconds: float, action: String = "danse") -> void:
     motion_name = action
     phase = seconds * motion_speed
+    queue_redraw()
+func update_expression(_seconds: float, expression: String = "neutral") -> void:
+    # Called by frame_generator.gd for every frame; must exist to avoid runtime crash.
+    facial_expression = expression
     queue_redraw()
