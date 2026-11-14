@@ -835,6 +835,10 @@ func _create_storyboard() -> void:
         refs.append(photo_path)
     var project: Dictionary = StoryStudio.storyboard(prompt_text, float(storyboard_duration.value), storyboard_style.get_item_text(storyboard_style.selected), refs)
     project["reference_paths"] = refs
+    var request_export: Dictionary = StoryStudio.export_requests(project, save_dir + "/requests")
+    if not request_export.get("ok", false):
+        generator_status.text = "Erreur preparation scenes : " + str(request_export.get("error", "inconnue"))
+        return
     var output := "%s/storyboard.json" % save_dir
     var file := FileAccess.open(output, FileAccess.WRITE)
     if file == null:
@@ -843,7 +847,7 @@ func _create_storyboard() -> void:
     file.store_string(JSON.stringify(project, "  "))
     file.close()
     var scenes: Array = project["scenes"]
-    generator_status.text = "Storyboard %d scenes et %d images sauvegardes" % [scenes.size(), refs.size()]
+    generator_status.text = "%d scenes, %d references, %d demandes image pretes (pas encore generees)" % [scenes.size(), refs.size(), int(request_export["count"])]
 
 func _generate_frames() -> void:
     if frame_generator != null and frame_generator.get("busy"):
