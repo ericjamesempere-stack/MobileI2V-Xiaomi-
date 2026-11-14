@@ -75,25 +75,26 @@ func _initialize() -> void:
     assert(multi_action["count"] == 12)
     assert(multi_action["repair_count"] == 0)
     var connected: Dictionary = generic_solver.render_action_sequence(source, original_pose, [
-        {"action": "marche", "frame_count": 8, "keyframes": [
+        {"action": "marche", "frame_count": 30, "keyframes": [
             {"time": 0.0, "pose": original_pose}, {"time": 1.0, "pose": moved_pose}]},
-        {"action": "repos", "frame_count": 8, "keyframes": [
+        {"action": "repos", "frame_count": 30, "keyframes": [
             {"time": 0.0, "pose": moved_pose}, {"time": 1.0, "pose": original_pose}]}
-    ], 3, 8.0)
+    ], 6, 8.0)
     assert(connected["ok"], "Connected actions must render articulated frames")
-    assert(connected["count"] == 19)
+    assert(connected["count"] == 66)
     assert(connected["boundaries"].size() == 2)
+    assert(connected["boundaries"][1]["transition_frames"] == 6)
     assert(connected["frames"][0] is Image)
     var saved: Dictionary = generic_solver.save_rendered_frames(
         connected, "user://test_multi_action_frames", 30)
     assert(saved["ok"], "Multi-action PNG frames must be saved")
-    assert(saved["count"] == 19)
+    assert(saved["count"] == 66)
     assert(not saved["mp4_created"], "PNG frames must never be mislabeled MP4")
     assert(FileAccess.file_exists(saved["files"][0]))
     assert(FileAccess.file_exists(saved["files"][-1]))
     assert(FileAccess.file_exists(saved["manifest_path"]))
     var manifest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(saved["manifest_path"]))
-    assert(manifest["frame_count"] == 19)
+    assert(manifest["frame_count"] == 66)
     assert(manifest["fps"] == 30)
     assert(manifest["boundaries"].size() == 2)
     assert(not manifest["mp4_created"])
