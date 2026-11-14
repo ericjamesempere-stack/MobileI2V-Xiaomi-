@@ -205,11 +205,6 @@ func _draw() -> void:
     _limb(chest + Vector2(0, -17), head + Vector2(0, 25), 24.0, SKIN)
     draw_circle(head + Vector2(0, 8), 51.0, INK)
     draw_circle(head, 49.0, SKIN)
-    if reference_head != null and not photo_puppet:
-        var tex_size: Vector2 = reference_head.get_size()
-        var side: float = minf(tex_size.x, tex_size.y)
-        var source := Rect2((tex_size - Vector2(side, side)) * 0.5, Vector2(side, side))
-        draw_texture_rect_region(reference_head, Rect2(head - Vector2(42, 42), Vector2(84, 84)), source)
     # Draw an expressive illustrated face; the source photo is a reference,
     # not a circular photograph pasted over a generic head.
     for i in range(12):
