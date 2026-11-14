@@ -26,13 +26,16 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
  var reference_b64: String = Marshalls.raw_to_base64(source_png)
  var previous_b64: String = reference_b64
  var frames: Array[Image] = []
- var motion_plan: Dictionary = load("res://scripts/story_motion_planner.gd").new().plan(prompt, float(count))
+ # Timeline seconds are independent from the number of requested drawings.
+ # The caller may request 120 frames for a six-second film.
+ var motion_plan: Dictionary = load("res://scripts/story_motion_planner.gd").new().plan(prompt, float(count) / 8.0)
  var motion_steps: Array = motion_plan.get("steps", [])
+ var supported_actions: Array[String] = ["repos", "marche", "course", "saut", "chute", "trebuche", "releve", "danse", "salut"]
  # Do not silently draw a generic dancing/standing figure for an action
  # that the offline pose catalog cannot represent. Ask for a supported
  # movement instead of returning misleading generated frames.
  for step in motion_steps:
-  if bool(step.get("needs_generation", false)):
+  if bool(step.get("needs_generation", false)) or not supported_actions.has(str(step.get("action", "inconnu"))):
    return {"ok": false, "error": "Mouvement sans guide de pose : %s. Aucun dessin trompeur ne sera genere." % str(step.get("description", ""))}
  for index in range(count):
   if cancel_requested:
@@ -43,7 +46,7 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
   # Select the description from the same timed step as the pose.
   # Equal-sized indexing breaks when actions have different durations.
   var active_prompt: String = prompt
-  var seconds: float = float(index) / float(maxi(1, count - 1)) * float(count)
+  var seconds: float = float(index) / float(maxi(1, count - 1)) * float(motion_plan.get("duration", 1.0))
   for step in motion_steps:
    if seconds < float(step.get("end", 0.0)) or step == motion_steps.back():
     active_prompt = str(step.get("description", prompt))
@@ -52,7 +55,7 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
   # text instruction. Keep the identity reference unchanged across frames.
   var action: String = "danse"
   if bool(motion_plan.get("ok", false)):
-   action = load("res://scripts/story_motion_planner.gd").new().action_at(motion_plan, float(index) / float(maxi(1, count - 1)) * float(count))
+   action = load("res://scripts/story_motion_planner.gd").new().action_at(motion_plan, seconds)
   # Normalize movement progress INSIDE each story action. Absolute frame
   # indices caused falls to snap instantly and later steps to inherit
   # unrelated phases.
