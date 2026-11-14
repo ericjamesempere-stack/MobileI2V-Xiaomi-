@@ -41,6 +41,13 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
         pen.ellipse((hand[0]-9,hand[1]-9,hand[0]+9,hand[1]+9),fill=skin_color)
     pen.ellipse((head[0]-32,head[1]-42,head[0]+32,head[1]+42),fill="#b98766",outline="#483c37",width=3)
     pen.pieslice((head[0]-34,head[1]-47,head[0]+34,head[1]+4),180,360,fill=hair_color)
+    hair_style = appearance.get("hair_style", "short")
+    if hair_style == "long":
+        for offset in (-29, -20, 20, 29):
+            pen.line((head[0]+offset,head[1]-27,head[0]+offset,head[1]+65), fill=hair_color, width=7)
+    elif hair_style == "locs":
+        for offset in (-31, -22, -13, 13, 22, 31):
+            pen.line((head[0]+offset,head[1]-27,head[0]+offset + int(4*math.sin(phase)),head[1]+58), fill=hair_color, width=6)
     for dx in (-12,12):
         pen.ellipse((head[0]+dx-3,head[1]-6,head[0]+dx+3,head[1]),fill="#20242c")
     pen.arc((head[0]-12,head[1]+8,head[0]+12,head[1]+23),0,180,fill="#51322d",width=2)
