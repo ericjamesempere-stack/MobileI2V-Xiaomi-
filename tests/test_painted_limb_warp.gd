@@ -74,6 +74,16 @@ func _initialize() -> void:
     assert(multi_action["ok"], "Generic keyframes must render actual character frames")
     assert(multi_action["count"] == 12)
     assert(multi_action["repair_count"] == 0)
+    var connected: Dictionary = generic_solver.render_action_sequence(source, original_pose, [
+        {"action": "marche", "frame_count": 8, "keyframes": [
+            {"time": 0.0, "pose": original_pose}, {"time": 1.0, "pose": moved_pose}]},
+        {"action": "repos", "frame_count": 8, "keyframes": [
+            {"time": 0.0, "pose": moved_pose}, {"time": 1.0, "pose": original_pose}]}
+    ], 3, 8.0)
+    assert(connected["ok"], "Connected actions must render articulated frames")
+    assert(connected["count"] == 19)
+    assert(connected["boundaries"].size() == 2)
+    assert(connected["frames"][0] is Image)
     var painted_pose: Dictionary = painter.render_articulated_layers(source, original_pose, moved_pose, 8.0)
     assert(painted_pose["ok"])
     var opaque_artwork := Image.create(100, 100, false, Image.FORMAT_RGBA8)
