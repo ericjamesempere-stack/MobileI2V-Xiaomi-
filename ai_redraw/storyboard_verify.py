@@ -8,12 +8,19 @@ import hashlib
 import io
 import json
 import zipfile
+from pathlib import Path
 from PIL import Image
 
-def verify_storyboard_archive(raw: bytes) -> dict:
-    if not raw:
-        raise ValueError("Empty storyboard archive")
-    with zipfile.ZipFile(io.BytesIO(raw)) as z:
+def verify_storyboard_archive(raw: bytes | str | Path) -> dict:
+    if isinstance(raw, bytes):
+        if not raw:
+            raise ValueError("Empty storyboard archive")
+        source = io.BytesIO(raw)
+    else:
+        source = Path(raw)
+        if not source.is_file() or source.stat().st_size == 0:
+            raise ValueError("Missing or empty storyboard archive")
+    with zipfile.ZipFile(source) as z:
         names = z.namelist()
         if len(names) != len(set(names)):
             raise ValueError("Duplicate ZIP member names")
