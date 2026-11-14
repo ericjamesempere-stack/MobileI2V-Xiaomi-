@@ -95,6 +95,15 @@ class VisualBackendContract(unittest.TestCase):
         self.assertEqual(response.status_code, 422, response.json)
         self.assertFalse(response.json["articulated"])
 
+    def test_pose_change_rejects_uniform_zoom(self):
+        before = [{"x": 0.3 + i * 0.01, "y": 0.4 + i * 0.005, "visibility": 1} for i in range(33)]
+        after = [{**p, "x": 0.5 + 1.4 * (p["x"] - 0.5),
+                  "y": 0.5 + 1.4 * (p["y"] - 0.5)} for p in before]
+        response = self.client.post("/validate/pose-change", json={
+            "before_landmarks": before, "after_landmarks": after})
+        self.assertEqual(response.status_code, 422, response.json)
+        self.assertFalse(response.json["articulated"])
+
     def test_pose_change_accepts_joint_motion(self):
         before = [{"x": 0.3 + i * 0.01, "y": 0.4 + i * 0.005, "visibility": 1} for i in range(33)]
         after = [dict(p) for p in before]
