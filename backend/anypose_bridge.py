@@ -120,7 +120,13 @@ def generate(req: Request, authorization: str | None = Header(default=None)):
             output = Path(output_path)
             if not output.is_file():
                 raise ValueError("No local output file")
-            with Image.open(output) as generated:
+            # Gradio may return a downloaded cache file; never open an
+            # arbitrary path outside the system temporary directory.
+            temp_root = Path(tempfile.gettempdir()).resolve()
+            resolved = output.resolve()
+            if not resolved.is_relative_to(temp_root):
+                raise ValueError("Output file outside temporary directory")
+            with Image.open(resolved) as generated:
                 data = io.BytesIO()
                 generated.convert("RGB").save(data, format="PNG")
     except Exception as exc:
