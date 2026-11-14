@@ -87,6 +87,10 @@ def redraw():
         model_id = os.environ.get("MOBILEI2V_IMAGE_MODEL", "").strip()
         if not model_id:
             return jsonify({"error": "Set MOBILEI2V_IMAGE_MODEL to a compatible diffusion image-to-image model"}), 503
+        target_poses = data.get("target_poses")
+        count = min(4, max(1, int(data.get("num_images", data.get("frames", 1)))))
+        if not isinstance(target_poses, list) or len(target_poses) != count or not all(isinstance(p, str) and p.strip() for p in target_poses):
+            return jsonify({"error": "Provide one nonempty target pose per generated image"}), 400
         from diffusers import AutoPipelineForImage2Image
         import torch
         if _draw_model is None:
@@ -103,9 +107,6 @@ def redraw():
         if not prompt:
             return jsonify({"error": "Missing prompt"}), 400
         count = min(4, max(1, int(data.get("num_images", data.get("frames", 1)))))
-        target_poses = data.get("target_poses")
-        if not isinstance(target_poses, list) or len(target_poses) != count or not all(isinstance(p, str) and p.strip() for p in target_poses):
-            return jsonify({"error": "Provide one nonempty target pose per generated image"}), 400
         outputs = []
         digests = []
         for target_pose in target_poses:
