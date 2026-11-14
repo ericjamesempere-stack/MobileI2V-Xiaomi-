@@ -67,6 +67,9 @@ func _initialize() -> void:
         moved_pose[idx]["x"] = 0.7
     var painted_pose: Dictionary = painter.render_articulated_layers(source, original_pose, moved_pose, 8.0)
     assert(painted_pose["ok"])
+    var opaque_artwork := Image.create(100, 100, false, Image.FORMAT_RGBA8)
+    opaque_artwork.fill(Color.WHITE)
+    assert(not painter.render_articulated_layers(opaque_artwork, original_pose, moved_pose)["ok"], "Opaque background must not be warped as limbs")
     assert(painted_pose["limbs"] == 4)
     assert(painted_pose["image"].get_size() == Vector2i(100, 100))
     assert(painted_pose["image"].get_pixel(0, 0).a < 0.01)
