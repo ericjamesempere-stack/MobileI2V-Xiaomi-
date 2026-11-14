@@ -6,6 +6,7 @@ on:
       - karma/storyboard-story-sequence-20261113
     paths:
       - "backend/anypose_bridge.py"
+      - "backend/test_anypose_bridge.py"
       - ".github/workflows/validate-anypose-bridge.yml"
   workflow_dispatch:
 
@@ -34,3 +35,5 @@ jobs:
           assert first_gallery_path([{"image": {"path": "/tmp/test.png"}}]) == "/tmp/test.png"
           print("ANYPOSE_BRIDGE_CONTRACT_OK (remote inference not tested)")
           PY
+      - name: Exercise authenticated bridge with mocked Gradio image output
+        run: python3 -m unittest backend.test_anypose_bridge -v
