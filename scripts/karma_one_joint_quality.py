@@ -13,6 +13,34 @@ def joint_angle(a, pivot, b):
     cosine=max(-1.0,min(1.0,(ax*bx+ay*by)/(la*lb)))
     return math.degrees(math.acos(cosine))
 
+def tracked_angles(joints):
+    result={}
+    for side in ("left","right"):
+        result[side+"_knee"]=joint_angle(joints["hip"],joints[side+"_knee"],joints[side+"_foot"])
+        result[side+"_elbow"]=joint_angle(joints["shoulder"],joints[side+"_elbow"],joints[side+"_hand"])
+    return result
+
+def angle_motion_report(samples, max_angle_step=65.0):
+    if max_angle_step<=0:
+        raise ValueError("max_angle_step must be positive")
+    angles=[tracked_angles(sample) for sample in samples]
+    warnings=[]
+    maximum=0.0
+    for frame in range(1,len(angles)):
+        for name in sorted(angles[frame]):
+            before,after=angles[frame-1][name],angles[frame][name]
+            if before is None or after is None:
+                continue
+            delta=abs(after-before)
+            maximum=max(maximum,delta)
+            if delta>max_angle_step:
+                warnings.append({"frame":frame,"joint":name,
+                                 "issue":"abrupt_joint_rotation","degrees":round(delta,1)})
+    return {"max_angle_change_deg":round(maximum,1),
+            "max_allowed_angle_change_deg":max_angle_step,
+            "angle_warning_count":len(warnings),
+            "angle_warnings":warnings[:100]}
+
 def anatomy_report(samples, floor=412, tolerance=12):
     """Diagnostic only: report suspect floor penetration and joint bending.
 
@@ -74,5 +102,6 @@ def inspect(samples, max_step=65.0):
             if step>max_step:
                 jumps.append({"frame":i,"joint":name,"pixels":round(step,2)})
     anatomy=anatomy_report(samples)
-    return {"checked_frames":len(samples),**anatomy,"max_joint_step_px":round(maximum,2),
+    angles=angle_motion_report(samples)
+    return {"checked_frames":len(samples),**anatomy,**angles,"max_joint_step_px":round(maximum,2),
             "max_allowed_step_px":max_step,"jump_count":len(jumps),"jumps":jumps[:100]}
