@@ -17,6 +17,17 @@ class StoryTests(unittest.TestCase):
         m=load("karma_one_story_sequence")
         self.assertEqual([s["action"] for s in m.plan("marche puis court puis danse")],
                          ["walk","run","dance"])
+    def test_stumble_between_run_and_fall(self):
+        story=load("karma_one_story_sequence")
+        draw=load("karma_one_pose_drawings")
+        self.assertEqual([x["action"] for x in story.plan("court puis trébuche puis tombe puis se relève")],
+                         ["run","stumble","fall","stand"])
+        standing=draw.draw_pose(0,24,action="stand",phase_index=0)
+        stumbling=draw.draw_pose(0,24,action="stumble",phase_index=0)
+        fallen=draw.draw_pose(0,24,action="fall",phase_index=0)
+        self.assertNotEqual(standing.tobytes(),stumbling.tobytes())
+        self.assertNotEqual(stumbling.tobytes(),fallen.tobytes())
+
     def test_getting_up_after_fall_in_both_languages(self):
         story=load("karma_one_story_sequence")
         self.assertEqual([x["action"] for x in story.plan("tombe puis se relève")],
