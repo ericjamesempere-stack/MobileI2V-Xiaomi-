@@ -6,6 +6,7 @@ on:
       - karma/storyboard-story-sequence-20261113
     paths:
       - "tools/probe_anypose_http.py"
+      - "tools/inspect_anypose_parameters.py"
       - ".github/workflows/probe-anypose.yml"
   workflow_dispatch:
 
@@ -16,4 +17,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Inspect public Gradio config without generating images
-        run: python3 tools/probe_anypose_http.py
+        run: |
+          python3 tools/probe_anypose_http.py
+          python3 tools/inspect_anypose_parameters.py
