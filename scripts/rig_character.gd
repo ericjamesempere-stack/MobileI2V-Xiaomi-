@@ -11,6 +11,9 @@ var action_transition: float = 1.0
 var previous_pose: Dictionary = {}
 var motion_time: float = 0.0
 var status_message: String = ""
+var facial_expression: String = "neutral"
+var blink_amount: float = 0.0
+var mouth_open: float = 0.0
 
 const INK: Color = Color("172536")
 const SKIN: Color = Color("c38b6c")
@@ -202,19 +205,42 @@ func _draw() -> void:
     _limb(chest + Vector2(0, -17), head + Vector2(0, 25), 24.0, SKIN)
     draw_circle(head + Vector2(0, 8), 51.0, INK)
     draw_circle(head, 49.0, SKIN)
-    if reference_head != null:
+    if reference_head != null and not photo_puppet:
         var tex_size: Vector2 = reference_head.get_size()
         var side: float = minf(tex_size.x, tex_size.y)
         var source := Rect2((tex_size - Vector2(side, side)) * 0.5, Vector2(side, side))
         draw_texture_rect_region(reference_head, Rect2(head - Vector2(42, 42), Vector2(84, 84)), source)
+    # Draw an expressive illustrated face; the source photo is a reference,
+    # not a circular photograph pasted over a generic head.
     for i in range(12):
         var angle: float = PI + float(i) * PI / 11.0
         draw_circle(head + Vector2(cos(angle), sin(angle)) * 43.0 + Vector2(0, -8), 14.0, INK)
-    draw_arc(head + Vector2(0, 15), 30.0, 0.1, PI - 0.1, 18, INK, 12.0, true)
-    draw_circle(head + Vector2(-16, -3), 3.5, INK)
-    draw_circle(head + Vector2(16, -3), 3.5, INK)
-    draw_arc(head + Vector2(0, 15), 14.0, 0.15, PI - 0.15, 12, INK, 2.8, true)
+    var eye_height: float = lerpf(7.0, 1.0, blink_amount)
+    for eye_x in [-16.0, 16.0]:
+        var eye: Vector2 = head + Vector2(eye_x, -3)
+        if blink_amount > 0.75:
+            draw_line(eye + Vector2(-8, 0), eye + Vector2(8, 0), INK, 3.0, true)
+        else:
+            draw_ellipse_approx(eye, Vector2(5.0, eye_height), INK)
+    if facial_expression == "surprised" or mouth_open > 0.55:
+        draw_ellipse_approx(head + Vector2(0, 22), Vector2(11, 14), INK)
+    elif facial_expression == "sad":
+        draw_arc(head + Vector2(0, 42), 18.0, PI + 0.3, TAU - 0.3, 16, INK, 3.0, true)
+    else:
+        draw_arc(head + Vector2(0, 15), 18.0, 0.2, PI - 0.2, 16, INK, 3.0, true)
     draw_circle(head + Vector2(52, 3), 7.0, Color("e8c77a"))
+
+func draw_ellipse_approx(center: Vector2, radii: Vector2, color: Color) -> void:
+    draw_set_transform(center, 0.0, radii)
+    draw_circle(Vector2.ZERO, 1.0, color)
+    draw_set_transform(Vector2.ZERO, 0.0)
+
+func update_expression(seconds: float, expression: String = "neutral") -> void:
+    facial_expression = expression
+    var blink_cycle: float = fposmod(seconds, 3.2)
+    blink_amount = 1.0 - clampf(absf(blink_cycle - 0.12) / 0.12, 0.0, 1.0)
+    mouth_open = 0.5 + 0.5 * sin(seconds * 8.0) if expression == "talking" else 0.0
+    queue_redraw()
 
 func update_pose(seconds: float, action: String = "danse") -> void:
     if motion_name != action:
