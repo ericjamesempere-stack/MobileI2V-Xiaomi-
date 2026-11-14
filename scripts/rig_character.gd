@@ -10,6 +10,8 @@ var motion_speed: float = 0.85
 var action_transition: float = 1.0
 var previous_pose: Dictionary = {}
 var motion_time: float = 0.0
+var transition_elapsed: float = 1.0
+var last_pose_seconds: float = 0.0
 var status_message: String = ""
 var facial_expression: String = "neutral"
 var blink_amount: float = 0.0
@@ -241,8 +243,12 @@ func update_pose(seconds: float, action: String = "danse") -> void:
     if motion_name != action:
         previous_pose = _compute_pose(phase)
         action_transition = 0.0
-        motion_time = seconds
+        transition_elapsed = 0.0
+        last_pose_seconds = seconds
+    else:
+        transition_elapsed += maxf(0.0, seconds - last_pose_seconds)
+        last_pose_seconds = seconds
     motion_name = action
     phase = seconds if action == "chute" or action == "saut" else seconds * motion_speed
-    action_transition = clampf((seconds - motion_time) * 3.0, 0.0, 1.0)
+    action_transition = clampf(transition_elapsed * 3.0, 0.0, 1.0)
     queue_redraw()
