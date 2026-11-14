@@ -1,0 +1,26 @@
+name: Verify MobileI2V image generator
+
+on:
+  push:
+    paths:
+      - 'scripts/**'
+      - 'tests/**'
+      - 'project.godot'
+      - '.github/workflows/verify-image-generator.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.3
+        run: |
+          curl -fL --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.3-stable_linux.x86_64
+      - name: Import project and validate scripts
+        run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --import --quit
+      - name: Run motion smoke tests
+        run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_motion.gd
