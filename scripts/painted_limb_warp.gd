@@ -196,3 +196,25 @@ func translate_body_landmarks(source_landmarks: Array, dx: float, dy: float, hea
         point["y"] = clampf(float(point["y"]) + dy, 0.0, 1.0)
         shifted.append(point)
     return {"ok": true, "landmarks": shifted, "type": "body_translation_with_head_sway"}
+
+# Stabilize a planted foot in image coordinates by translating the entire pose.
+# Caller chooses the support side; the other foot remains free to swing.
+# Useful for reducing sliding during walk/run contact phases.
+func lock_support_foot(pose: Array, anchor: Vector2, side: String = "left") -> Dictionary:
+    var rig: RefCounted = load("res://scripts/continuous_rig.gd").new()
+    if not bool(rig.validate_landmarks(pose).get("ok", false)):
+        return {"ok": false, "error": "Invalid pose"}
+    if side != "left" and side != "right":
+        return {"ok": false, "error": "Unknown support foot"}
+    var foot_index: int = 31 if side == "left" else 32
+    var foot: Dictionary = pose[foot_index]
+    var dx: float = anchor.x - float(foot["x"])
+    var dy: float = anchor.y - float(foot["y"])
+    var corrected: Array = []
+    for point in pose:
+        var p: Dictionary = point.duplicate()
+        p["x"] = float(p["x"]) + dx
+        p["y"] = float(p["y"]) + dy
+        corrected.append(p)
+    return {"ok": true, "landmarks": corrected, "support_foot": side,
+        "translation": Vector2(dx, dy), "type": "root_translation_foot_lock"}
