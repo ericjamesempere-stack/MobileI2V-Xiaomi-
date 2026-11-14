@@ -84,3 +84,7 @@ async def redraw_endpoint(
     buffer = io.BytesIO()
     output.save(buffer, format="PNG")
     return Response(buffer.getvalue(), media_type="image/png", headers={"X-Redraw-Engine": "diffusers-img2img"})
+
+# Imported last to avoid circular imports: sequence uses redraw and validation above.
+from .sequence import router as sequence_router
+app.include_router(sequence_router)
