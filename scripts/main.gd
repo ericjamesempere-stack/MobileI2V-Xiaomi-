@@ -787,8 +787,8 @@ func _build_generator_controls() -> void:
     generator_prompt.position = Vector2(12, 755)
     generator_prompt.size = Vector2(470, 46)
     add_child(generator_prompt)
-    var generate_button: Button = _button("Generer images", Vector2(492, 755), Vector2(214, 46))
-    generate_button.pressed.connect(_generate_frames)
+    var generate_button: Button = _button("Creer animation 2D", Vector2(492, 755), Vector2(214, 46))
+    generate_button.pressed.connect(_create_and_preview_demo)
     generator_status = _label(Vector2(12, 804), 16, Color("d0e5f4"))
     generator_status.text = "Mode 2D provisoire : pas encore de generation universelle"
     storyboard_style = OptionButton.new()
@@ -984,3 +984,20 @@ func _render_procedural_demo() -> void:
         generator_status.text = "Sequence impossible : " + str(exported.get("error", "inconnue"))
         return
     generator_status.text = "Demo 2D : %d dessins crees. Appuie sur Lire animation." % int(rendered["frames"])
+
+# Single-action demo pipeline: story -> poses -> PNG frames -> playback.
+# This remains a limited offline vector demo, not universal AI generation.
+func _create_and_preview_demo() -> void:
+    if generator_prompt.text.strip_edges().is_empty():
+        generator_status.text = "Ecris une histoire"
+        return
+    if float(storyboard_duration.value) > 15.0:
+        generator_status.text = "Demo locale limitee a 15 s; reduis la duree"
+        return
+    var previous := latest_storyboard_directory
+    _create_storyboard()
+    if latest_storyboard_directory.is_empty() or latest_storyboard_directory == previous:
+        return
+    _render_procedural_demo()
+    if FileAccess.file_exists(latest_storyboard_directory + "/sequence/manifest.json"):
+        _preview_storyboard_animation()
