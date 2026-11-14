@@ -43,6 +43,13 @@ def plan(story):
         raise ValueError("Empty story")
     return result
 
+def transition_blend(frame_offset, transition_frames, first_action=False):
+    if first_action:
+        return 1.0
+    if transition_frames < 2:
+        raise ValueError("Transition must span at least two frames")
+    return max(0.0, min(1.0, frame_offset / (transition_frames - 1)))
+
 def produce(story, output, seconds, fps=24, appearance=None, face_photo=None, face_box=None, color_regions=None, proportions=None, body_landmarks=None, detect_body=False):
     if seconds < 1 or seconds > 300 or fps not in (24,30):
         raise ValueError("Duration 1..300 seconds, fps 24 or 30")
@@ -91,7 +98,7 @@ def produce(story, output, seconds, fps=24, appearance=None, face_photo=None, fa
             previous_action = steps[i-1]["action"] if i else None
             # First frame of a new action reproduces the preceding pose exactly.
             # Subsequent frames interpolate to the target with smoothstep in renderer.
-            blend = min(1.0, (frame-start)/(transition_frames-1)) if i else 1.0
+            blend = transition_blend(frame-start, transition_frames, first_action=(i == 0))
             image = drawing.draw_pose(frame-start, end-start, appearance=appearance,
                                       action=step["action"], previous_action=previous_action,
                                       blend=blend, phase_index=frame, face_image=face_image,
