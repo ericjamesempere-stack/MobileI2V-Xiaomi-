@@ -87,6 +87,7 @@ func _ready() -> void:
     contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     root_box.add_child(contact_sheet)
     _button("IMPORTER 18 DESSINS DEJA CREES (V5)", _choose_pose_sheet)
+    _button("PREPARER LES POSES POUR IA (SANS RESEAU)", _prepare_pose_guides)
     _button("GENERER DE NOUVEAUX DESSINS (MOTEUR HTTPS)", _generate_image_sequence)
     _button("EXPORTER LE FILM MP4 (APRES VERIFICATION)", _export_board_mp4)
     var advanced_box := VBoxContainer.new()
@@ -878,6 +879,60 @@ func _automatic_local_movie() -> void:
     else:
         status.text = "Encodeur MP4 absent : export AVI local de secours."
         await _export_video(export_dir.path_join("animation_auto.avi"))
+
+# Build explicit pose-guide images locally, distinct from final AI-rendered art.
+# These are never represented as generated images of the imported character.
+func _prepare_pose_guides() -> void:
+    var story: String = action_input.text.strip_edges()
+    if story.is_empty():
+        status.text = "Ecris une histoire avant de preparer les poses."
+        return
+    var planner: RefCounted = load("res://scripts/story_motion_planner.gd").new()
+    var motion: Dictionary = planner.plan(story, float(duration_input.value))
+    if not bool(motion.get("ok", false)):
+        status.text = "Histoire non comprise : impossible de creer les poses."
+        return
+    var generator: RefCounted = load("res://scripts/procedural_cartoon_generator.gd").new()
+    var folder: String = "user://pose_guides/sequence_%d" % Time.get_ticks_usec()
+    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
+        status.text = "Impossible de creer le dossier des poses."
+        return
+    var count: int = clampi(ceili(float(duration_input.value) * 2.0), 6, 48)
+    var new_sources: Array[Texture2D] = []
+    var new_paths: Array[String] = []
+    for i in range(count):
+        var seconds: float = float(i) / float(count) * float(duration_input.value)
+        var action: String = planner.action_at(motion, seconds)
+        if action == "inconnu":
+            status.text = "Action inconnue : modifie l'histoire pour produire des poses precises."
+            return
+        var phase: float = seconds * (1.8 if action == "course" else 1.0)
+        var guide: Image = generator.render(story, phase, Vector2i(360, 480), action)
+        if guide == null or guide.is_empty():
+            status.text = "Pose %d non creee." % (i + 1)
+            return
+        var path: String = folder.path_join("pose_%03d.png" % i)
+        if guide.save_png(path) != OK:
+            status.text = "Echec sauvegarde de la pose %d." % (i + 1)
+            return
+        new_sources.append(ImageTexture.create_from_image(guide))
+        new_paths.append(path)
+        if i % 4 == 0:
+            status.text = "Preparation des poses : %d/%d" % [i + 1, count]
+            await get_tree().process_frame
+    sources = new_sources
+    paths = new_paths
+    plan.clear()
+    accepted.clear()
+    for i in range(sources.size()):
+        plan.append(i)
+        accepted.append(true)
+    v5_sheet_loaded = true
+    frame_index = 0
+    _refresh()
+    _build_contact_sheet()
+    _save()
+    status.text = "%d guides de pose sauvegardes. Ce sont des dessins cartoon de reference, PAS le personnage redessine par IA." % count
 
 func _generate_text_cartoon() -> void:
     var story: String = action_input.text.strip_edges()
