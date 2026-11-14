@@ -9,9 +9,9 @@ static func render(source_path: String, output_path: String, style: String) -> D
     var image := Image.new()
     if image.load(source_path) != OK or image.is_empty():
         return {"ok": false, "error": "invalid_source"}
-    var width := mini(image.get_width(), 512)
-    var height := maxi(1, roundi(float(image.get_height()) * float(width) / float(image.get_width())))
-    height = mini(height, 768)
+    var scale := minf(1.0, minf(512.0 / float(image.get_width()), 768.0 / float(image.get_height())))
+    var width := maxi(1, roundi(float(image.get_width()) * scale))
+    var height := maxi(1, roundi(float(image.get_height()) * scale))
     image.resize(width, height, Image.INTERPOLATE_LANCZOS)
     image.convert(Image.FORMAT_RGBA8)
     var original := image.duplicate()
