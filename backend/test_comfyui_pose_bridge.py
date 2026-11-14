@@ -21,6 +21,33 @@ class ComfyBridgeTests(unittest.TestCase):
                 config()
         self.assertEqual(error.exception.status_code, 503)
 
+    def test_missing_prompt_node_is_rejected_before_photo_upload(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch as mock_patch
+        workflow = {
+            "1": {"class_type": "LoadImage", "inputs": {"image": "reference.png"}},
+            "2": {"class_type": "LoadImage", "inputs": {"image": "pose.png"}},
+            "3": {"class_type": "SaveImage", "inputs": {"images": ["5", 0]}},
+            "4": {"class_type": "ControlNetApplyAdvanced", "inputs": {"image": ["2", 0], "conditioning": ["1", 0]}},
+            "5": {"class_type": "ImageBlend", "inputs": {"image1": ["1", 0], "image2": ["4", 0]}},
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            filename = Path(folder) / "workflow.json"
+            filename.write_text(json.dumps(workflow))
+            env = {"MOBILEI2V_API_TOKEN": "secret", "COMFYUI_URL": "http://127.0.0.1:8188",
+                   "COMFYUI_WORKFLOW": str(filename), "COMFYUI_REFERENCE_NODE": "1",
+                   "COMFYUI_POSE_NODE": "2", "COMFYUI_OUTPUT_NODE": "3"}
+            req = Request(image_base64=png_b64("blue"), pose_image_base64=png_b64("red"),
+                          prompt="running", frame_index=0, total_frames=2)
+            with mock_patch.dict(os.environ, env, clear=True):
+                with mock_patch("backend.comfyui_pose_bridge.upload") as upload:
+                    with self.assertRaises(HTTPException) as error:
+                        generate(req, authorization="Bearer secret")
+                    upload.assert_not_called()
+            self.assertEqual(error.exception.status_code, 503)
+
     def test_bad_prompt_node_is_rejected_before_photo_upload(self):
         import json
         import tempfile
