@@ -34,10 +34,14 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
   var http := HTTPRequest.new()
   http.timeout = 120.0
   add_child(http)
+  # Select the description from the same timed step as the pose.
+  # Equal-sized indexing breaks when actions have different durations.
   var active_prompt: String = prompt
-  if not motion_steps.is_empty():
-   var step_index: int = mini(motion_steps.size() - 1, int(float(index) / float(count) * float(motion_steps.size())))
-   active_prompt = str(motion_steps[step_index].get("description", prompt))
+  var seconds: float = float(index) / float(maxi(1, count - 1)) * float(count)
+  for step in motion_steps:
+   if seconds < float(step.get("end", 0.0)) or step == motion_steps.back():
+    active_prompt = str(step.get("description", prompt))
+    break
   # A pose-conditioned model needs an actual pose image, not just a
   # text instruction. Keep the identity reference unchanged across frames.
   var action: String = "danse"
@@ -46,7 +50,6 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
   # Normalize movement progress INSIDE each story action. Absolute frame
   # indices caused falls to snap instantly and later steps to inherit
   # unrelated phases.
-  var seconds: float = float(index) / float(maxi(1, count - 1)) * float(count)
   var local_phase: float = 0.0
   var steps: Array = motion_plan.get("steps", [])
   for step in steps:
