@@ -51,16 +51,22 @@ def produce(story, output, seconds, fps=24, appearance=None):
     frames_dir = output.parent / (output.stem + "_drawings")
     frames_dir.mkdir(parents=True, exist_ok=True)
     boundaries = []
+    transition_frames = max(1, round(fps * 0.25))
     for i, step in enumerate(steps):
         start = (i * count) // len(steps)
         end = ((i+1) * count) // len(steps)
         boundaries.append({"action": step["action"], "start_frame": start, "end_frame_exclusive": end})
         for frame in range(start, end):
             # Keep one consistent appearance across all actions.
-            image = drawing.draw_pose(frame-start, end-start, appearance=appearance, action=step["action"])
+            previous_action = steps[i-1]["action"] if i else None
+            blend = min(1.0, (frame-start+1)/transition_frames)
+            image = drawing.draw_pose(frame-start, end-start, appearance=appearance,
+                                      action=step["action"], previous_action=previous_action,
+                                      blend=blend, phase_index=frame)
             image.save(frames_dir / f"frame_{frame:06d}.png")
     report = assembler.assemble(frames_dir, output, fps, count)
     report["actions"] = boundaries
+    report["transition_frames"] = transition_frames
     report["photo_identity_preserved"] = False
     output.with_suffix(".story.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     return report
