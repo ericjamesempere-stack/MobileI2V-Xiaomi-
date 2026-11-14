@@ -33,7 +33,8 @@ def create_storyboard_archive(plan: StoryboardPlan,
     cell_height = thumb_height + 28
     manifest = {"schema_version": 2, "fps": plan.fps, "width": plan.width,
                 "height": plan.height, "total_frames": plan.total_frames,
-                "scenes": [s.__dict__ for s in plan.scenes], "frames": []}
+                "scenes": [s.__dict__ for s in plan.scenes], "frames": [],
+                "sheet_columns": sheet_columns, "sheet_rows": sheet_rows}
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED,
                          compresslevel=3, allowZip64=True) as archive:
