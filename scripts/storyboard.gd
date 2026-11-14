@@ -1045,22 +1045,27 @@ func _adaptive_pose_count(description: String, duration: float) -> int:
 
 func _build_contact_sheet() -> void:
     if sources.is_empty():
+        contact_sheet.texture = null
+        contact_caption.text = "Aucune image disponible."
         return
-    # Limit contact-sheet texture memory on mobile (48 poses => <= 576x1536).
+    # Preview a representative subset, not every full-resolution pose.
+    # Keeps the atlas below 384 x 1536 on Android even for long sequences.
     var thumb_w: int = 96
     var thumb_h: int = 128
     var cols: int = 4
-    var rows: int = int(ceil(float(sources.size()) / float(cols)))
+    var shown: int = mini(sources.size(), 48)
+    var rows: int = ceili(float(shown) / float(cols))
     var board := Image.create(thumb_w * cols, thumb_h * rows, false, Image.FORMAT_RGBA8)
     board.fill(Color("1a2530"))
-    for i in range(sources.size()):
-        var img: Image = sources[i].get_image()
+    for slot in range(shown):
+        var source_index: int = roundi(float(slot) * float(sources.size() - 1) / float(maxi(shown - 1, 1)))
+        var img: Image = sources[source_index].get_image()
         if img == null or img.is_empty():
             continue
         img.resize(thumb_w - 8, thumb_h - 8, Image.INTERPOLATE_BILINEAR)
-        board.blit_rect(img, Rect2i(0, 0, img.get_width(), img.get_height()), Vector2i((i % cols) * thumb_w + 4, int(i / cols) * thumb_h + 4))
+        board.blit_rect(img, Rect2i(0, 0, img.get_width(), img.get_height()), Vector2i((slot % cols) * thumb_w + 4, int(slot / cols) * thumb_h + 4))
     contact_sheet.texture = ImageTexture.create_from_image(board)
-    contact_caption.text = "PLANCHE : %d images (verifier avant validation)" % sources.size()
+    contact_caption.text = ("PLANCHE : apercu de %d / %d dessins (verifier avant validation)" % [shown, sources.size()] if shown < sources.size() else "PLANCHE : %d dessins (verifier avant validation)" % shown)
 
 func _generate_from_photo() -> void:
     if imported_path.is_empty():
