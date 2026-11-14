@@ -48,8 +48,12 @@ func render(description: String, phase: float = 0.0, size: Vector2i = Vector2i(3
     var fallen_shoulder := Vector2(cx + 92.0 * scale, floor_y - 38.0 * scale)
     hip = hip.lerp(fallen_hip, fall_progress)
     shoulder = shoulder.lerp(fallen_shoulder, fall_progress)
+    # The feet must participate in the fall instead of staying in the
+    # original standing position. This also makes the reverse rise coherent.
     var left_foot := Vector2(cx - (30 + 18 * swing) * scale, floor_y - maxf(0.0, swing) * 18 * scale)
     var right_foot := Vector2(cx + (30 - 18 * swing) * scale, floor_y - maxf(0.0, -swing) * 18 * scale)
+    left_foot = left_foot.lerp(Vector2(cx - 118.0 * scale, floor_y - 9.0 * scale), fall_progress)
+    right_foot = right_foot.lerp(Vector2(cx - 70.0 * scale, floor_y - 9.0 * scale), fall_progress)
     var left_knee := hip.lerp(left_foot, 0.52) + Vector2(-12 * scale, -12 * scale)
     var right_knee := hip.lerp(right_foot, 0.52) + Vector2(12 * scale, -12 * scale)
     _stroke(image, hip + Vector2(-13, 0) * scale, left_knee, 19 * scale, pants)
