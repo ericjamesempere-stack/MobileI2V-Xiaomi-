@@ -39,6 +39,24 @@ class ImageBackendStaticTests(unittest.TestCase):
         text = ROOT.read_text(encoding="utf-8")
         self.assertIn('MOBILEI2V_API_TOKEN', text)
         self.assertIn("HTTPException(401", text)
+        self.assertIn("hmac.compare_digest", text)
+
+    def test_bad_base64_returns_client_error(self):
+        from PIL import Image
+        class FakeHTTPException(Exception):
+            def __init__(self, status_code, detail):
+                self.status_code = status_code
+                self.detail = detail
+        module = ast.Module(body=[extract("decode_image")], type_ignores=[])
+        scope = {
+            "base64": base64, "io": io, "Image": Image,
+            "HTTPException": FakeHTTPException,
+            "MAX_BYTES": 12 * 1024 * 1024, "MAX_PIXELS": 1024 * 1024,
+        }
+        exec(compile(ast.fix_missing_locations(module), str(ROOT), "exec"), scope)
+        with self.assertRaises(FakeHTTPException) as caught:
+            scope["decode_image"]("%%%not-base64%%%")
+        self.assertEqual(caught.exception.status_code, 400)
 
     def test_timeline_reaches_final_action(self):
         module = ast.Module(body=[extract("action_stage")], type_ignores=[])
