@@ -794,11 +794,14 @@ func _generate_layered_demo() -> void:
         status.text = "Impossible de creer le projet de demonstration."
         return
     var renderer: RefCounted = load("res://scripts/articulated_preview.gd").new()
-    var count: int = clampi(ceili(float(duration_input.value) * 12.0), 24, 240)
+    # Keep a bounded number of key poses in RAM. The MP4 exporter
+    # interpolates them to 30 fps; storing 240 full-size textures on
+    # a mobile phone wastes memory without increasing output frame rate.
+    var count: int = clampi(ceili(float(duration_input.value) * 6.0), 12, 72)
     var new_sources: Array[Texture2D] = []
     var new_paths: Array[String] = []
     for i in range(count):
-        var seconds: float = float(i) / 12.0
+        var seconds: float = float(i) / float(count) * float(duration_input.value)
         var drawing: Image = renderer.draw_frame(360, 480, seconds)
         var path: String = folder.path_join("drawing_%03d.png" % i)
         if drawing.save_png(path) != OK:
