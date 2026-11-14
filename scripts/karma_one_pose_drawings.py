@@ -23,7 +23,7 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     skin_color = appearance.get("skin", "#b98766")
     hair_color = appearance.get("hair", "#332725")
     phase = 2 * math.pi * ((index if phase_index is None else phase_index) / 12.0)
-    speeds = {"walk": 0.8, "run": 1.8, "dance": 1.2, "stand": 0.0, "crouch": 0.0, "fall": 0.0, "stumble": 0.5}
+    speeds = {"walk": 0.8, "run": 1.8, "dance": 1.2, "stand": 0.0, "crouch": 0.0, "fall": 0.0, "stumble": 0.5, "wave": 0.0, "jump": 0.0}
     if action not in speeds:
         raise ValueError(f"Unsupported action: {action}")
     target_speed = speeds[action]
@@ -60,7 +60,12 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     fall_amount = old_fall*(1-smooth) + new_fall*smooth if previous_action else new_fall
     # Opposing pelvis sway helps transfer weight toward the support foot.
     sway = int(7 * locomotion * math.sin(phase))
-    hip = (cx + sway + int(24*fall_amount), floor - int(hip_height*leg_ratio) - bob + int(48*fall_amount))
+    # A jump raises the whole articulated body; both feet leave the floor.
+    old_jump = 1.0 if previous_action == "jump" else 0.0
+    new_jump = 1.0 if action == "jump" else 0.0
+    jump_amount = old_jump*(1-smooth) + new_jump*smooth if previous_action else new_jump
+    jump_lift = int(48*jump_amount*max(0.0, math.sin(math.pi*((index % max(2,count-1))/max(2,count-1)))))
+    hip = (cx + sway + int(24*fall_amount), floor - int(hip_height*leg_ratio) - bob + int(48*fall_amount) - jump_lift)
     shoulder = (cx + int(70*fall_amount), hip[1] - int(torso_height*torso_ratio*(1-fall_amount)) - int(18*fall_amount))
     head = (shoulder[0] + int(32*fall_amount), shoulder[1] - int(62*head_ratio*(1-fall_amount)) - int(10*fall_amount))
     pen.line((30, floor, width-30, floor), fill="#799ba0", width=3)
@@ -71,19 +76,31 @@ def draw_pose(index: int, count: int, width: int = 360, height: int = 480, appea
     gait = max(0.0, min(1.0, speed / 1.8))
     left_lift = max(0.0, math.sin(phase)) * 16 * gait
     right_lift = max(0.0, -math.sin(phase)) * 16 * gait
-    left_foot = (int(cx-foot_spread-27*step+10*fall_amount), floor-int(left_lift))
-    right_foot = (int(cx+foot_spread+27*step+10*fall_amount), floor-int(right_lift))
+    left_foot = (int(cx-foot_spread-27*step+10*fall_amount), floor-int(left_lift)-jump_lift)
+    right_foot = (int(cx+foot_spread+27*step+10*fall_amount), floor-int(right_lift)-jump_lift)
     left_knee = (int((hip[0]+left_foot[0])/2-15-9*left_lift/16), min(floor,int((hip[1]+left_foot[1])/2-8*left_lift/16)))
     right_knee = (int((hip[0]+right_foot[0])/2+15+9*right_lift/16), min(floor,int((hip[1]+right_foot[1])/2-8*right_lift/16)))
     for knee, foot in [(left_knee,left_foot),(right_knee,right_foot)]:
         pen.line((hip,knee,foot), fill=pants_color, width=19, joint="curve")
         pen.ellipse((foot[0]-14,foot[1]-6,foot[0]+14,foot[1]+6),fill=pants_color)
     pen.line((hip,shoulder),fill=shirt_color,width=46)
+    old_wave = 1.0 if previous_action == "wave" else 0.0
+    new_wave = 1.0 if action == "wave" else 0.0
+    wave_amount = old_wave*(1-smooth) + new_wave*smooth if previous_action else new_wave
     arm_joints = {}
     for direction in [-1,1]:
         hand=(int(cx+direction*(60*arm_ratio+20*step)+70*fall_amount),int(shoulder[1]+85*arm_ratio-direction*18*step+20*fall_amount))
         elbow=(int(cx+direction*42*arm_ratio+70*fall_amount),min(floor-6,int(shoulder[1]+40*arm_ratio+10*fall_amount)))
         hand=(hand[0],min(floor-9,hand[1]))
+        if direction == 1 and wave_amount:
+            # Raise the right arm and oscillate the hand above the shoulder.
+            raised_elbow=(shoulder[0]+int(47*arm_ratio),shoulder[1]-int(18*arm_ratio))
+            raised_hand=(shoulder[0]+int((65+16*math.sin(phase))*arm_ratio),
+                         shoulder[1]-int(85*arm_ratio))
+            elbow=(int(elbow[0]*(1-wave_amount)+raised_elbow[0]*wave_amount),
+                   int(elbow[1]*(1-wave_amount)+raised_elbow[1]*wave_amount))
+            hand=(int(hand[0]*(1-wave_amount)+raised_hand[0]*wave_amount),
+                  int(hand[1]*(1-wave_amount)+raised_hand[1]*wave_amount))
         side = "left" if direction == -1 else "right"
         arm_joints[side+"_elbow"] = elbow
         arm_joints[side+"_hand"] = hand
@@ -129,7 +146,7 @@ if __name__ == "__main__":
     p.add_argument("--seconds",type=int,default=3)
     p.add_argument("--fps",type=int,default=24)
     p.add_argument("--appearance", type=Path, help="Optional JSON character palette; manual, not photo extraction")
-    p.add_argument("--action", choices=["walk", "run", "dance", "stand", "crouch", "fall", "stumble"], default="walk")
+    p.add_argument("--action", choices=["walk", "run", "dance", "stand", "crouch", "fall", "stumble", "wave", "jump"], default="walk")
     args=p.parse_args()
     appearance=json.loads(args.appearance.read_text(encoding="utf-8")) if args.appearance else None
     print(f"Generated {render(args.folder,args.seconds,args.fps,appearance,args.action)} distinct pose drawings")
