@@ -13,6 +13,13 @@ def load(name):
     return mod
 
 class StoryTests(unittest.TestCase):
+    def test_transition_reaches_target_even_for_two_frame_action(self):
+        story=load("karma_one_story_sequence")
+        self.assertEqual(story.transition_blend(0,2),0.0)
+        self.assertEqual(story.transition_blend(1,2),1.0)
+        with self.assertRaisesRegex(ValueError,"at least two"):
+            story.transition_blend(0,1)
+
     def test_transition_starts_at_old_pose_and_finishes_at_new_pose(self):
         story=load("karma_one_story_sequence")
         self.assertEqual(story.transition_blend(0,6),0.0)
