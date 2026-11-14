@@ -155,7 +155,9 @@ func _initialize() -> void:
         elif frame_id == 30:
             for check_y in range(100):
                 for check_x in range(100):
-                    if canvas.get_pixel(check_x, check_y).distance_to(first_preview.get_pixel(check_x, check_y)) > 0.1:
+                    var current_pixel: Color = canvas.get_pixel(check_x, check_y)
+                    var initial_pixel: Color = first_preview.get_pixel(check_x, check_y)
+                    if absf(current_pixel.r - initial_pixel.r) + absf(current_pixel.g - initial_pixel.g) + absf(current_pixel.b - initial_pixel.b) > 0.1:
                         visibly_changed = true
                         break
                 if visibly_changed:
