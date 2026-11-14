@@ -70,15 +70,15 @@ jobs:
           import json,sys,pathlib
           p=pathlib.Path(sys.argv[1])
           m=json.loads(p.read_text())
-          assert m["frame_count"] == 19
+          assert m["frame_count"] == 66
           assert m["fps"] == 30
           assert len(m["boundaries"]) == 2
-          assert len(list(p.parent.glob("frame_*.png"))) == 19
+          assert len(list(p.parent.glob("frame_*.png"))) == 66
           PY
           ffmpeg -hide_banner -loglevel error -y -framerate 30 -start_number 0 -i "$FRAMES_DIR/frame_%05d.png" -c:v libx264 -pix_fmt yuv420p -movflags +faststart multi_action_character.mp4
           test -s multi_action_character.mp4
           N="$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 multi_action_character.mp4)"
-          test "$N" = "19"
+          test "$N" = "66"
       - name: Upload multi-action character MP4
         uses: actions/upload-artifact@v4
         with:
