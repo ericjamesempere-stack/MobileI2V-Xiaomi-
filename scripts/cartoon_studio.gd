@@ -110,21 +110,14 @@ func _image_selected(path: String) -> void:
     # than an ordinary filesystem path. Do not claim a successful import
     # until a readable PNG has been persisted and loaded back.
     status.text = "Import de l'image en cours..."
-    var img := Image.new()
-    var load_error := img.load(path)
-    if load_error != OK or img.is_empty():
-        var data := FileAccess.get_file_as_bytes(path)
-        if not data.is_empty():
-            load_error = img.load_png_from_buffer(data)
-            if load_error != OK:
-                load_error = img.load_jpg_from_buffer(data)
-            if load_error != OK:
-                load_error = img.load_webp_from_buffer(data)
-    if load_error != OK or img.is_empty():
+    # Reuse the existing Android-aware image reader rather than duplicating
+    # the import implementation in this screen.
+    var img: Image = load("res://scripts/android_image_reader.gd").read_image(path)
+    if img == null or img.is_empty():
         if path.begins_with("content://"):
-            status.text = "Android a retourne une URI content:// inaccessible au lecteur Godot. Import non effectue : un pont Android ContentResolver est necessaire."
+            status.text = "Acces Android refuse pour content://. Le lecteur existant ne peut pas ouvrir ce document; un pont ContentResolver est requis."
         else:
-            status.text = "Image illisible ou inaccessible. Essaie une photo JPG ou PNG dans Telechargements."
+            status.text = "Impossible de lire cette image. Essaie un fichier JPG ou PNG."
         return
     var saved_path := project_dir + "/reference.png"
     var save_error := img.save_png(saved_path)
