@@ -13,11 +13,22 @@ func generate(story: String, visual_style: String, count: int = 2) -> Dictionary
   return {"ok": false, "error": "Mode gratuit limite a quatre images par essai"}
  cancel_requested = false
  var frames: Array[Image] = []
+ var planner: RefCounted = load("res://scripts/story_motion_planner.gd").new()
+ var story_plan: Dictionary = planner.plan(story, float(count))
+ if not bool(story_plan.get("ok", false)):
+  return {"ok": false, "error": str(story_plan.get("error", "Histoire invalide"))}
+ var story_steps: Array = story_plan.get("steps", [])
  for i in range(count):
   if cancel_requested:
    return {"ok": false, "error": "Annule", "generated": frames.size()}
   # The provider only accepts text, not pose_image_base64 or image references.
-  var scene_prompt := "%s. %s style, consistent character costume, full body, animation storyboard keyframe %d of %d" % [story, visual_style, i + 1, count]
+  var seconds: float = (float(i) + 0.5) * float(story_plan.get("duration", float(count))) / float(count)
+  var scene_description: String = story
+  for story_step in story_steps:
+   if seconds < float(story_step.get("end", 0.0)) or story_step == story_steps.back():
+    scene_description = str(story_step.get("description", story))
+    break
+  var scene_prompt := "Original animated film storyboard. Character performs: %s. Overall story: %s. %s style, consistent character costume, full body, animation storyboard keyframe %d of %d" % [scene_description, story, visual_style, i + 1, count]
   var url := HOST + scene_prompt.uri_encode() + "?width=512&height=768&seed=" + str(4242 + i)
   var http := HTTPRequest.new()
   http.timeout = 120.0
