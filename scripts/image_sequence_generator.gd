@@ -110,13 +110,18 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
    var http_code: int = int(response[1])
    var retryable: bool = http_code == 429 or http_code == 503 or http_code == 502 or http_code == 504
    return {"ok": false, "error": "Moteur indisponible (HTTP %s). %s" % [http_code, "Reessayer ou choisir un autre moteur HTTPS." if retryable else "Verifier la configuration du moteur."], "generated": frames.size(), "retryable": retryable, "http_status": http_code}
-  var data: Variant = JSON.parse_string((response[3] as PackedByteArray).get_string_from_utf8())
+  var response_bytes: PackedByteArray = response[3] as PackedByteArray
+  if response_bytes.size() > 12000000:
+   return {"ok": false, "error": "Reponse du moteur trop volumineuse", "generated": frames.size()}
+  var data: Variant = JSON.parse_string(response_bytes.get_string_from_utf8())
   if not data is Dictionary or not data.has("image_base64"):
    return {"ok": false, "error": "Reponse invalide : image_base64 manquant", "generated": frames.size()}
   var encoded_image: String = str(data["image_base64"])
   if encoded_image.length() > 8000000:
    return {"ok": false, "error": "Reponse image trop volumineuse", "generated": frames.size()}
   var raw: PackedByteArray = Marshalls.base64_to_raw(encoded_image)
+  if raw.size() > 6000000:
+   return {"ok": false, "error": "Image decodee trop volumineuse", "generated": frames.size()}
   var img := Image.new()
   if img.load_png_from_buffer(raw) != OK or img.is_empty():
    return {"ok": false, "error": "PNG invalide", "generated": frames.size()}
