@@ -19,8 +19,8 @@ class FrameInput(BaseModel):
     previous_image_base64: str = Field(default="", max_length=17_000_000)
     prompt: str = Field(min_length=1, max_length=2000)
     pose_action: str = Field(default="repos", max_length=100)
-    frame_index: int = Field(ge=0, le=119)
-    total_frames: int = Field(ge=2, le=120)
+    frame_index: int = Field(ge=0, le=239)
+    total_frames: int = Field(ge=2, le=240)
     reference_strength: float = Field(default=0.85, ge=0, le=1)
     loop: bool = False
 
