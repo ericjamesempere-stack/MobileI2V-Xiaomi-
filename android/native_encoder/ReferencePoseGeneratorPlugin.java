@@ -70,7 +70,7 @@ public final class ReferencePoseGeneratorPlugin extends GodotPlugin {
         try {
             JSONObject request = new JSONObject(json);
             String path = request.getString("model_path");
-            if (session == null || !loadedPath.equals(path) && !load_model(path))
+            if ((session == null || !loadedPath.equals(path)) && !load_model(path))
                 throw new IllegalStateException("model_load_failed");
             String reference = request.optString("reference_styled",
                 request.optString("reference_original", ""));
