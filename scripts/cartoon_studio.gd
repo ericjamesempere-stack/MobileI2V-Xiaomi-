@@ -25,6 +25,7 @@ var playing := false
 var playback_clock := 0.0
 var sheet_path := ""
 var native_picker_pending := false
+var native_picker_wait_seconds := 0.0
 
 func _ready() -> void:
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(project_dir))
@@ -137,8 +138,10 @@ func _choose_image() -> void:
         var native: Object = Engine.get_singleton("MP4Exporter")
         if native.has_method("pick_image") and bool(native.call("pick_image")):
             native_picker_pending = true
+            native_picker_wait_seconds = 0.0
             status.text = "Selectionne une photo dans la galerie Android..."
             return
+    status.text = "Selecteur Android natif indisponible : ouverture du selecteur Godot (diagnostic)."
     picker.popup_centered_ratio(0.95)
 
 func _image_selected(path: String) -> void:
@@ -348,6 +351,11 @@ func _play_sequence() -> void:
 
 func _process(delta: float) -> void:
     if native_picker_pending and Engine.has_singleton("MP4Exporter"):
+        native_picker_wait_seconds += delta
+        if native_picker_wait_seconds > 15.0:
+            native_picker_pending = false
+            status.text = "Import bloque : aucune reponse du selecteur Android. Le retour de photo ne parvient pas au moteur. "
+            return
         var native: Object = Engine.get_singleton("MP4Exporter")
         var path: String = str(native.call("take_selected_image_path"))
         if not path.is_empty():
