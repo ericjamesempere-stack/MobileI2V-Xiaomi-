@@ -44,7 +44,7 @@ func generate(prompt: String, duration: float = 5.0, face: Texture2D = null) -> 
     background.color = Color("101923")
     background.size = Vector2(SIZE)
     viewport.add_child(background)
-    var rig := load("res://scripts/rig_character.gd").new()
+    var rig: Control = load("res://scripts/rig_character.gd").new()
     rig.position = Vector2(0, 170)
     rig.size = Vector2(720, 900)
     viewport.add_child(rig)
