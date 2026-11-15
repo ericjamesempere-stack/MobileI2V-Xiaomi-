@@ -255,11 +255,9 @@ func _advance() -> void:
     if prompt.text.strip_edges().is_empty():
         status.text = "Decris les gestes du personnage."
         return
-    if not endpoint.text.begins_with("https://"):
-        status.text = "Aucun moteur de redessin connecte. Impossible de creer de vrais dessins IA hors ligne."
-        return
-    if not upload_consent.button_pressed:
-        status.text = "Confirme l’envoi de l’image au serveur externe avant la generation."
+    var online_mode: bool = endpoint.text.begins_with("https://")
+    if online_mode and not upload_consent.button_pressed:
+        status.text = "Autorise l'envoi de la photo au moteur HTTPS ou vide son adresse pour le mode local."
         return
     _save()
     busy = true
@@ -269,7 +267,11 @@ func _advance() -> void:
     var count := mini(240, maxi(2, roundi(duration.value * 12.0)))
     status.text = "Creation de %d dessins distincts pour %.0f secondes..." % [count, duration.value]
     var styled_story: String = "%s, style %s" % [prompt.text, style.get_item_text(style.selected)]
-    var result: Dictionary = await generator.call("generate", source, styled_story, endpoint.text, count, false, "", duration.value)
+    var result: Dictionary
+    if online_mode:
+        result = await generator.call("generate", source, styled_story, endpoint.text, count, false, "", duration.value)
+    else:
+        result = await _generate_local_drawings(count)
     if not bool(result.get("ok", false)):
         status.text = "Generation arretee : " + str(result.get("error", "Erreur inconnue"))
     else:
@@ -294,7 +296,7 @@ func _advance() -> void:
             step = 1
             action.text = "Exporter MP4"
             _build_sheet()
-            status.text = "%d dessins sauvegardes. Creation automatique du MP4..." % frames.size()
+            status.text = "%d dessins sauvegardes (%s). Creation du MP4..." % [frames.size(), "IA externe" if online_mode else "animation locale stylisee, visage non reproduit"]
             await _export_generated_mp4()
     busy = false
     action.disabled = false
@@ -376,3 +378,38 @@ func _export_generated_mp4() -> void:
     for i in range(total):
         timeline.append(mini(frames.size() - 1, floori(float(i) * float(frames.size()) / float(total))))
     await exporter.call("export_board_mp4", frames, timeline, duration.value)
+
+func _generate_local_drawings(count: int) -> Dictionary:
+    # Genuine distinct pose drawings, but not AI identity-preserving redrawing.
+    # The reference supplies a color palette; it does not reproduce the face.
+    var motion_script: Script = load("res://scripts/story_motion_planner.gd")
+    var renderer_script: Script = load("res://scripts/reference_guided_cartoon_renderer.gd")
+    var planner: RefCounted = motion_script.new()
+    var renderer: RefCounted = renderer_script.new()
+    var plan: Dictionary = planner.plan(prompt.text, duration.value)
+    if not bool(plan.get("ok", false)):
+        return {"ok": false, "error": "Histoire non comprise : " + str(plan.get("error", "action inconnue"))}
+    var drawings: Array[Image] = []
+    for i in range(count):
+        var seconds: float = float(i) / float(maxi(1, count - 1)) * duration.value
+        var action_name: String = str(planner.action_at(plan, seconds))
+        var supported: Array[String] = ["repos", "marche", "course", "saut", "chute", "trebuche", "releve", "danse", "salut"]
+        if not supported.has(action_name):
+            return {"ok": false, "error": "Mouvement local non disponible : " + action_name}
+        var phase: float = 0.0
+        for step_data in plan.get("steps", []):
+            if seconds < float(step_data.get("end", 0.0)) or step_data == plan.get("steps", []).back():
+                var start_time: float = float(step_data.get("start", 0.0))
+                var end_time: float = float(step_data.get("end", start_time + 1.0))
+                phase = clampf((seconds - start_time) / maxf(0.001, end_time - start_time), 0.0, 1.0)
+                break
+        if action_name in ["marche", "course", "danse"]:
+            phase = seconds * (1.8 if action_name == "course" else 1.0)
+        var rendered: Dictionary = renderer.render_with_reference(source, prompt.text, phase, Vector2i(360, 480), action_name)
+        if not bool(rendered.get("ok", false)):
+            return {"ok": false, "error": str(rendered.get("reason", "Dessin local impossible"))}
+        drawings.append(rendered["image"])
+        if i % 4 == 0:
+            _progress(i + 1, count)
+            await get_tree().process_frame
+    return {"ok": true, "frames": drawings, "method": "procedural_pose_reference_palette", "identity_verified": false}
