@@ -19,8 +19,8 @@ from .pose_guides import render_pose
 def run(reference_path: Path, output_path: Path, action: str, drawings: int, fps: int):
     if not reference_path.is_file():
         raise FileNotFoundError(f"Private image missing: {reference_path}")
-    if drawings < 2 or drawings > 120 or fps < 1 or fps > 60:
-        raise ValueError("drawings must be 2..120 and fps 1..60")
+    if drawings < 2 or drawings > 240 or fps < 1 or fps > 60:
+        raise ValueError("drawings must be 2..240 and fps 1..60")
     reference = Image.open(reference_path).convert("RGB")
     if min(reference.size) < 32:
         raise ValueError("Reference image too small")
