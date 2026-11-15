@@ -29,7 +29,9 @@ def get_pose_pipeline():
     pipe = StableDiffusionControlNetImg2ImgPipeline.from_pretrained(
         model, controlnet=controlnet, torch_dtype=dtype, safety_checker=None,
         requires_safety_checker=False,
-    ).to(device)
+    )
+    if device == "cpu" or os.getenv("REDRAW_LOW_VRAM", "1") != "1":
+        pipe = pipe.to(device)
     # Offload unused layers to system RAM on constrained CUDA GPUs. This
     # reduces VRAM needs, at the cost of slower inference. It does not remove
     # the need for model weights or a supported execution backend.
