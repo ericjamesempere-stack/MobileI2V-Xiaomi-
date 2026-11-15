@@ -62,10 +62,20 @@ func _finished(result: int, response_code: int, _headers: PackedStringArray, _bo
         return
     var source := ProjectSettings.globalize_path(_temporary)
     var destination := ProjectSettings.globalize_path(_target)
-    if FileAccess.file_exists(_target):
-        DirAccess.remove_absolute(destination)
+    # Do not delete the existing verified model until the replacement is
+    # completely downloaded and hash-checked. Stage old weights for rollback.
+    var backup := destination + ".backup"
+    if FileAccess.file_exists(backup):
+        DirAccess.remove_absolute(backup)
+    var had_previous := FileAccess.file_exists(_target)
+    if had_previous and DirAccess.rename_absolute(destination, backup) != OK:
+        _cleanup()
+        completed.emit({"ok": false, "error": "backup_failed"})
+        return
     var moved := DirAccess.rename_absolute(source, destination)
     if moved != OK:
+        if had_previous:
+            DirAccess.rename_absolute(backup, destination)
         _cleanup()
         completed.emit({"ok": false, "error": "model_install_failed"})
         return
@@ -75,11 +85,16 @@ func _finished(result: int, response_code: int, _headers: PackedStringArray, _bo
     var manifest_path := "user://pose_model/manifest.json"
     var file := FileAccess.open(manifest_path, FileAccess.WRITE)
     if file == null:
+        DirAccess.remove_absolute(destination)
+        if had_previous:
+            DirAccess.rename_absolute(backup, destination)
         _cleanup()
         completed.emit({"ok": false, "error": "manifest_write_failed"})
         return
     file.store_string(JSON.stringify(manifest, "  "))
     file.close()
+    if had_previous:
+        DirAccess.remove_absolute(backup)
     _cleanup()
     completed.emit({"ok": true, "model_path": _target, "inference_verified": false})
 
