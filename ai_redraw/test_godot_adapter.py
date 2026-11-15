@@ -76,7 +76,10 @@ def test_reference_fidelity_controls_denoising(monkeypatch):
     high["reference_strength"] = 1.0
     assert client.post("/generate", json=low).status_code == 200
     assert client.post("/generate", json=high).status_code == 200
-    assert observed == [(0.75, 1234), (0.4, 1234)]
+    assert len(observed) == 2
+    assert abs(observed[0][0] - 0.75) < 1e-8
+    assert abs(observed[1][0] - 0.4) < 1e-8
+    assert [seed for _, seed in observed] == [1234, 1234]
     assert observed[1][0] < observed[0][0]
 
 
