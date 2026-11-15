@@ -249,6 +249,9 @@ func _show_frame(index: int) -> void:
         displayed_frame_index = index
 
 func _show_contact_sheet() -> void:
+    if generation_busy:
+        status.text = "Generation en cours."
+        return
     if contact_sheet_path.is_empty():
         status.text = "Planche indisponible"
         return
@@ -260,7 +263,7 @@ func _show_contact_sheet() -> void:
         status.text = "Planche de controle. La validation finale demande toutes les images du mouvement."
 
 func _play() -> void:
-    if not generated:
+    if generation_busy or not generated:
         return
     frame_index = 0
     displayed_frame_index = -1
@@ -284,7 +287,7 @@ func _process(delta: float) -> void:
         _show_frame(frame_index)
 
 func _approve() -> void:
-    if not generated:
+    if generation_busy or not generated:
         return
     approved = true
     _set_stage(true)
