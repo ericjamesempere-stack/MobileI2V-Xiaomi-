@@ -37,3 +37,26 @@ def test_godot_adapter_reports_unavailable_inference(monkeypatch):
         raise RuntimeError("no model")
     monkeypatch.setattr(adapter, "pose_redraw", unavailable)
     assert client.post("/generate", json=payload()).status_code == 503
+
+def test_distinct_pose_guides_reach_real_model_adapter(monkeypatch):
+    import ai_redraw.godot_adapter as adapter
+    observed = []
+    def capture(reference, pose, prompt, strength, seed):
+        observed.append((pose.getpixel((0, 0)), seed))
+        return reference.copy()
+    monkeypatch.setattr(adapter, "pose_redraw", capture)
+    first = payload()
+    second = payload()
+    second["frame_index"] = 1
+    pose = Image.new("RGB", (64, 64), (0, 200, 20))
+    buf = io.BytesIO()
+    pose.save(buf, format="PNG")
+    second["pose_image_base64"] = base64.b64encode(buf.getvalue()).decode("ascii")
+    assert client.post("/generate", json=first).status_code == 200
+    assert client.post("/generate", json=second).status_code == 200
+    assert observed == [((100, 50, 50), 1234), ((0, 200, 20), 1235)]
+
+def test_reject_frame_index_outside_sequence():
+    body = payload()
+    body["frame_index"] = body["total_frames"]
+    assert client.post("/generate", json=body).status_code == 422
