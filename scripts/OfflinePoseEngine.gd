@@ -17,6 +17,13 @@ static func availability() -> Dictionary:
         return {"available": false, "reason": "native_plugin_interface_incomplete"}
     if not bool(engine.call("is_model_ready")):
         return {"available": false, "reason": "offline_model_not_ready"}
+    # The plugin must demonstrate an actual inference before the app can
+    # claim this model works; the manifest is not a capability test.
+    if not engine.has_method("get_model_status"):
+        return {"available": false, "reason": "native_model_status_missing"}
+    var native_status = engine.call("get_model_status")
+    if not native_status is Dictionary or not bool(native_status.get("inference_verified", false)):
+        return {"available": false, "reason": "native_inference_not_verified"}
     return {"available": true}
 
 static func generate(schedule_data: Dictionary, output_folder: String) -> Dictionary:
