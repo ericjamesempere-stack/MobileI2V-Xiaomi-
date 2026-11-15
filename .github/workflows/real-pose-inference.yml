@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - karma/storyboard-story-sequence-20261113
+      - rebuild/cartoon-studio-20261114
     paths:
       - 'tools/test_real_pose.py'
       - '.github/workflows/real-pose-inference.yml'
