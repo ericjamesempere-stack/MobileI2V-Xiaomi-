@@ -24,6 +24,7 @@ var approved := false
 var playing := false
 var playback_clock := 0.0
 var sheet_path := ""
+var native_picker_pending := false
 
 func _ready() -> void:
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(project_dir))
@@ -127,8 +128,15 @@ func _ready() -> void:
     _refresh_review_buttons()
 
 func _choose_image() -> void:
-    if not busy:
-        picker.popup_centered_ratio(0.95)
+    if busy:
+        return
+    if Engine.has_singleton("MP4Exporter"):
+        var native: Object = Engine.get_singleton("MP4Exporter")
+        if native.has_method("pick_image") and bool(native.call("pick_image")):
+            native_picker_pending = true
+            status.text = "Selectionne une photo dans la galerie Android..."
+            return
+    picker.popup_centered_ratio(0.95)
 
 func _image_selected(path: String) -> void:
     # Android's native document picker can return a content:// URI rather
@@ -332,6 +340,17 @@ func _play_sequence() -> void:
     status.text = "Lecture des dessins successifs."
 
 func _process(delta: float) -> void:
+    if native_picker_pending and Engine.has_singleton("MP4Exporter"):
+        var native: Object = Engine.get_singleton("MP4Exporter")
+        var path: String = str(native.call("take_selected_image_path"))
+        if not path.is_empty():
+            native_picker_pending = false
+            _image_selected(path)
+        else:
+            var failure: String = str(native.call("take_image_picker_error"))
+            if not failure.is_empty():
+                native_picker_pending = false
+                status.text = "Import Android : " + failure
     if not playing or frames.is_empty():
         return
     playback_clock += delta
