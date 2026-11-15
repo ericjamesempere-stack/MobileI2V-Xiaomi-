@@ -52,10 +52,20 @@ jobs:
                 if event!="complete":sys.exit(2)
                 data=json.loads(s[5:])
                 if not data:sys.exit("Empty response")
+                file_url=data[0].get("url") if isinstance(data,list) and isinstance(data[0],dict) else None
+                if not file_url or not file_url.startswith(host+"/gradio_api/file="):sys.exit("Invalid generated image URL")
+                with urllib.request.urlopen(file_url,timeout=40) as image_response:
+                  image_bytes=image_response.read(8000000)
+                if not (image_bytes.startswith(b"RIFF") and image_bytes[8:12]==b"WEBP"):sys.exit("Generated file is not valid WebP")
+                if len(image_bytes)<1024:sys.exit("Generated image unexpectedly small")
+                open("controlnet_generated.webp","wb").write(image_bytes)
+                print("Verified generated WebP bytes:",len(image_bytes))
                 break
             else:sys.exit("No terminal event")
           PY
       - uses: actions/upload-artifact@v4
         with:
           name: synthetic-pose-guide
-          path: synthetic_pose.png
+          path: |
+            synthetic_pose.png
+            controlnet_generated.webp
