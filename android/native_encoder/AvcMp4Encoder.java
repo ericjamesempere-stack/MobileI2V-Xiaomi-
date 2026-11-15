@@ -26,12 +26,20 @@ public final class AvcMp4Encoder {
         if (parent != null && !parent.exists() && !parent.mkdirs())
             throw new IllegalStateException("output directory unavailable");
         MediaFormat format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, w, h);
-        format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible);
+        format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar);
         format.setInteger(MediaFormat.KEY_BIT_RATE, Math.max(1_000_000, w * h * frameRate / 4));
         format.setInteger(MediaFormat.KEY_FRAME_RATE, frameRate);
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
         try {
             codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+            boolean planarSupported = false;
+            for (int color : codec.getCodecInfo().getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).colorFormats) {
+                if (color == MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar) {
+                    planarSupported = true;
+                    break;
+                }
+            }
+            if (!planarSupported) throw new IllegalStateException("device AVC codec does not support planar YUV420");
             codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
             codec.start();
             muxer = new MediaMuxer(path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
@@ -52,9 +60,7 @@ public final class AvcMp4Encoder {
         buffer.clear();
         int ySize = width * height;
         byte[] yuv = new byte[ySize * 3 / 2];
-        // I420 planes: Y, U, V. The flexible format accepts planar or
-        // semiplanar layouts; device-specific mapping must be checked via
-        // getInputImage() before this implementation is production-ready.
+        // I420 planes: Y, U, V. Requires a codec that advertises planar YUV420.
         int uvWidth = width / 2;
         for (int row = 0; row < height; row++) {
             for (int col = 0; col < width; col++) {
