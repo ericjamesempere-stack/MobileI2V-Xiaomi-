@@ -50,10 +50,12 @@ public final class ReferencePoseGeneratorPlugin extends GodotPlugin {
             } finally {
                 options.close();
             }
+            validateModelContract();
             loadedPath = path;
             error = "";
             return true;
         } catch (Exception ex) {
+            unload_model();
             error = "onnx_load_failed: " + ex.getMessage();
             Log.e("MobileI2V", error, ex);
             return false;
@@ -179,6 +181,40 @@ public final class ReferencePoseGeneratorPlugin extends GodotPlugin {
         session = null;
         loadedPath = "";
         verified = false;
+    }
+
+
+    /**
+     * Reject incompatible generic ONNX models at installation time rather than
+     * misleadingly reporting them as a working pose-conditioned generator.
+     */
+    private void validateModelContract() throws Exception {
+        if (session == null || session.getInputNames().size() != 2 || session.getOutputNames().size() != 1)
+            throw new IllegalArgumentException("expected_two_inputs_and_one_output");
+        for (String name : new String[]{"image", "pose"}) {
+            ai.onnxruntime.NodeInfo node = session.getInputInfo().get(name);
+            if (node == null || !(node.getInfo() instanceof ai.onnxruntime.TensorInfo))
+                throw new IllegalArgumentException("missing_tensor_input_" + name);
+            ai.onnxruntime.TensorInfo tensor = (ai.onnxruntime.TensorInfo) node.getInfo();
+            long[] shape = tensor.getShape();
+            if (tensor.type != ai.onnxruntime.OnnxJavaType.FLOAT || shape.length != 4 ||
+                shape[0] != 1 || shape[1] != 3 || shape[2] <= 0 || shape[3] <= 0 ||
+                shape[2] > 1024 || shape[3] > 1024)
+                throw new IllegalArgumentException("unsupported_tensor_" + name);
+        }
+        long[] imageShape = ((ai.onnxruntime.TensorInfo)session.getInputInfo().get("image").getInfo()).getShape();
+        long[] poseShape = ((ai.onnxruntime.TensorInfo)session.getInputInfo().get("pose").getInfo()).getShape();
+        if (imageShape[2] != poseShape[2] || imageShape[3] != poseShape[3])
+            throw new IllegalArgumentException("image_pose_size_mismatch");
+        ai.onnxruntime.NodeInfo output = session.getOutputInfo().values().iterator().next();
+        if (!(output.getInfo() instanceof ai.onnxruntime.TensorInfo))
+            throw new IllegalArgumentException("output_not_tensor");
+        ai.onnxruntime.TensorInfo tensor = (ai.onnxruntime.TensorInfo)output.getInfo();
+        long[] shape = tensor.getShape();
+        if (tensor.type != ai.onnxruntime.OnnxJavaType.FLOAT || shape.length != 4 ||
+            shape[0] != 1 || shape[1] != 3 ||
+            shape[2] != imageShape[2] || shape[3] != imageShape[3])
+            throw new IllegalArgumentException("output_shape_mismatch");
     }
 
     private static int clamp(int x) { return Math.max(0, Math.min(255, x)); }
