@@ -26,9 +26,11 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
  var reference_b64: String = Marshalls.raw_to_base64(source_png)
  var previous_b64: String = reference_b64
  var frames: Array[Image] = []
+ var guide_generator: RefCounted = load("res://scripts/openpose_guide_generator.gd").new()
+ var planner: RefCounted = load("res://scripts/story_motion_planner.gd").new()
  # Timeline seconds are independent from the number of requested drawings.
  # The caller may request 120 frames for a six-second film.
- var motion_plan: Dictionary = load("res://scripts/story_motion_planner.gd").new().plan(prompt, duration_seconds if duration_seconds > 0.0 else float(count) / 4.0)
+ var motion_plan: Dictionary = planner.plan(prompt, duration_seconds if duration_seconds > 0.0 else float(count) / 4.0)
  if not bool(motion_plan.get("ok", false)):
   return {"ok": false, "error": str(motion_plan.get("error", "Plan de mouvements invalide"))}
  var motion_steps: Array = motion_plan.get("steps", [])
@@ -57,7 +59,7 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
   # text instruction. Keep the identity reference unchanged across frames.
   var action: String = "danse"
   if bool(motion_plan.get("ok", false)):
-   action = load("res://scripts/story_motion_planner.gd").new().action_at(motion_plan, seconds)
+   action = planner.action_at(motion_plan, seconds)
   # Normalize movement progress INSIDE each story action. Absolute frame
   # indices caused falls to snap instantly and later steps to inherit
   # unrelated phases.
@@ -74,7 +76,6 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
   var render_phase: float = local_phase
   if action == "course" or action == "marche" or action == "danse":
    render_phase = seconds * (1.8 if action == "course" else 1.0)
-  var guide_generator: RefCounted = load("res://scripts/openpose_guide_generator.gd").new()
   var guide: Image = guide_generator.render(prompt, render_phase, Vector2i(384, 512), action)
   if guide == null or guide.is_empty():
    http.queue_free()
