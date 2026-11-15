@@ -176,7 +176,7 @@ func _advance() -> void:
     _save()
     busy = true
     action.disabled = true
-    var count := mini(120, maxi(2, roundi(duration.value * 6.0)))
+    var count := mini(240, maxi(2, roundi(duration.value * 12.0)))
     var result: Dictionary = await generator.call("generate", source, prompt.text, endpoint.text, count, false, "", duration.value)
     if not bool(result.get("ok", false)):
         status.text = "Generation arretee : " + str(result.get("error", "Erreur inconnue"))
