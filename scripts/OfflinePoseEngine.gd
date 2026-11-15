@@ -54,7 +54,10 @@ static func generate(schedule_data: Dictionary, output_folder: String) -> Dictio
             DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
         var pose_map := str(key.get("pose_map_path", ""))
         if not FileAccess.file_exists(pose_map):
-            return {"ok": false, "error": "pose_map_missing", "index": index}
+            pose_map = "%s/pose_%06d.png" % [output_folder, index]
+            var rendered := PoseMapRenderer.render(key, pose_map)
+            if not rendered.get("ok", false):
+                return {"ok": false, "error": "pose_map_generation_failed", "index": index}
         var request_data: Dictionary = key.duplicate(true)
         request_data["pose_map_path"] = ProjectSettings.globalize_path(pose_map)
         request_data["reference_original"] = ProjectSettings.globalize_path(reference)
@@ -124,7 +127,10 @@ static func generate_full_sequence(plan: Dictionary, output_folder: String, keyf
         if not used_keyframe:
             var pose_map := str(instruction.get("pose_map_path", ""))
             if not FileAccess.file_exists(pose_map):
-                return {"ok": false, "error": "pose_map_missing", "index": i}
+                pose_map = "%s/pose_%06d.png" % [output_folder, i]
+                var rendered := PoseMapRenderer.render(instruction, pose_map)
+                if not rendered.get("ok", false):
+                    return {"ok": false, "error": "pose_map_generation_failed", "index": i}
             var request := instruction.duplicate(true)
             request["pose_map_path"] = ProjectSettings.globalize_path(pose_map)
             request["reference_original"] = ProjectSettings.globalize_path(original)
