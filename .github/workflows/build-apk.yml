@@ -142,6 +142,7 @@ jobs:
             tests/test_reference_keyframe_importer.gd \
             tests/test_reference_pose_review.gd \
             tests/test_reference_sequence_assembler.gd \
+            tests/test_pose_map_renderer.gd \
             tests/test_offline_pose_engine.gd \
             tests/test_android_sequence_mp4.gd \
             tests/test_pose_model_manifest.gd \
