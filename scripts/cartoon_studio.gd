@@ -113,6 +113,7 @@ func _image_selected(path: String) -> void:
     source.save_png(project_dir + "/reference.png")
     preview.texture = ImageTexture.create_from_image(source)
     frames.clear()
+    _clear_saved_frames()
     step = 0
     action.text = "Generer les dessins"
     status.text = "Image enregistree localement. Decris le mouvement."
@@ -121,7 +122,7 @@ func _image_selected(path: String) -> void:
 func _duration_changed(value: float) -> void:
     if status != null and step == 0 and not busy:
         var drawings: int = mini(240, maxi(2, roundi(value * 12.0)))
-    status.text = "%d dessins demandes (%.1f/s), export %d images/s. Limite : 240 dessins." % [drawings, float(drawings) / maxf(value, 1.0), FPS]
+        status.text = "%d dessins demandes (%.1f/s), export %d images/s. Limite : 240 dessins." % [drawings, float(drawings) / maxf(value, 1.0), FPS]
 
 func _save() -> void:
     var cfg := ConfigFile.new()
@@ -141,6 +142,38 @@ func _restore() -> void:
         if img.load(project_dir + "/reference.png") == OK:
             source = img
             preview.texture = ImageTexture.create_from_image(img)
+    _restore_saved_frames()
+
+func _clear_saved_frames() -> void:
+    var folder: String = project_dir + "/generated_frames"
+    var dir := DirAccess.open(folder)
+    if dir == null:
+        return
+    for filename in dir.get_files():
+        if filename.begins_with("frame_") and filename.ends_with(".png"):
+            dir.remove(filename)
+    if FileAccess.file_exists(project_dir + "/frames.cfg"):
+        DirAccess.remove_absolute(ProjectSettings.globalize_path(project_dir + "/frames.cfg"))
+
+func _restore_saved_frames() -> void:
+    var manifest := ConfigFile.new()
+    if manifest.load(project_dir + "/frames.cfg") != OK:
+        return
+    var count: int = int(manifest.get_value("frames", "count", 0))
+    if count < 2 or count > 240:
+        return
+    var loaded: Array[Texture2D] = []
+    for index in range(count):
+        var image := Image.new()
+        var filename: String = "%s/generated_frames/frame_%04d.png" % [project_dir, index]
+        if image.load(filename) != OK or image.is_empty():
+            return
+        loaded.append(ImageTexture.create_from_image(image))
+    frames = loaded
+    preview.texture = frames[0]
+    step = 1
+    action.text = "Exporter MP4"
+    status.text = "%d dessins retrouves. Export MP4 disponible." % frames.size()
 
 func _progress(index: int, total: int) -> void:
     status.text = "Dessin %d / %d" % [index, total]
@@ -186,6 +219,7 @@ func _advance() -> void:
         status.text = "Generation arretee : " + str(result.get("error", "Erreur inconnue"))
     else:
         frames.clear()
+        _clear_saved_frames()
         var saved_dir: String = project_dir + "/generated_frames"
         DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(saved_dir))
         var frame_index: int = 0
@@ -197,6 +231,9 @@ func _advance() -> void:
         if frames.is_empty():
             status.text = "Le moteur n'a retourne aucun dessin."
         else:
+            var manifest := ConfigFile.new()
+            manifest.set_value("frames", "count", frames.size())
+            manifest.save(project_dir + "/frames.cfg")
             preview.texture = frames[0]
             step = 1
             action.text = "Exporter MP4"
