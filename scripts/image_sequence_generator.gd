@@ -106,6 +106,8 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
    return {"ok": false, "error": "Requete impossible : %s" % error_string(err), "generated": frames.size()}
   var response: Array = await http.request_completed
   http.queue_free()
+  if cancel_requested:
+   return {"ok": false, "error": "Generation annulee", "generated": frames.size()}
   if int(response[0]) != HTTPRequest.RESULT_SUCCESS or int(response[1]) != 200:
    var http_code: int = int(response[1])
    var retryable: bool = http_code == 429 or http_code == 503 or http_code == 502 or http_code == 504
