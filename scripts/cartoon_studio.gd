@@ -16,7 +16,14 @@ var exporter: Node
 var step := 0
 var busy := false
 var project_dir := "user://cartoon_studio"
-var legacy_studio: Control = null
+var style: OptionButton
+var sheet_button: Button
+var play_button: Button
+var approve_button: Button
+var approved := false
+var playing := false
+var playback_clock := 0.0
+var sheet_path := ""
 
 func _ready() -> void:
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(project_dir))
@@ -48,16 +55,26 @@ func _ready() -> void:
     import_button.custom_minimum_size.y = 80
     import_button.pressed.connect(_choose_image)
     panel.add_child(import_button)
-    # Preserve access to the earlier storyboard, contact-sheet and review flow.
-    var legacy_button := Button.new()
-    legacy_button.text = "Ouvrir le studio classique (planches et validation)"
-    legacy_button.custom_minimum_size.y = 64
-    legacy_button.pressed.connect(_open_legacy_studio)
-    panel.add_child(legacy_button)
     prompt = TextEdit.new()
     prompt.placeholder_text = "Que doit faire ton personnage ? Exemple : il se leve, marche, puis salue."
     prompt.custom_minimum_size.y = 140
     panel.add_child(prompt)
+    style = OptionButton.new()
+    for style_name in ["manga", "bd", "cartoon", "cinema", "naturel"]:
+        style.add_item(style_name)
+    panel.add_child(style)
+    play_button = Button.new()
+    play_button.text = "Previsualiser les mouvements"
+    play_button.pressed.connect(_play_sequence)
+    panel.add_child(play_button)
+    sheet_button = Button.new()
+    sheet_button.text = "Voir la planche de dessins"
+    sheet_button.pressed.connect(_show_sheet)
+    panel.add_child(sheet_button)
+    approve_button = Button.new()
+    approve_button.text = "Valider les dessins"
+    approve_button.pressed.connect(_approve_sequence)
+    panel.add_child(approve_button)
     var duration_row := HBoxContainer.new()
     panel.add_child(duration_row)
     var duration_title := Label.new()
@@ -107,6 +124,7 @@ func _ready() -> void:
     exporter.set("status_label", status)
     _restore()
     _duration_changed(duration.value)
+    _refresh_review_buttons()
 
 func _choose_image() -> void:
     if not busy:
@@ -138,11 +156,15 @@ func _image_selected(path: String) -> void:
     source = persisted
     preview.texture = ImageTexture.create_from_image(source)
     frames.clear()
+    approved = false
+    playing = false
+    sheet_path = ""
     _clear_saved_frames()
     step = 0
     action.text = "Generer les dessins"
     status.text = "Image importee et sauvegardee : %d x %d pixels." % [source.get_width(), source.get_height()]
     _save()
+    _refresh_review_buttons()
 
 func _duration_changed(value: float) -> void:
     if status != null and step == 0 and not busy:
@@ -154,6 +176,7 @@ func _save() -> void:
     cfg.set_value("project", "story", prompt.text)
     cfg.set_value("project", "seconds", duration.value)
     cfg.set_value("project", "endpoint", endpoint.text)
+    cfg.set_value("project", "style", style.selected)
     cfg.save(project_dir + "/project.cfg")
 
 func _restore() -> void:
@@ -162,6 +185,7 @@ func _restore() -> void:
         prompt.text = str(cfg.get_value("project", "story", ""))
         duration.value = float(cfg.get_value("project", "seconds", 5.0))
         endpoint.text = str(cfg.get_value("project", "endpoint", ""))
+        style.select(clampi(int(cfg.get_value("project", "style", 0)), 0, style.item_count - 1))
     if FileAccess.file_exists(project_dir + "/reference.png"):
         var img := Image.new()
         if img.load(project_dir + "/reference.png") == OK:
@@ -195,6 +219,7 @@ func _restore_saved_frames() -> void:
             return
         loaded.append(ImageTexture.create_from_image(image))
     frames = loaded
+    _build_sheet()
     preview.texture = frames[0]
     step = 1
     action.text = "Exporter MP4"
@@ -207,6 +232,9 @@ func _advance() -> void:
     if busy:
         return
     if step == 1:
+        if not approved:
+            status.text = "Previsualise et valide les dessins avant export MP4."
+            return
         if frames.is_empty():
             status.text = "Aucun dessin valide : assemblage interdit."
             return
@@ -239,11 +267,13 @@ func _advance() -> void:
     # inference and RAM bounded; the MP4 encoder still writes 30 fps.
     var count := mini(240, maxi(2, roundi(duration.value * 12.0)))
     status.text = "Creation de %d dessins distincts pour %.0f secondes..." % [count, duration.value]
-    var result: Dictionary = await generator.call("generate", source, prompt.text, endpoint.text, count, false, "", duration.value)
+    var styled_story: String = "%s, style %s" % [prompt.text, style.get_item_text(style.selected)]
+    var result: Dictionary = await generator.call("generate", source, styled_story, endpoint.text, count, false, "", duration.value)
     if not bool(result.get("ok", false)):
         status.text = "Generation arretee : " + str(result.get("error", "Erreur inconnue"))
     else:
         frames.clear()
+        approved = false
         _clear_saved_frames()
         var saved_dir: String = project_dir + "/generated_frames"
         DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(saved_dir))
@@ -262,39 +292,64 @@ func _advance() -> void:
             preview.texture = frames[0]
             step = 1
             action.text = "Exporter MP4"
-            status.text = "%d dessins recus. Assemblage MP4 automatique..." % frames.size()
-            # One-button pipeline: generation proceeds directly to encoding.
-            # The encoder reports explicitly when the native Android plugin is absent.
-            var timeline: Array = []
-            var total := roundi(duration.value * FPS)
-            for i in range(total):
-                timeline.append(mini(frames.size() - 1, floori(float(i) * float(frames.size()) / float(total))))
-            await exporter.call("export_board_mp4", frames, timeline, duration.value)
+            _build_sheet()
+            status.text = "%d dessins sauvegardes. Previsualise, consulte la planche et valide avant export." % frames.size()
     busy = false
     action.disabled = false
+    _refresh_review_buttons()
 
-func _open_legacy_studio() -> void:
-    if busy or legacy_studio != null:
+func _refresh_review_buttons() -> void:
+    if play_button == null:
         return
-    var legacy_script: Script = load("res://scripts/SimpleAnimationStudio.gd")
-    if legacy_script == null:
-        status.text = "Studio classique indisponible."
-        return
-    legacy_studio = Control.new()
-    legacy_studio.set_script(legacy_script)
-    legacy_studio.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-    get_parent().add_child(legacy_studio)
-    hide()
-    var back := Button.new()
-    back.text = "Retour Cartoon Studio"
-    back.custom_minimum_size = Vector2(270, 64)
-    back.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-    back.position = Vector2(-290, 8)
-    back.pressed.connect(_close_legacy_studio)
-    legacy_studio.add_child(back)
+    play_button.disabled = frames.is_empty() or busy
+    sheet_button.disabled = sheet_path.is_empty() or busy
+    approve_button.disabled = frames.is_empty() or busy
+    if action != null:
+        action.text = "Exporter MP4" if step == 1 else "Generer les dessins"
 
-func _close_legacy_studio() -> void:
-    if legacy_studio != null:
-        legacy_studio.queue_free()
-        legacy_studio = null
-    show()
+func _build_sheet() -> void:
+    sheet_path = ""
+    if frames.is_empty():
+        return
+    var folder := project_dir + "/generated_frames"
+    var paths: Array[String] = []
+    for i in range(frames.size()):
+        paths.append("%s/frame_%04d.png" % [folder, i])
+    var output := project_dir + "/planche.png"
+    var result: Dictionary = AnimationContactSheet.build(paths, output)
+    if bool(result.get("ok", false)):
+        sheet_path = output
+
+func _show_sheet() -> void:
+    if sheet_path.is_empty() or busy:
+        return
+    playing = false
+    var image := Image.new()
+    if image.load(sheet_path) == OK:
+        preview.texture = ImageTexture.create_from_image(image)
+        status.text = "Planche de controle des dessins generes."
+
+func _play_sequence() -> void:
+    if frames.is_empty() or busy:
+        return
+    playing = true
+    playback_clock = 0.0
+    preview.texture = frames[0]
+    status.text = "Lecture des dessins successifs."
+
+func _process(delta: float) -> void:
+    if not playing or frames.is_empty():
+        return
+    playback_clock += delta
+    var index := floori(playback_clock * float(frames.size()) / maxf(duration.value, 0.1))
+    if index >= frames.size():
+        playing = false
+        index = frames.size() - 1
+    preview.texture = frames[index]
+
+func _approve_sequence() -> void:
+    if frames.is_empty() or busy:
+        return
+    playing = false
+    approved = true
+    status.text = "%d dessins valides. Export MP4 disponible." % frames.size()
