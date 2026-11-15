@@ -189,25 +189,25 @@ jobs:
           set -euo pipefail
           mkdir -p build
           timeout 300s ./Godot_v4.5.2-stable_linux.x86_64 --headless --verbose --path . \
-            --export-debug Android build/MobileI2V_V50_ARM64_FIXED.apk 2>&1 | tee export.log
-          test -s build/MobileI2V_V50_ARM64_FIXED.apk
-          unzip -t build/MobileI2V_V50_ARM64_FIXED.apk | tail -2
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs build/MobileI2V_V50_ARM64_FIXED.apk | tee signing-check.log
-          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging build/MobileI2V_V50_ARM64_FIXED.apk | tee apk-badging.txt
+            --export-debug Android build/CartoonStudio_${{ github.run_number }}_${{ github.sha }}_ARM64.apk 2>&1 | tee export.log
+          test -s build/CartoonStudio_${{ github.run_number }}_${{ github.sha }}_ARM64.apk
+          unzip -t build/CartoonStudio_${{ github.run_number }}_${{ github.sha }}_ARM64.apk | tail -2
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs build/CartoonStudio_${{ github.run_number }}_${{ github.sha }}_ARM64.apk | tee signing-check.log
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging build/CartoonStudio_${{ github.run_number }}_${{ github.sha }}_ARM64.apk | tee apk-badging.txt
           grep -q "package: name='com.ericjamesempere.mobilei2v'" apk-badging.txt
           grep -q 'launchable-activity:' apk-badging.txt
-          unzip -l build/MobileI2V_V50_ARM64_FIXED.apk | grep -q 'lib/arm64-v8a/libgodot_android.so'
-          if unzip -l build/MobileI2V_V50_ARM64_FIXED.apk | grep -q 'lib/armeabi-v7a/'; then
+          unzip -l build/CartoonStudio_${{ github.run_number }}_${{ github.sha }}_ARM64.apk | grep -q 'lib/arm64-v8a/libgodot_android.so'
+          if unzip -l build/CartoonStudio_${{ github.run_number }}_${{ github.sha }}_ARM64.apk | grep -q 'lib/armeabi-v7a/'; then
             echo 'Unexpected 32-bit ARM libraries in ARM64-only APK' >&2
             exit 1
           fi
-          stat -c 'APK size: %s bytes' build/MobileI2V_V50_ARM64_FIXED.apk
-          sha256sum build/MobileI2V_V50_ARM64_FIXED.apk
+          stat -c 'APK size: %s bytes' build/CartoonStudio_${{ github.run_number }}_${{ github.sha }}_ARM64.apk
+          sha256sum build/CartoonStudio_${{ github.run_number }}_${{ github.sha }}_ARM64.apk
 
       - name: Verify APK launch metadata and report plugin presence
         run: |
           set -euo pipefail
-          APK=build/MobileI2V_V50_ARM64_FIXED.apk
+          APK=build/CartoonStudio_${{ github.run_number }}_${{ github.sha }}_ARM64.apk
           unzip -Z1 "$APK" > build/apk-files.txt
           "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$APK" | grep -E "^(package:|launchable-activity:|native-code:)" | tee build/apk-runtime-metadata.txt
           grep -q "launchable-activity:" build/apk-runtime-metadata.txt
@@ -221,7 +221,7 @@ jobs:
       - name: Report MP4 plugin packaging status
         run: |
           set -euo pipefail
-          if unzip -Z1 build/MobileI2V_V50_ARM64_FIXED.apk | grep -Eiq '(^|/)(MP4Exporter|mp4exporter)(/|\\.|$)'; then
+          if unzip -Z1 build/CartoonStudio_${{ github.run_number }}_${{ github.sha }}_ARM64.apk | grep -Eiq '(^|/)(MP4Exporter|mp4exporter)(/|\\.|$)'; then
             echo "MP4 plugin packaging candidate found; Android runtime validation still required." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "MP4Exporter plugin NOT packaged: MP4 unavailable in this APK; AVI fallback only." >> "$GITHUB_STEP_SUMMARY"
@@ -230,8 +230,8 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MobileI2V_V50_ARM64_FIXED
-          path: build/MobileI2V_V50_ARM64_FIXED.apk
+          name: CartoonStudio_${{ github.run_number }}_${{ github.sha }}_ARM64
+          path: build/CartoonStudio_${{ github.run_number }}_${{ github.sha }}_ARM64.apk
           if-no-files-found: error
           retention-days: 30
 
