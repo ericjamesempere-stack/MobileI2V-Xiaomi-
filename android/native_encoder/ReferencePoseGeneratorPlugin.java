@@ -14,6 +14,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.FloatBuffer;
 import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import org.json.JSONObject;
@@ -78,9 +79,12 @@ public final class ReferencePoseGeneratorPlugin extends GodotPlugin {
             if (original == null) throw new IllegalArgumentException("reference_unreadable");
             // Only models with explicitly declared NCHW image input and output
             // can use this generic runner; unsupported diffusion graphs fail.
-            if (session.getInputNames().size() != 1)
-                throw new IllegalStateException("multi_input_model_requires_specialized_adapter");
-            String inputName = session.getInputNames().iterator().next();
+            if (session.getInputNames().size() != 2)
+                throw new IllegalStateException("pose_conditioned_model_requires_image_and_pose_inputs");
+            String inputName = request.optString("image_input", "image");
+            String poseName = request.optString("pose_input", "pose");
+            if (!session.getInputNames().contains(inputName) || !session.getInputNames().contains(poseName) || inputName.equals(poseName))
+                throw new IllegalStateException("model_missing_image_or_pose_input");
             ai.onnxruntime.NodeInfo node = session.getInputInfo().get(inputName);
             if (!(node.getInfo() instanceof ai.onnxruntime.TensorInfo))
                 throw new IllegalStateException("model_input_not_tensor");
@@ -99,9 +103,34 @@ public final class ReferencePoseGeneratorPlugin extends GodotPlugin {
                 data[w * h + i] = ((p >>> 8) & 255) / 255f;
                 data[2 * w * h + i] = (p & 255) / 255f;
             }
-            try (OnnxTensor tensor = OnnxTensor.createTensor(environment,
+            // Pose conditioning is explicit: a separate 1x3xHxW pose tensor
+            // contains normalized target skeleton coordinates encoded as RGB.
+            // No pose input means no animation claim.
+            String posePath = request.optString("pose_map_path", "");
+            Bitmap poseBitmap = BitmapFactory.decodeFile(posePath);
+            if (poseBitmap == null) throw new IllegalArgumentException("pose_map_missing");
+            ai.onnxruntime.NodeInfo poseNode = session.getInputInfo().get(poseName);
+            if (!(poseNode.getInfo() instanceof ai.onnxruntime.TensorInfo))
+                throw new IllegalStateException("pose_input_not_tensor");
+            long[] poseShape = ((ai.onnxruntime.TensorInfo) poseNode.getInfo()).getShape();
+            if (poseShape.length != 4 || poseShape[0] != 1 || poseShape[1] != 3 ||
+                poseShape[2] != h || poseShape[3] != w)
+                throw new IllegalStateException("pose_input_shape_mismatch");
+            Bitmap poseResized = Bitmap.createScaledBitmap(poseBitmap, w, h, true);
+            int[] posePixels = new int[w * h];
+            poseResized.getPixels(posePixels, 0, w, 0, 0, w, h);
+            float[] poseData = new float[3 * w * h];
+            for (int i = 0; i < posePixels.length; i++) {
+                int p = posePixels[i];
+                poseData[i] = ((p >>> 16) & 255) / 255f;
+                poseData[w * h + i] = ((p >>> 8) & 255) / 255f;
+                poseData[2 * w * h + i] = (p & 255) / 255f;
+            }
+            try (OnnxTensor poseTensor = OnnxTensor.createTensor(environment,
+                    FloatBuffer.wrap(poseData), new long[]{1, 3, h, w});
+                 OnnxTensor tensor = OnnxTensor.createTensor(environment,
                     FloatBuffer.wrap(data), new long[]{1, 3, h, w});
-                 OrtSession.Result result = session.run(Collections.singletonMap(inputName, tensor))) {
+                 OrtSession.Result result = session.run(Map.of(inputName, tensor, poseName, poseTensor))) {
                 if (result.size() < 1 || !(result.get(0) instanceof OnnxTensor))
                     throw new IllegalStateException("unsupported_output");
                 OnnxTensor out = (OnnxTensor) result.get(0);
