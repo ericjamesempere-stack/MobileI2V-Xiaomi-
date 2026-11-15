@@ -7,6 +7,7 @@ var generated := false
 var approved := false
 var frames: Array[String] = []
 var frame_index := 0
+var displayed_frame_index := -1
 var elapsed := 0.0
 var playing := false
 var preview: TextureRect
@@ -107,6 +108,7 @@ func _photo_selected(path: String) -> void:
         status.text = "Image illisible"
         return
     selected_photo = path
+    displayed_frame_index = -1
     preview.texture = ImageTexture.create_from_image(img)
     generated = false
     approved = false
@@ -118,6 +120,7 @@ func _generate() -> void:
     playing = false
     generated = false
     approved = false
+    displayed_frame_index = -1
     frames.clear()
     contact_sheet_path = ""
     _set_stage(false)
@@ -216,17 +219,19 @@ func _generate() -> void:
     status.text = "%d dessins crees. Regarde les gestes, puis valide." % frames.size()
 
 func _show_frame(index: int) -> void:
-    if index < 0 or index >= frames.size():
+    if index < 0 or index >= frames.size() or index == displayed_frame_index:
         return
     var img := Image.new()
     if img.load(frames[index]) == OK:
         preview.texture = ImageTexture.create_from_image(img)
+        displayed_frame_index = index
 
 func _show_contact_sheet() -> void:
     if contact_sheet_path.is_empty():
         status.text = "Planche indisponible"
         return
     playing = false
+    displayed_frame_index = -1
     var img := Image.new()
     if img.load(contact_sheet_path) == OK:
         preview.texture = ImageTexture.create_from_image(img)
@@ -236,6 +241,7 @@ func _play() -> void:
     if not generated:
         return
     frame_index = 0
+    displayed_frame_index = -1
     elapsed = 0.0
     playing = true
     _show_frame(0)
@@ -252,7 +258,8 @@ func _process(delta: float) -> void:
             playing = false
             frame_index = frames.size() - 1
             break
-    _show_frame(frame_index)
+    if playing or displayed_frame_index != frame_index:
+        _show_frame(frame_index)
 
 func _approve() -> void:
     if not generated:
