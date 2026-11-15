@@ -55,6 +55,17 @@ jobs:
             -dname 'CN=Android Debug,O=Android,C=US' -noprompt
           test -s "$HOME/.android/debug.keystore"
 
+      - name: Compile native Android H264 encoder source
+        run: |
+          set -euo pipefail
+          mkdir -p build/native-encoder-classes
+          javac -source 17 -target 17 \
+            -classpath "$ANDROID_HOME/platforms/android-34/android.jar" \
+            -d build/native-encoder-classes \
+            android/native_encoder/AvcMp4Encoder.java
+          test -s build/native-encoder-classes/com/mobilei2v/encoder/AvcMp4Encoder.class
+          echo "Native MediaCodec/MediaMuxer encoder Java compilation passed (not an Android runtime test)."
+
       - name: Configure and verify Godot Android export settings
         run: |
           set -euo pipefail
