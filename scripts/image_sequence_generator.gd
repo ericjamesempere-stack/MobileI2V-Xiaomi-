@@ -116,6 +116,13 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
    return {"ok": false, "error": "PNG invalide", "generated": frames.size()}
   if img.get_width() > 1024 or img.get_height() > 1024:
    return {"ok": false, "error": "Image trop grande", "generated": frames.size()}
+  # A 240-frame 1024px sequence can exhaust Android RAM. Keep a bounded
+  # portrait preview for the 720x1280 encoder while preserving proportions.
+  # The original reference remains unchanged for inference.
+  var preview_limit: float = 640.0
+  if img.get_width() > 640 or img.get_height() > 640:
+   var preview_scale: float = minf(preview_limit / float(img.get_width()), preview_limit / float(img.get_height()))
+   img.resize(maxi(1, roundi(img.get_width() * preview_scale)), maxi(1, roundi(img.get_height() * preview_scale)), Image.INTERPOLATE_LANCZOS)
   frames.append(img)
   previous_b64 = str(data["image_base64"])
   progress.emit(index + 1, count)
