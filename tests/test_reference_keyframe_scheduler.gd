@@ -9,7 +9,8 @@ func _run() -> void:
     for i in range(30):
         frames.append({
             "scene_index": 0 if i < 12 else 1,
-            "action": "run" if i < 12 else "jump",
+            "action": "run" if i < 12 else "fall",
+            "action_progress": float(i if i < 12 else i - 12) / float(11 if i < 12 else 17),
             "position": {"x": i * 2, "y": 0},
             "reference_original": "user://reference.png",
             "reference_styled": "user://styled.png",
@@ -27,6 +28,12 @@ func _run() -> void:
         selected[int(item["frame_index"])] = true
         assert(item["constraints"]["identity"])
     assert(selected.has(11) and selected.has(12), "Scene boundary keyframes required")
+    assert(selected.has(18) and selected.has(23), "Fall movement beats must be retained")
+    var has_fall_beat := false
+    for item in keys:
+        if str(item["motion_beat"]) == "descending":
+            has_fall_beat = true
+    assert(has_fall_beat, "Fall must have a descent pose instruction")
     var saved: Dictionary = scheduler.save(result, "user://test_keyframes.json")
     assert(saved.get("ok", false))
     assert(FileAccess.file_exists("user://test_keyframes.json"))
