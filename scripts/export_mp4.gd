@@ -36,7 +36,7 @@ func export_rig_mp4(rig: Control, current_scene: int, start_clock: float) -> voi
     var exporter: Object = null
     if plugin_ok:
         exporter = Engine.get_singleton("MP4Exporter")
-        var out: String = "/storage/emulated/0/Movies/MobileI2V_%d.mp4" % (Time.get_unix_time_from_system() as int)
+        var out: String = ProjectSettings.globalize_path("user://exports/MobileI2V_%d.mp4" % int(Time.get_unix_time_from_system()))
         exporter.call("begin", out, WIDTH, HEIGHT, FPS)
     var written: int = 0
     for n in range(frame_count):
@@ -74,8 +74,9 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
         _set_status("Encodeur MP4 Android indisponible. Utilise l'export AVI local.")
         return
     exporting = true
+    DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://exports"))
     var encoder: Object = Engine.get_singleton("MP4Exporter")
-    var output: String = "/storage/emulated/0/Movies/MobileI2V_Board_%d.mp4" % int(Time.get_unix_time_from_system())
+    var output: String = ProjectSettings.globalize_path("user://exports/MobileI2V_Board_%d.mp4" % int(Time.get_unix_time_from_system()))
     var begin_result: Variant = encoder.call("begin", output, WIDTH, HEIGHT, FPS)
     if begin_result is bool and not begin_result:
         _set_status("Echec initialisation de l'encodeur H.264.")
