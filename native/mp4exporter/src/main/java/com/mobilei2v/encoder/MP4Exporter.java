@@ -2,6 +2,9 @@ package com.mobilei2v.encoder;
 
 import android.app.Activity;
 import android.content.ContentValues;
+import android.content.Intent;
+import java.io.InputStream;
+import java.io.FileOutputStream;
 import android.content.ContentResolver;
 import android.net.Uri;
 import android.os.Environment;
@@ -129,6 +132,68 @@ public final class MP4Exporter extends GodotPlugin {
             release(false);
             return result;
         } catch (Exception e) { error = e.toString(); Log.e("MobileI2V", "Finish failed", e); release(true); return ""; }
+    }
+
+    private static final int PICK_IMAGE_REQUEST = 61421;
+    private volatile String selectedImagePath = "";
+    private volatile String pickerError = "";
+
+    @UsedByGodot
+    public boolean pick_image() {
+        Activity activity = getActivity();
+        if (activity == null) return false;
+        selectedImagePath = "";
+        pickerError = "";
+        activity.runOnUiThread(() -> {
+            try {
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("image/*");
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                activity.startActivityForResult(intent, PICK_IMAGE_REQUEST);
+            } catch (Exception e) { pickerError = e.toString(); }
+        });
+        return true;
+    }
+
+    @Override
+    public void onMainActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode != PICK_IMAGE_REQUEST) return;
+        if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) {
+            pickerError = "Selection annulee";
+            return;
+        }
+        try {
+            Uri uri = data.getData();
+            File cache = new File(getActivity().getCacheDir(), "cartoon_import_" + System.currentTimeMillis() + ".img");
+            try (InputStream input = getActivity().getContentResolver().openInputStream(uri);
+                 FileOutputStream outputStream = new FileOutputStream(cache)) {
+                if (input == null) throw new IllegalStateException("Document inaccessible");
+                byte[] buffer = new byte[65536];
+                int n;
+                long size = 0;
+                while ((n = input.read(buffer)) != -1) {
+                    size += n;
+                    if (size > 30000000L) throw new IllegalStateException("Image larger than 30MB");
+                    outputStream.write(buffer, 0, n);
+                }
+            }
+            selectedImagePath = cache.getAbsolutePath();
+        } catch (Exception e) {
+            pickerError = e.toString();
+            Log.e("MobileI2V", "Photo import failed", e);
+        }
+    }
+
+    @UsedByGodot public String take_selected_image_path() {
+        String value = selectedImagePath;
+        selectedImagePath = "";
+        return value;
+    }
+    @UsedByGodot public String take_image_picker_error() {
+        String value = pickerError;
+        pickerError = "";
+        return value;
     }
 
     // Publish a finished video in the user's Downloads collection (Android 10+).
