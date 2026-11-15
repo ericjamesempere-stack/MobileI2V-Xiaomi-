@@ -54,7 +54,8 @@ def test_distinct_pose_guides_reach_real_model_adapter(monkeypatch):
     second["pose_image_base64"] = base64.b64encode(buf.getvalue()).decode("ascii")
     assert client.post("/generate", json=first).status_code == 200
     assert client.post("/generate", json=second).status_code == 200
-    assert observed == [((100, 50, 50), 1234), ((0, 200, 20), 1235)]
+    # Pose must change while the random seed stays fixed to reduce flicker.
+    assert observed == [((100, 50, 50), 1234), ((0, 200, 20), 1234)]
 
 def test_reject_frame_index_outside_sequence():
     body = payload()
