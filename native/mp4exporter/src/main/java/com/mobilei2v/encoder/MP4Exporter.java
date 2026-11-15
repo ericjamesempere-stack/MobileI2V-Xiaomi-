@@ -3,6 +3,8 @@ package com.mobilei2v.encoder;
 import android.app.Activity;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import java.io.InputStream;
 import java.io.FileOutputStream;
 import android.content.ContentResolver;
@@ -165,18 +167,29 @@ public final class MP4Exporter extends GodotPlugin {
         }
         try {
             Uri uri = data.getData();
-            File cache = new File(getActivity().getCacheDir(), "cartoon_import_" + System.currentTimeMillis() + ".img");
-            try (InputStream input = getActivity().getContentResolver().openInputStream(uri);
-                 FileOutputStream outputStream = new FileOutputStream(cache)) {
+            File cache = new File(getActivity().getCacheDir(), "cartoon_import_" + System.currentTimeMillis() + ".png");
+            // Decode via Android: supports content://, HEIC, JPEG and PNG, then
+            // normalize to PNG so Godot never needs to guess the MIME type.
+            try (InputStream input = getActivity().getContentResolver().openInputStream(uri)) {
                 if (input == null) throw new IllegalStateException("Document inaccessible");
-                byte[] buffer = new byte[65536];
-                int n;
-                long size = 0;
-                while ((n = input.read(buffer)) != -1) {
-                    size += n;
-                    if (size > 30000000L) throw new IllegalStateException("Image larger than 30MB");
-                    outputStream.write(buffer, 0, n);
-                }
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inJustDecodeBounds = true;
+                BitmapFactory.decodeStream(input, null, options);
+                if (options.outWidth <= 0 || options.outHeight <= 0)
+                    throw new IllegalStateException("Image format unsupported");
+            }
+            Bitmap bitmap;
+            try (InputStream input = getActivity().getContentResolver().openInputStream(uri)) {
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inSampleSize = 1;
+                bitmap = BitmapFactory.decodeStream(input, null, options);
+            }
+            if (bitmap == null) throw new IllegalStateException("Unable to decode selected photo");
+            try (FileOutputStream outputStream = new FileOutputStream(cache)) {
+                if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream))
+                    throw new IllegalStateException("Unable to save PNG");
+            } finally {
+                bitmap.recycle();
             }
             selectedImagePath = cache.getAbsolutePath();
         } catch (Exception e) {
