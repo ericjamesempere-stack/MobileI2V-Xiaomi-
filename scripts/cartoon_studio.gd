@@ -87,11 +87,11 @@ func _ready() -> void:
     generator = Node.new()
     generator.set_script(load("res://scripts/image_sequence_generator.gd"))
     add_child(generator)
-    generator.progress.connect(_progress)
+    generator.connect("progress", Callable(self, "_progress"))
     exporter = Node.new()
     exporter.set_script(load("res://scripts/export_mp4.gd"))
     add_child(exporter)
-    exporter.status_label = status
+    exporter.set("status_label", status)
     _restore()
     _duration_changed(duration.value)
 
@@ -152,7 +152,7 @@ func _advance() -> void:
         var total := roundi(duration.value * FPS)
         for i in range(total):
             timeline.append(mini(frames.size() - 1, floori(float(i) * float(frames.size()) / float(total))))
-        await exporter.export_board_mp4(frames, timeline, duration.value)
+        await exporter.call("export_board_mp4", frames, timeline, duration.value)
         action.disabled = false
         busy = false
         return
@@ -169,7 +169,7 @@ func _advance() -> void:
     busy = true
     action.disabled = true
     var count := mini(120, maxi(2, roundi(duration.value * 6.0)))
-    var result: Dictionary = await generator.generate(source, prompt.text, endpoint.text, count, false, "", duration.value)
+    var result: Dictionary = await generator.call("generate", source, prompt.text, endpoint.text, count, false, "", duration.value)
     if not bool(result.get("ok", false)):
         status.text = "Generation arretee : " + str(result.get("error", "Erreur inconnue"))
     else:
