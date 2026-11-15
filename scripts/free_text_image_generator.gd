@@ -46,11 +46,13 @@ func generate(story: String, visual_style: String, count: int = 2) -> Dictionary
   if int(response[0]) != HTTPRequest.RESULT_SUCCESS or code != 200:
    return {"ok": false, "error": "Service gratuit indisponible ou quota atteint (HTTP %d)" % code, "generated": frames.size(), "http_status": code}
   var bytes: PackedByteArray = response[3] as PackedByteArray
+  if bytes.is_empty() or bytes.size() > 6000000:
+   return {"ok": false, "error": "Reponse vide ou trop volumineuse", "generated": frames.size()}
   var img := Image.new()
   if img.load_jpg_from_buffer(bytes) != OK:
    if img.load_png_from_buffer(bytes) != OK:
     return {"ok": false, "error": "Le fournisseur n'a pas retourne une image valide", "generated": frames.size()}
-  if img.is_empty() or img.get_width() < 64 or img.get_height() < 64:
+  if img.is_empty() or img.get_width() < 64 or img.get_height() < 64 or img.get_width() > 1024 or img.get_height() > 1024:
    return {"ok": false, "error": "Image recue inutilisable", "generated": frames.size()}
   frames.append(img)
   progress.emit(i + 1, count)
