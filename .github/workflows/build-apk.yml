@@ -66,6 +66,18 @@ jobs:
           test -s build/native-encoder-classes/com/mobilei2v/encoder/AvcMp4Encoder.class
           echo "Native MediaCodec/MediaMuxer encoder Java compilation passed (not an Android runtime test)."
 
+      - name: Build Android MP4 Godot plugin AAR
+        run: |
+          set -euo pipefail
+          cd android/native_encoder
+          gradle --no-daemon assembleDebug
+          cd ../..
+          aar="android/native_encoder/build/outputs/aar/native_encoder-debug.aar"
+          test -s "$aar"
+          cp "$aar" addons/mobilei2v_encoder/mobilei2v_encoder.aar
+          unzip -p "$aar" AndroidManifest.xml >/dev/null
+          echo "Godot Android MP4 plugin AAR built and staged for export"
+
       - name: Configure and verify Godot Android export settings
         run: |
           set -euo pipefail
