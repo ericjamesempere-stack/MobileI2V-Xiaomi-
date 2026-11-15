@@ -97,8 +97,7 @@ func _set_stage(has_frames: bool) -> void:
     preview_button.disabled = not has_frames
     sheet_button.disabled = contact_sheet_path.is_empty()
     approve_button.disabled = not has_frames
-    # Never advertise an MP4 export until an Android encoder is connected.
-    video_button.disabled = true
+    video_button.disabled = not approved or not AndroidSequenceMp4.available()
 
 func _pick_photo() -> void:
     if generation_busy:
@@ -289,11 +288,19 @@ func _approve() -> void:
         return
     approved = true
     _set_stage(true)
-    status.text = "Dessins valides et sauvegardes. Export MP4 indisponible : encodeur Android non connecte."
+    status.text = "Dessins valides. Tu peux creer le MP4." if AndroidSequenceMp4.available() else "Dessins valides. Encodeur MP4 Android non installe."
 
 func _export() -> void:
-    if not approved:
+    if not approved or generation_busy:
         return
-    # The Android MP4 encoder is not connected to storyboard frames yet.
-    # Keep the validated PNG sequence rather than falsely naming it MP4.
-    status.text = "Dessins valides dans le projet. Encodage MP4 de cette sequence non disponible dans cette version."
+    if not AndroidSequenceMp4.available():
+        status.text = "Plugin Android MP4Exporter absent de cet APK."
+        return
+    generation_busy = true
+    status.text = "Encodage MP4 en cours..."
+    var result := await AndroidSequenceMp4.encode(frames, project_root + "/animation.mp4", FPS)
+    generation_busy = false
+    if result.get("ok", false):
+        status.text = "MP4 cree : " + str(result["path"])
+    else:
+        status.text = "Export MP4 impossible : " + str(result.get("error", "inconnu"))
