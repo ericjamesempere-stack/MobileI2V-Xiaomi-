@@ -151,21 +151,21 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
     # Verify that a real, non-trivial MP4 file was written to app storage.
     if written != total:
         _set_status("MP4 incomplet : %d/%d images." % [written, total])
-    elif result.is_empty() or not FileAccess.file_exists(output):
+    elif result.is_empty() or not FileAccess.file_exists(result):
         _set_status("Echec MP4 : fichier introuvable apres encodage.")
     else:
-        var file := FileAccess.open(output, FileAccess.READ)
+        var file := FileAccess.open(result, FileAccess.READ)
         if file == null or file.get_length() < 1024:
             _set_status("Echec MP4 : fichier vide ou invalide.")
         else:
             if encoder.has_method("publish_to_downloads"):
-                var public_uri: String = str(encoder.call("publish_to_downloads", output))
+                var public_uri: String = str(encoder.call("publish_to_downloads", result))
                 if not public_uri.is_empty():
                     _set_status("MP4 disponible dans Telechargements/CartoonStudio : " + public_uri)
                 else:
                     _set_status("MP4 cree mais copie dans Telechargements impossible : " + str(encoder.call("get_last_error")))
             else:
-                _set_status("MP4 enregistre dans l application : " + output + " (%d octets). Export public indisponible." % file.get_length())
+                _set_status("MP4 enregistre dans l application : " + result + " (%d octets). Export public indisponible." % file.get_length())
 
 
 # Fit image within a portrait canvas, letterboxing rather than distorting it.
