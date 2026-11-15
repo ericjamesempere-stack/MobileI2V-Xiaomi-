@@ -115,8 +115,9 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
                 return
             image_a.convert(Image.FORMAT_RGB8)
             image_b.convert(Image.FORMAT_RGB8)
-            image_a.resize(360, 480, Image.INTERPOLATE_BILINEAR)
-            image_b.resize(360, 480, Image.INTERPOLATE_BILINEAR)
+            # Preserve the source drawing's proportions; never stretch faces.
+            image_a = _fit_board_to_canvas(image_a)
+            image_b = _fit_board_to_canvas(image_b)
             previous_pair = pair
         var progress: float = position - float(slot)
         var eased: float = progress * progress * (3.0 - 2.0 * progress)
@@ -124,7 +125,6 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
         # in-between poses. Keep each validated drawing intact until a real
         # articulated interpolation backend is available.
         var img: Image = image_a.duplicate() if hold_keyframes or index == next_index or eased < 0.5 else image_b.duplicate()
-        img.resize(WIDTH, HEIGHT, Image.INTERPOLATE_BILINEAR)
         img.convert(Image.FORMAT_RGBA8)
         var frame_ok: Variant = encoder.call("push_frame_rgba", img.get_data())
         if frame_ok is bool and not frame_ok:
@@ -141,3 +141,16 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
     exporting = false
     _set_status("MP4 : " + result if not result.is_empty() and written == total else "MP4 incomplet : %d/%d images." % [written, total])
 
+
+# Fit image within a portrait canvas, letterboxing rather than distorting it.
+func _fit_board_to_canvas(original: Image) -> Image:
+    var canvas := Image.create(WIDTH, HEIGHT, false, Image.FORMAT_RGB8)
+    canvas.fill(Color.BLACK)
+    var scaled := original.duplicate()
+    scaled.convert(Image.FORMAT_RGB8)
+    var scale_factor: float = minf(float(WIDTH) / float(scaled.get_width()), float(HEIGHT) / float(scaled.get_height()))
+    var w: int = maxi(1, roundi(float(scaled.get_width()) * scale_factor))
+    var h: int = maxi(1, roundi(float(scaled.get_height()) * scale_factor))
+    scaled.resize(w, h, Image.INTERPOLATE_LANCZOS)
+    canvas.blit_rect(scaled, Rect2i(Vector2i.ZERO, Vector2i(w, h)), Vector2i((WIDTH - w) / 2, (HEIGHT - h) / 2))
+    return canvas
