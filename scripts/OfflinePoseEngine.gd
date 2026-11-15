@@ -7,6 +7,9 @@ class_name OfflinePoseEngine
 const SINGLETON := "ReferencePoseGenerator"
 
 static func availability() -> Dictionary:
+    var manifest := PoseModelManifest.inspect("user://pose_model/manifest.json")
+    if not manifest.get("ok", false):
+        return {"available": false, "reason": manifest.get("error", "model_manifest_invalid")}
     if not Engine.has_singleton(SINGLETON):
         return {"available": false, "reason": "native_reference_pose_model_not_installed"}
     var engine := Engine.get_singleton(SINGLETON)
