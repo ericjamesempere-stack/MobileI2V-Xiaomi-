@@ -32,15 +32,27 @@ public final class AvcMp4Encoder {
         format.setInteger(MediaFormat.KEY_FRAME_RATE, frameRate);
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
         try {
-            codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
-            boolean planarSupported = false;
-            for (int color : codec.getCodecInfo().getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).colorFormats) {
-                if (color == MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar) {
-                    planarSupported = true;
-                    break;
+            // Android may choose a surface-only default AVC encoder. Enumerate
+            // available codecs and select one that explicitly accepts I420.
+            android.media.MediaCodecList codecList =
+                new android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS);
+            String selected = null;
+            for (android.media.MediaCodecInfo candidate : codecList.getCodecInfos()) {
+                if (!candidate.isEncoder()) continue;
+                for (String type : candidate.getSupportedTypes()) {
+                    if (!MediaFormat.MIMETYPE_VIDEO_AVC.equalsIgnoreCase(type)) continue;
+                    for (int color : candidate.getCapabilitiesForType(type).colorFormats) {
+                        if (color == MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar) {
+                            selected = candidate.getName();
+                            break;
+                        }
+                    }
+                    if (selected != null) break;
                 }
+                if (selected != null) break;
             }
-            if (!planarSupported) throw new IllegalStateException("device AVC codec does not support planar YUV420");
+            if (selected == null) throw new IllegalStateException("no AVC encoder supports planar YUV420");
+            codec = MediaCodec.createByCodecName(selected);
             codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
             codec.start();
             muxer = new MediaMuxer(path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
