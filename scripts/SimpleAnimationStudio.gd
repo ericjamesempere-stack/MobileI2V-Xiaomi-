@@ -191,7 +191,22 @@ func _generate() -> void:
         var pose_image := Image.new()
         if pose_image.load(contact_sheet_path) == OK:
             preview.texture = ImageTexture.create_from_image(pose_image)
-        status.text = "%d poses cles creees. Bouton Planche disponible; validation et MP4 bloques tant que les images intermediaires manquent." % int(generated_poses["keyframes"])
+        status.text = "%d poses cles creees. Generation des images intermediaires..." % int(generated_poses["keyframes"])
+        var full_sequence := OfflinePoseEngine.generate_full_sequence(keyframe_plan, project_root + "/generated_frames")
+        if not full_sequence.get("ok", false):
+            status.text = "Poses cles disponibles, sequence incomplete : %s (image %d)" % [str(full_sequence.get("error", "inconnu")), int(full_sequence.get("index", -1))]
+            return
+        frames.clear()
+        for generated_path in full_sequence["paths"]:
+            frames.append(str(generated_path))
+        var full_sheet := AnimationContactSheet.build(frames, project_root + "/planche_complete.png")
+        if full_sheet.get("ok", false):
+            contact_sheet_path = str(full_sheet["path"])
+        generated = true
+        approved = false
+        _set_stage(true)
+        _show_frame(0)
+        status.text = "%d images distinctes verifiees. Regarde le mouvement avant validation. MP4 non disponible." % frames.size()
         return
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(project_root)) != OK:
         status.text = "Impossible de creer le dossier."
