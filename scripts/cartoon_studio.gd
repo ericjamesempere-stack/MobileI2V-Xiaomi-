@@ -111,7 +111,7 @@ func _ready() -> void:
     free_ai_mode.button_pressed = false
     panel.add_child(free_ai_mode)
     upload_consent = CheckBox.new()
-    upload_consent.text = "J’autorise l’envoi de mon image au moteur HTTPS indique ci-dessus"
+    upload_consent.text = "J’autorise l’envoi de mon histoire au service IA gratuit, ou de ma photo au moteur HTTPS choisi"
     upload_consent.button_pressed = false
     panel.add_child(upload_consent)
     action = Button.new()
@@ -279,7 +279,7 @@ func _advance() -> void:
         return
     var free_mode: bool = free_ai_mode.button_pressed
     var online_mode: bool = endpoint.text.begins_with("https://") and not free_mode
-    if online_mode and not upload_consent.button_pressed:
+    if (online_mode or free_mode) and not upload_consent.button_pressed:
         status.text = "Autorise l'envoi de la photo au moteur HTTPS ou vide son adresse pour le mode local."
         return
     _save()
