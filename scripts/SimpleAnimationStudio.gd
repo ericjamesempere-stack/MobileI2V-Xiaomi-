@@ -95,7 +95,8 @@ func _set_stage(has_frames: bool) -> void:
     preview_button.disabled = not has_frames
     sheet_button.disabled = contact_sheet_path.is_empty()
     approve_button.disabled = not has_frames
-    video_button.disabled = not approved
+    # Never advertise an MP4 export until an Android encoder is connected.
+    video_button.disabled = true
 
 func _pick_photo() -> void:
     photo_picker.popup_centered_ratio(0.9)
@@ -258,7 +259,7 @@ func _approve() -> void:
         return
     approved = true
     _set_stage(true)
-    status.text = "Sequence validee. La video peut etre creee."
+    status.text = "Dessins valides et sauvegardes. Export MP4 indisponible : encodeur Android non connecte."
 
 func _export() -> void:
     if not approved:
