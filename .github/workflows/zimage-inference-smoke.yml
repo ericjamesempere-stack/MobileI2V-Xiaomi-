@@ -1,0 +1,42 @@
+name: Z-Image real inference smoke test
+on:
+  push:
+    branches: [rebuild/cartoon-studio-20261114]
+    paths: ['.github/workflows/zimage-inference-smoke.yml']
+  workflow_dispatch:
+jobs:
+  inference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Request one original generated image
+        run: |
+          python - <<'PY'
+          import json,urllib.request,urllib.error,sys
+          host="https://techfreakworm-z-image-studio.hf.space"
+          payload={"data":["Original cartoon animation storyboard, a small blue robot standing on a plain white background, full body, clean line art","blurry, distorted","Turbo",4,1.0,384,384,20261116,False,None,0.0]}
+          req=urllib.request.Request(host+"/gradio_api/call/on_t2i_generate",data=json.dumps(payload).encode(),headers={"Content-Type":"application/json","User-Agent":"KarmaOne-SmokeTest/1.0"},method="POST")
+          try:
+            with urllib.request.urlopen(req,timeout=45) as response:
+              result=json.load(response)
+            print("Submission keys:",list(result))
+            event_id=result.get("event_id")
+            if not event_id:raise RuntimeError("No event_id returned; model request was not accepted")
+            url=host+"/gradio_api/call/on_t2i_generate/"+str(event_id)
+            with urllib.request.urlopen(url,timeout=220) as response:
+              events=[]
+              for raw in response:
+                line=raw.decode("utf-8","replace").strip()
+                if line.startswith("event:"):events.append(line)
+                if line.startswith("data:") and events and events[-1] in ("event: complete","event: error"):
+                  try: data=json.loads(line[5:].strip())
+                  except Exception:data=line[5:].strip()[:500]
+                  print("Terminal event:",events[-1],"result:",str(data)[:1500])
+                  if events[-1]=="event: error":sys.exit(2)
+                  if not data:sys.exit("Empty generation result")
+                  break
+              else:sys.exit("No terminal generation event")
+          except Exception as e:
+            print("Generation failed:",str(e)[:600])
+            raise
+          PY
