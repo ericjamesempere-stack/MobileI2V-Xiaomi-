@@ -92,3 +92,14 @@ def test_no_unverified_identity_claim_even_with_previous_frame(monkeypatch):
     assert result.status_code == 200
     assert result.json()["identity_verified"] is False
     assert result.json()["temporal_continuity_verified"] is False
+
+
+def test_pose_health_never_claims_unverified_inference():
+    result = client.get("/health/pose")
+    assert result.status_code == 200
+    data = result.json()
+    assert data["http_ok"] is True
+    assert data["real_inference_verified"] is False
+    assert isinstance(data["cuda_available"], bool)
+    assert isinstance(data["model_loaded"], bool)
+    assert data["ready_for_inference"] == (data["cuda_available"] and data["model_loaded"])
