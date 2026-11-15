@@ -105,6 +105,7 @@ jobs:
             tests/test_motion_continuity.gd \
             tests/test_reference_styles.gd \
             tests/test_generated_frame_validator.gd \
+            tests/test_reference_keyframe_scheduler.gd \
             tests/test_story_frame_pipeline.gd \
             tests/test_procedural_pose_renderer.gd \
             tests/test_story_sequence_player.gd; do
