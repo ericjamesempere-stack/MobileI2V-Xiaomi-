@@ -16,6 +16,7 @@ var exporter: Node
 var step := 0
 var busy := false
 var project_dir := "user://cartoon_studio"
+var legacy_studio: Control = null
 
 func _ready() -> void:
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(project_dir))
@@ -47,6 +48,12 @@ func _ready() -> void:
     import_button.custom_minimum_size.y = 80
     import_button.pressed.connect(_choose_image)
     panel.add_child(import_button)
+    # Preserve access to the earlier storyboard, contact-sheet and review flow.
+    var legacy_button := Button.new()
+    legacy_button.text = "Ouvrir le studio classique (planches et validation)"
+    legacy_button.custom_minimum_size.y = 64
+    legacy_button.pressed.connect(_open_legacy_studio)
+    panel.add_child(legacy_button)
     prompt = TextEdit.new()
     prompt.placeholder_text = "Que doit faire ton personnage ? Exemple : il se leve, marche, puis salue."
     prompt.custom_minimum_size.y = 140
@@ -265,3 +272,29 @@ func _advance() -> void:
             await exporter.call("export_board_mp4", frames, timeline, duration.value)
     busy = false
     action.disabled = false
+
+func _open_legacy_studio() -> void:
+    if busy or legacy_studio != null:
+        return
+    var legacy_script: Script = load("res://scripts/SimpleAnimationStudio.gd")
+    if legacy_script == null:
+        status.text = "Studio classique indisponible."
+        return
+    legacy_studio = Control.new()
+    legacy_studio.set_script(legacy_script)
+    legacy_studio.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    get_parent().add_child(legacy_studio)
+    hide()
+    var back := Button.new()
+    back.text = "Retour Cartoon Studio"
+    back.custom_minimum_size = Vector2(270, 64)
+    back.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+    back.position = Vector2(-290, 8)
+    back.pressed.connect(_close_legacy_studio)
+    legacy_studio.add_child(back)
+
+func _close_legacy_studio() -> void:
+    if legacy_studio != null:
+        legacy_studio.queue_free()
+        legacy_studio = null
+    show()
