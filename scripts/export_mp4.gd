@@ -158,7 +158,14 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
         if file == null or file.get_length() < 1024:
             _set_status("Echec MP4 : fichier vide ou invalide.")
         else:
-            _set_status("MP4 enregistre dans l application : " + output + " (%d octets)" % file.get_length())
+            if encoder.has_method("publish_to_downloads"):
+                var public_uri: String = str(encoder.call("publish_to_downloads", output))
+                if not public_uri.is_empty():
+                    _set_status("MP4 disponible dans Telechargements/CartoonStudio : " + public_uri)
+                else:
+                    _set_status("MP4 cree mais copie dans Telechargements impossible : " + str(encoder.call("get_last_error")))
+            else:
+                _set_status("MP4 enregistre dans l application : " + output + " (%d octets). Export public indisponible." % file.get_length())
 
 
 # Fit image within a portrait canvas, letterboxing rather than distorting it.
