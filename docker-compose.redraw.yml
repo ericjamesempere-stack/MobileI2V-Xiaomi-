@@ -1,0 +1,18 @@
+services:
+  cartoon-redraw:
+    build:
+      context: .
+      dockerfile: ai_redraw/Dockerfile
+    ports:
+      - "127.0.0.1:8765:8765"
+    environment:
+      HF_HOME: /models/cache
+      REDRAW_MODEL_ID: stable-diffusion-v1-5/stable-diffusion-v1-5
+      REDRAW_POSE_MODEL_ID: lllyasviel/control_v11p_sd15_openpose
+    volumes:
+      - model-cache:/models/cache
+    gpus: all
+    restart: unless-stopped
+
+volumes:
+  model-cache:
