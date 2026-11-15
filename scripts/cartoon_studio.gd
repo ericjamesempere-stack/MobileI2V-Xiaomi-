@@ -124,7 +124,10 @@ func _ready() -> void:
     add_child(exporter)
     exporter.set("status_label", status)
     _restore()
-    _duration_changed(duration.value)
+    if source == null or source.is_empty():
+        _duration_changed(duration.value)
+    else:
+        status.text = "Photo restauree et prete pour la generation."
     _refresh_review_buttons()
 
 func _choose_image() -> void:
@@ -146,6 +149,7 @@ func _image_selected(path: String) -> void:
     # Reuse the existing Android-aware image reader rather than duplicating
     # the import implementation in this screen.
     var img: Image = load("res://scripts/android_image_reader.gd").read_image(path)
+    print("Cartoon Studio image import: ", path, " decoded=", img != null and not img.is_empty())
     if img == null or img.is_empty():
         if path.begins_with("content://"):
             status.text = "Acces Android refuse pour content://. Le lecteur existant ne peut pas ouvrir ce document; un pont ContentResolver est requis."
@@ -163,6 +167,7 @@ func _image_selected(path: String) -> void:
         return
     source = persisted
     preview.texture = ImageTexture.create_from_image(source)
+    preview.show()
     frames.clear()
     approved = false
     playing = false
