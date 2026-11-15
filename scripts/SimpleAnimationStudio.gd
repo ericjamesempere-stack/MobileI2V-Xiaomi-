@@ -93,7 +93,7 @@ func _button(parent: Node, title: String, action: Callable) -> Button:
 
 func _set_stage(has_frames: bool) -> void:
     preview_button.disabled = not has_frames
-    sheet_button.disabled = not has_frames
+    sheet_button.disabled = contact_sheet_path.is_empty()
     approve_button.disabled = not has_frames
     video_button.disabled = not approved
 
@@ -183,10 +183,11 @@ func _generate() -> void:
             status.text = "Controle des poses impossible : " + str(review.get("error", "inconnu"))
             return
         contact_sheet_path = str(review["sheet_path"])
+        _set_stage(false)
         var pose_image := Image.new()
         if pose_image.load(contact_sheet_path) == OK:
             preview.texture = ImageTexture.create_from_image(pose_image)
-        status.text = "%d vraies poses cles creees. Verifie la planche. Images intermediaires non generees." % int(generated_poses["keyframes"])
+        status.text = "%d poses cles creees. Bouton Planche disponible; validation et MP4 bloques tant que les images intermediaires manquent." % int(generated_poses["keyframes"])
         return
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(project_root)) != OK:
         status.text = "Impossible de creer le dossier."
@@ -228,7 +229,7 @@ func _show_contact_sheet() -> void:
     var img := Image.new()
     if img.load(contact_sheet_path) == OK:
         preview.texture = ImageTexture.create_from_image(img)
-        status.text = "Planche des poses generees. Valide apres inspection."
+        status.text = "Planche de controle. La validation finale demande toutes les images du mouvement."
 
 func _play() -> void:
     if not generated:
