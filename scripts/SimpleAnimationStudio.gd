@@ -154,6 +154,14 @@ func _generate() -> void:
         if not keyframe_plan.get("ok", false):
             status.text = "Plan de poses impossible : " + str(keyframe_plan.get("error", "inconnu"))
             return
+        var keyframes := ReferenceKeyframeScheduler.schedule(keyframe_plan, 6)
+        if not keyframes.get("ok", false):
+            status.text = "Selection des poses impossible"
+            return
+        var keyframes_saved := ReferenceKeyframeScheduler.save(keyframes, project_root + "/poses_cles.json")
+        if not keyframes_saved.get("ok", false):
+            status.text = "Sauvegarde des poses cles impossible"
+            return
         var plan_saved := ReferenceKeyframePlan.save(keyframe_plan, project_root + "/poses_a_generer.json")
         if not plan_saved.get("ok", false):
             status.text = "Impossible de sauvegarder les poses"
@@ -162,7 +170,7 @@ func _generate() -> void:
         if file != null:
             file.store_string(JSON.stringify(project, "  "))
             file.close()
-        status.text = "%d poses planifiees avec photo, style et decor conserves. Generation visuelle fidele non encore connectee." % int(plan_saved["frames"])
+        status.text = "%d images prevues, dont %d poses cles. Dessin fidele et interpolation encore non connectes." % [int(plan_saved["frames"]), int(keyframes_saved["keyframes"])]
         return
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(project_root)) != OK:
         status.text = "Impossible de creer le dossier."
