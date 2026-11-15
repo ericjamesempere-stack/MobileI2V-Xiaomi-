@@ -12,8 +12,8 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
   return {"ok": false, "error": "Consigne absente"}
  if not endpoint.begins_with("https://"):
   return {"ok": false, "error": "Adresse HTTPS du moteur image-to-image requise"}
- if count < 2 or count > 120:
-  return {"ok": false, "error": "Nombre d'images hors limites (2-120)"}
+ if count < 2 or count > 240:
+  return {"ok": false, "error": "Nombre d'images hors limites (2-240)"}
  cancel_requested = false
  var reference := source.duplicate()
  var limit := 1024.0
