@@ -25,7 +25,10 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install real inference runtime
-        run: python -m pip install mediapipe pillow numpy
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libegl1 libgl1 libglib2.0-0
+          python -m pip install mediapipe pillow numpy
       - name: Download official MediaPipe Lite model
         run: |
           curl --fail --location --retry 3 --output /tmp/pose_landmarker_lite.task \
