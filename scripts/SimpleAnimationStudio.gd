@@ -192,7 +192,7 @@ func _generate() -> void:
         if pose_image.load(contact_sheet_path) == OK:
             preview.texture = ImageTexture.create_from_image(pose_image)
         status.text = "%d poses cles creees. Generation des images intermediaires..." % int(generated_poses["keyframes"])
-        var full_sequence := OfflinePoseEngine.generate_full_sequence(keyframe_plan, project_root + "/generated_frames", project_root + "/generated_keyframes")
+        var full_sequence := await OfflinePoseEngine.generate_full_sequence(keyframe_plan, project_root + "/generated_frames", project_root + "/generated_keyframes")
         if not full_sequence.get("ok", false):
             status.text = "Poses cles disponibles, sequence incomplete : %s (image %d)" % [str(full_sequence.get("error", "inconnu")), int(full_sequence.get("index", -1))]
             return
