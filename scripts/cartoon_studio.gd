@@ -72,7 +72,7 @@ func _ready() -> void:
     sheet_button.pressed.connect(_show_sheet)
     panel.add_child(sheet_button)
     approve_button = Button.new()
-    approve_button.text = "Valider les dessins"
+    approve_button.text = "Valider les dessins (optionnel)"
     approve_button.pressed.connect(_approve_sequence)
     panel.add_child(approve_button)
     var duration_row := HBoxContainer.new()
@@ -232,19 +232,12 @@ func _advance() -> void:
     if busy:
         return
     if step == 1:
-        if not approved:
-            status.text = "Previsualise et valide les dessins avant export MP4."
-            return
         if frames.is_empty():
             status.text = "Aucun dessin valide : assemblage interdit."
             return
         busy = true
         action.disabled = true
-        var timeline: Array = []
-        var total := roundi(duration.value * FPS)
-        for i in range(total):
-            timeline.append(mini(frames.size() - 1, floori(float(i) * float(frames.size()) / float(total))))
-        await exporter.call("export_board_mp4", frames, timeline, duration.value)
+        await _export_generated_mp4()
         action.disabled = false
         busy = false
         return
@@ -293,7 +286,8 @@ func _advance() -> void:
             step = 1
             action.text = "Exporter MP4"
             _build_sheet()
-            status.text = "%d dessins sauvegardes. Previsualise, consulte la planche et valide avant export." % frames.size()
+            status.text = "%d dessins sauvegardes. Creation automatique du MP4..." % frames.size()
+            await _export_generated_mp4()
     busy = false
     action.disabled = false
     _refresh_review_buttons()
@@ -353,3 +347,13 @@ func _approve_sequence() -> void:
     playing = false
     approved = true
     status.text = "%d dessins valides. Export MP4 disponible." % frames.size()
+
+func _export_generated_mp4() -> void:
+    if frames.is_empty():
+        status.text = "Aucun dessin a encoder."
+        return
+    var timeline: Array = []
+    var total: int = maxi(1, roundi(duration.value * FPS))
+    for i in range(total):
+        timeline.append(mini(frames.size() - 1, floori(float(i) * float(frames.size()) / float(total))))
+    await exporter.call("export_board_mp4", frames, timeline, duration.value)
