@@ -181,7 +181,7 @@ public final class MP4Exporter extends GodotPlugin {
             Bitmap bitmap;
             try (InputStream input = getActivity().getContentResolver().openInputStream(uri)) {
                 BitmapFactory.Options options = new BitmapFactory.Options();
-                options.inSampleSize = 1;
+                options.inSampleSize = 2;
                 bitmap = BitmapFactory.decodeStream(input, null, options);
             }
             if (bitmap == null) throw new IllegalStateException("Unable to decode selected photo");
