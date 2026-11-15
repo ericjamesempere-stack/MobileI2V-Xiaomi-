@@ -46,9 +46,16 @@ func export_rig_mp4(rig: Control, current_scene: int, start_clock: float) -> voi
         var img: Image = viewport.get_texture().get_image()
         if img == null or img.is_empty():
             continue
-        img.convert(Image.FORMAT_RGB8)
+        # Native encoder expects four channels per pixel (RGBA8), not RGB8.
+        img.convert(Image.FORMAT_RGBA8)
         if plugin_ok and exporter != null:
-            exporter.call("push_frame_rgba", img.get_data())
+            var pushed: Variant = exporter.call("push_frame_rgba", img.get_data())
+            if pushed is bool and not pushed:
+                _set_status("Encodage interrompu : " + str(exporter.call("get_last_error")))
+                exporter.call("finish")
+                viewport.queue_free()
+                exporting = false
+                return
         else:
             img.save_png("%s/frame_%04d.png" % [frames_dir, n])
         written += 1
