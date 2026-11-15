@@ -29,6 +29,7 @@ def run(reference_path: Path, output_path: Path, action: str, drawings: int, fps
         frames = Path(folder)
         sizes = []
         changes = []
+        # Hold the diffusion seed constant: pose changes, not random identity.
         previous = None
         for i in range(drawings):
             phase = i / max(1, drawings - 1)
@@ -36,7 +37,7 @@ def run(reference_path: Path, output_path: Path, action: str, drawings: int, fps
             # Real inference. Raises if model weights/GPU are missing.
             frame = pose_redraw(reference, pose,
                                 f"Same recognizable character and clothes, full body, {action}",
-                                0.55, 1234 + i).convert("RGB")
+                                0.55, 1234).convert("RGB")
             if previous is not None:
                 if frame.size != previous.size:
                     raise RuntimeError("Generated images have inconsistent dimensions")
