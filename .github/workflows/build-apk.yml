@@ -115,6 +115,14 @@ jobs:
           timeout 45s ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --script res://ci/configure_android.gd 2>&1 | tee configure.log
           if grep -E 'SCRIPT ERROR|Parse Error|Invalid call' configure.log; then exit 1; fi
 
+      - name: Install Godot Android Gradle build template
+        run: |
+          set -euo pipefail
+          ./Godot_v4.3-stable_linux.x86_64 --headless --path . --install-android-build-template 2>&1 | tee android-template.log
+          test -f android/build/build.gradle
+          test -f android/build/settings.gradle
+          echo "Godot Android Gradle template installed"
+
       - name: Import Godot project
         run: |
           set -euo pipefail
@@ -167,6 +175,7 @@ jobs:
               'architectures/x86': 'false',
               'architectures/x86_64': 'false',
               'package/unique_name': 'com.ericjamesempere.mobilei2v',
+              'gradle_build/use_gradle_build': 'true',
           }
           for key, value in values.items():
               encoded = f'"{value}"' if key.startswith('keystore/') or key == 'package/unique_name' else value
@@ -179,7 +188,7 @@ jobs:
           print('Resolved export preset:', p.resolve())
           print('Configured explicit debug signing, launcher activity, package ID, and ARM64-only ABI')
           PY
-          grep -E '^(keystore/debug|keystore/debug_user|keystore/debug_password|architectures/arm64-v8a|package/unique_name|package/show_as_launcher_app)=' export_presets.cfg
+          grep -E '^(gradle_build/use_gradle_build|keystore/debug|keystore/debug_user|keystore/debug_password|architectures/arm64-v8a|package/unique_name|package/show_as_launcher_app)=' export_presets.cfg
 
       - name: Export APK ARM64
         run: |
