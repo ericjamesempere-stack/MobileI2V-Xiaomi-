@@ -78,6 +78,8 @@ public final class ReferencePoseGeneratorPlugin extends GodotPlugin {
             if (original == null) throw new IllegalArgumentException("reference_unreadable");
             // Only models with explicitly declared NCHW image input and output
             // can use this generic runner; unsupported diffusion graphs fail.
+            if (session.getInputNames().size() != 1)
+                throw new IllegalStateException("multi_input_model_requires_specialized_adapter");
             String inputName = session.getInputNames().iterator().next();
             ai.onnxruntime.NodeInfo node = session.getInputInfo().get(inputName);
             if (!(node.getInfo() instanceof ai.onnxruntime.TensorInfo))
