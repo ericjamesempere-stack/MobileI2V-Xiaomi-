@@ -337,7 +337,10 @@ func _advance() -> void:
             action.text = "Exporter MP4"
             _build_sheet()
             status.text = "%d dessins sauvegardes (%s). Creation du MP4..." % [frames.size(), "IA gratuite texte (visage non garanti)" if free_mode else ("IA externe" if online_mode else "animation locale stylisee, visage non reproduit")]
-            await _export_generated_mp4()
+            if free_mode:
+                status.text = "Deux images IA de storyboard sauvegardees. Controle la coherence avant export MP4 : ce ne sont pas des mouvements animes fluides."
+            else:
+                await _export_generated_mp4()
     busy = false
     action.disabled = false
     _refresh_review_buttons()
