@@ -31,14 +31,30 @@ static func generate(schedule_data: Dictionary, output_folder: String) -> Dictio
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(output_folder)) != OK:
         return {"ok": false, "error": "output_directory_failed"}
     var engine := Engine.get_singleton(SINGLETON)
+    var previous_index := -1
     for key in keys:
         var index := int(key.get("frame_index", -1))
         var reference := str(key.get("reference_original", ""))
-        if index < 0 or not FileAccess.file_exists(reference):
+        if index <= previous_index or not FileAccess.file_exists(reference):
             return {"ok": false, "error": "reference_missing", "index": index}
+        previous_index = index
         var path := "%s/keyframe_%06d.png" % [output_folder, index]
-        # Native plugin must produce the PNG; success is verified by importer.
-        var request := JSON.stringify(key)
+        # Never accept a PNG left behind by a previous failed run.
+        if FileAccess.file_exists(path):
+            DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+        var request_data: Dictionary = key.duplicate(true)
+        request_data["reference_original"] = ProjectSettings.globalize_path(reference)
+        var styled := str(key.get("reference_styled", ""))
+        if not styled.is_empty():
+            if not FileAccess.file_exists(styled):
+                return {"ok": false, "error": "styled_reference_missing", "index": index}
+            request_data["reference_styled"] = ProjectSettings.globalize_path(styled)
+        var manifest := PoseModelManifest.inspect("user://pose_model/manifest.json")
+        if not manifest.get("ok", false):
+            return {"ok": false, "error": "model_manifest_invalid"}
+        request_data["model_path"] = ProjectSettings.globalize_path(str(manifest["model_path"]))
+        # Native plugin receives absolute filesystem paths, not Godot user:// URIs.
+        var request := JSON.stringify(request_data)
         var success := bool(engine.call("generate_pose_png", request, ProjectSettings.globalize_path(path)))
         if not success:
             return {"ok": false, "error": "model_generation_failed", "index": index}
