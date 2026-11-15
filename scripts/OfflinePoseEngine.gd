@@ -62,3 +62,47 @@ static func generate(schedule_data: Dictionary, output_folder: String) -> Dictio
     if not imported.get("ok", false):
         return imported
     return {"ok": true, "keyframes": imported["count"], "folder": output_folder, "review_required": true}
+
+# Generate every planned frame using the installed native image model.
+# This is intentionally not interpolation by duplicating existing PNGs.
+static func generate_full_sequence(plan: Dictionary, output_folder: String) -> Dictionary:
+    var available := availability()
+    if not available.get("available", false):
+        return {"ok": false, "error": available.get("reason", "model_unavailable")}
+    if not plan.get("ok", false) or not output_folder.begins_with("user://"):
+        return {"ok": false, "error": "invalid_generation_request"}
+    var instructions: Array = plan.get("frames", [])
+    if instructions.is_empty():
+        return {"ok": false, "error": "empty_frame_plan"}
+    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(output_folder)) != OK:
+        return {"ok": false, "error": "output_directory_failed"}
+    var manifest := PoseModelManifest.inspect("user://pose_model/manifest.json")
+    if not manifest.get("ok", false):
+        return {"ok": false, "error": "model_manifest_invalid"}
+    var model_path := ProjectSettings.globalize_path(str(manifest["model_path"]))
+    var engine := Engine.get_singleton(SINGLETON)
+    var paths: Array[String] = []
+    for i in range(instructions.size()):
+        var instruction: Dictionary = instructions[i]
+        var original := str(instruction.get("reference_original", ""))
+        var styled := str(instruction.get("reference_styled", ""))
+        if not FileAccess.file_exists(original) or not FileAccess.file_exists(styled):
+            return {"ok": false, "error": "reference_missing", "index": i}
+        var destination := "%s/frame_%06d.png" % [output_folder, i]
+        if FileAccess.file_exists(destination):
+            var remove_error := DirAccess.remove_absolute(ProjectSettings.globalize_path(destination))
+            if remove_error != OK:
+                return {"ok": false, "error": "stale_frame_removal_failed", "index": i}
+        var request := instruction.duplicate(true)
+        request["reference_original"] = ProjectSettings.globalize_path(original)
+        request["reference_styled"] = ProjectSettings.globalize_path(styled)
+        request["model_path"] = model_path
+        if not bool(engine.call("generate_pose_png", JSON.stringify(request), ProjectSettings.globalize_path(destination))):
+            return {"ok": false, "error": "model_generation_failed", "index": i}
+        if not FileAccess.file_exists(destination):
+            return {"ok": false, "error": "model_did_not_write_png", "index": i}
+        paths.append(destination)
+    var checked := GeneratedFrameValidator.inspect(plan, paths)
+    if not checked.get("ok", false):
+        return checked
+    return {"ok": true, "paths": paths, "frames": paths.size(), "fps": int(plan.get("fps", 12)), "review_required": true, "mp4_encoded": false}
