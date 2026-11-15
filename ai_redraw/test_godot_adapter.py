@@ -61,3 +61,31 @@ def test_reject_frame_index_outside_sequence():
     body = payload()
     body["frame_index"] = body["total_frames"]
     assert client.post("/generate", json=body).status_code == 422
+
+
+def test_reference_fidelity_controls_denoising(monkeypatch):
+    import ai_redraw.godot_adapter as adapter
+    observed = []
+    def capture(reference, pose, prompt, strength, seed):
+        observed.append((strength, seed))
+        return reference.copy()
+    monkeypatch.setattr(adapter, "pose_redraw", capture)
+    low = payload()
+    low["reference_strength"] = 0.0
+    high = payload()
+    high["reference_strength"] = 1.0
+    assert client.post("/generate", json=low).status_code == 200
+    assert client.post("/generate", json=high).status_code == 200
+    assert observed == [(0.75, 1234), (0.4, 1234)]
+    assert observed[1][0] < observed[0][0]
+
+
+def test_no_unverified_identity_claim_even_with_previous_frame(monkeypatch):
+    import ai_redraw.godot_adapter as adapter
+    monkeypatch.setattr(adapter, "pose_redraw", lambda *args: args[0].copy())
+    body = payload()
+    body["previous_image_base64"] = png_b64()
+    result = client.post("/generate", json=body)
+    assert result.status_code == 200
+    assert result.json()["identity_verified"] is False
+    assert result.json()["temporal_continuity_verified"] is False
