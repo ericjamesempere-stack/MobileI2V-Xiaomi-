@@ -147,7 +147,18 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
             await get_tree().process_frame
     var result: String = str(encoder.call("finish"))
     exporting = false
-    _set_status("MP4 : " + result if not result.is_empty() and written == total else "MP4 incomplet : %d/%d images." % [written, total])
+    # A non-empty encoder return value is not proof of a usable video.
+    # Verify that a real, non-trivial MP4 file was written to app storage.
+    if written != total:
+        _set_status("MP4 incomplet : %d/%d images." % [written, total])
+    elif result.is_empty() or not FileAccess.file_exists(output):
+        _set_status("Echec MP4 : fichier introuvable apres encodage.")
+    else:
+        var file := FileAccess.open(output, FileAccess.READ)
+        if file == null or file.get_length() < 1024:
+            _set_status("Echec MP4 : fichier vide ou invalide.")
+        else:
+            _set_status("MP4 enregistre dans l application : " + output + " (%d octets)" % file.get_length())
 
 
 # Fit image within a portrait canvas, letterboxing rather than distorting it.
