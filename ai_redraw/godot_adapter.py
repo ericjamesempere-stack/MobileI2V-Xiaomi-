@@ -37,10 +37,14 @@ def generate_frame(request: FrameInput):
         raise HTTPException(422, "Frame index outside sequence")
     reference = decode_png(request.image_base64)
     pose = decode_png(request.pose_image_base64)
-    # Original image remains the identity anchor; previous image is context
-    # only until a validated multi-image conditioning model is available.
+    # Keep the same noise seed for every pose: per-frame random seeds cause
+    # unrelated textures, faces and clothing to flicker between drawings.
+    # reference_strength controls img2img denoising inversely: higher identity
+    # preference means less departure from the original. Pose compliance and
+    # identity are not guaranteed and must still be evaluated visually.
+    denoise = max(0.35, min(0.75, 0.85 - 0.45 * request.reference_strength))
     try:
-        image = pose_redraw(reference, pose, request.prompt, 0.55, 1234 + request.frame_index)
+        image = pose_redraw(reference, pose, request.prompt, denoise, 1234)
     except Exception as exc:
         raise HTTPException(503, "Pose-conditioned model unavailable: " + type(exc).__name__) from exc
     buffer = io.BytesIO()
@@ -50,4 +54,6 @@ def generate_frame(request: FrameInput):
         "engine": "controlnet-openpose-img2img",
         "identity_verified": False,
         "temporal_continuity_verified": False,
+        "seed": 1234,
+        "denoising_strength": denoise,
     }
