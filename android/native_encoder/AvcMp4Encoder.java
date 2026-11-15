@@ -18,6 +18,7 @@ public final class AvcMp4Encoder {
 
     public void begin(String path, int w, int h, int frameRate) throws Exception {
         if (codec != null) throw new IllegalStateException("already encoding");
+        if (path == null || path.isEmpty()) throw new IllegalArgumentException("output path required");
         if (w <= 0 || h <= 0 || (w & 1) != 0 || (h & 1) != 0 || frameRate <= 0)
             throw new IllegalArgumentException("dimensions must be positive and even");
         width = w; height = h; fps = frameRate; frames = 0; track = -1; muxerStarted = false;
@@ -54,6 +55,10 @@ public final class AvcMp4Encoder {
         if (rgba == null || rgba.length != width * height * 4)
             throw new IllegalArgumentException("expected RGBA8888 frame");
         int input = codec.dequeueInputBuffer(10_000_000);
+        if (input < 0) {
+            drain(false);
+            input = codec.dequeueInputBuffer(10_000_000);
+        }
         if (input < 0) throw new IllegalStateException("encoder input timeout");
         ByteBuffer buffer = codec.getInputBuffer(input);
         if (buffer == null) throw new IllegalStateException("encoder input missing");
@@ -90,7 +95,8 @@ public final class AvcMp4Encoder {
             codec.queueInputBuffer(input, 0, 0, frames * 1_000_000L / fps, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
             drain(true);
             if (!muxerStarted || frames == 0) throw new IllegalStateException("no video track or frames");
-            return output;
+            String completed = output;
+            return completed;
         } finally {
             abort();
         }
@@ -121,7 +127,7 @@ public final class AvcMp4Encoder {
                 idle = 0;
             } else if (index == MediaCodec.INFO_TRY_AGAIN_LATER) {
                 if (!end) return;
-                if (++idle > 1000) throw new IllegalStateException("encoder EOS timeout");
+                if (++idle > 100) throw new IllegalStateException("encoder EOS timeout");
             }
         }
     }
