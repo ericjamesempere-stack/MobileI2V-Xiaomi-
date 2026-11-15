@@ -176,7 +176,10 @@ func _advance() -> void:
     _save()
     busy = true
     action.disabled = true
+    # 12 genuinely requested drawings per second, capped at 240 to keep
+    # inference and RAM bounded; the MP4 encoder still writes 30 fps.
     var count := mini(240, maxi(2, roundi(duration.value * 12.0)))
+    status.text = "Creation de %d dessins distincts pour %.0f secondes..." % [count, duration.value]
     var result: Dictionary = await generator.call("generate", source, prompt.text, endpoint.text, count, false, "", duration.value)
     if not bool(result.get("ok", false)):
         status.text = "Generation arretee : " + str(result.get("error", "Erreur inconnue"))
