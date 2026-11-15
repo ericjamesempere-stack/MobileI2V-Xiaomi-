@@ -30,6 +30,15 @@ def get_pose_pipeline():
         model, controlnet=controlnet, torch_dtype=dtype, safety_checker=None,
         requires_safety_checker=False,
     ).to(device)
+    # Offload unused layers to system RAM on constrained CUDA GPUs. This
+    # reduces VRAM needs, at the cost of slower inference. It does not remove
+    # the need for model weights or a supported execution backend.
+    if device == "cuda" and os.getenv("REDRAW_LOW_VRAM", "1") == "1":
+        pipe.enable_model_cpu_offload()
+    if hasattr(pipe, "enable_vae_slicing"):
+        pipe.enable_vae_slicing()
+    if hasattr(pipe, "enable_attention_slicing") and device == "cpu":
+        pipe.enable_attention_slicing()
     pipe.set_progress_bar_config(disable=True)
     return pipe
 
