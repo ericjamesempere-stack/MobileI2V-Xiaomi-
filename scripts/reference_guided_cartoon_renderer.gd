@@ -10,8 +10,10 @@ func render_with_reference(reference: Image, description: String, phase: float =
     var appearance: Dictionary = Extractor.new().extract(reference)
     if not appearance.get("ok", false):
         return {"ok": false, "reason": appearance.get("reason", "appearance_failed")}
+    return render_with_palette(appearance["palette"], description, phase, size, action)
+
+func render_with_palette(palette: Array, description: String, phase: float = 0.0, size: Vector2i = Vector2i(360, 480), action: String = "danse") -> Dictionary:
     var frame: Image = Generator.new().render(description, phase, size, action)
-    var palette: Array = appearance["palette"]
     if palette.is_empty():
         return {"ok": false, "reason": "no_colors"}
     # Replace only known procedural clothing colors. Do not recolor face, eyes,
