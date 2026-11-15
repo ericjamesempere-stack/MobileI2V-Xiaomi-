@@ -2,6 +2,7 @@ extends Control
 # Minimal image-first studio. A generated sequence must be approved before export.
 const FPS := 12
 var selected_photo := ""
+var generation_busy := false
 var project_root := ""
 var generated := false
 var approved := false
@@ -100,6 +101,9 @@ func _set_stage(has_frames: bool) -> void:
     video_button.disabled = true
 
 func _pick_photo() -> void:
+    if generation_busy:
+        status.text = "Generation en cours : attends la fin avant de changer la photo."
+        return
     photo_picker.popup_centered_ratio(0.9)
 
 func _photo_selected(path: String) -> void:
@@ -117,6 +121,8 @@ func _photo_selected(path: String) -> void:
     status.text = "Image chargee. Decris maintenant le mouvement."
 
 func _generate() -> void:
+    if generation_busy:
+        return
     playing = false
     generated = false
     approved = false
@@ -192,7 +198,9 @@ func _generate() -> void:
         if pose_image.load(contact_sheet_path) == OK:
             preview.texture = ImageTexture.create_from_image(pose_image)
         status.text = "%d poses cles creees. Generation des images intermediaires..." % int(generated_poses["keyframes"])
+        generation_busy = true
         var full_sequence := await OfflinePoseEngine.generate_full_sequence(keyframe_plan, project_root + "/generated_frames", project_root + "/generated_keyframes")
+        generation_busy = false
         if not full_sequence.get("ok", false):
             status.text = "Poses cles disponibles, sequence incomplete : %s (image %d)" % [str(full_sequence.get("error", "inconnu")), int(full_sequence.get("index", -1))]
             return
