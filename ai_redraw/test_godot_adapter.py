@@ -103,3 +103,17 @@ def test_pose_health_never_claims_unverified_inference():
     assert isinstance(data["cuda_available"], bool)
     assert isinstance(data["model_loaded"], bool)
     assert data["ready_for_inference"] == (data["cuda_available"] and data["model_loaded"])
+
+
+def test_accepts_extended_storyboard_frame_limit(monkeypatch):
+    import ai_redraw.godot_adapter as adapter
+    monkeypatch.setattr(adapter, "pose_redraw", lambda *args: args[0].copy())
+    body = payload()
+    body["frame_index"] = 239
+    body["total_frames"] = 240
+    assert client.post("/generate", json=body).status_code == 200
+    body["frame_index"] = 240
+    assert client.post("/generate", json=body).status_code == 422
+    body["frame_index"] = 0
+    body["total_frames"] = 241
+    assert client.post("/generate", json=body).status_code == 422
