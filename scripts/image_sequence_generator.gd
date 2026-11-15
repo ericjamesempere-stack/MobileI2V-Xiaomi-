@@ -129,6 +129,8 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
    return {"ok": false, "error": "PNG invalide", "generated": frames.size()}
   if img.get_width() > 1024 or img.get_height() > 1024:
    return {"ok": false, "error": "Image trop grande", "generated": frames.size()}
+  if img.get_width() < 64 or img.get_height() < 64:
+   return {"ok": false, "error": "Image generee trop petite pour une animation", "generated": frames.size()}
   # A 240-frame 1024px sequence can exhaust Android RAM. Keep a bounded
   # portrait preview for the 720x1280 encoder while preserving proportions.
   # The original reference remains unchanged for inference.
