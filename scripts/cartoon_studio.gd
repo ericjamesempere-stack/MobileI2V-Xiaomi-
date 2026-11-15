@@ -120,7 +120,8 @@ func _image_selected(path: String) -> void:
 
 func _duration_changed(value: float) -> void:
     if status != null and step == 0 and not busy:
-        status.text = "%d images finales a %d i/s. Dessins uniques selon le moteur." % [roundi(value * FPS), FPS]
+        var drawings: int = mini(240, maxi(2, roundi(value * 12.0)))
+    status.text = "%d dessins demandes (%.1f/s), export %d images/s. Limite : 240 dessins." % [drawings, float(drawings) / maxf(value, 1.0), FPS]
 
 func _save() -> void:
     var cfg := ConfigFile.new()
