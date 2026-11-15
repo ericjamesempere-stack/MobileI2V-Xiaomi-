@@ -18,7 +18,6 @@ android {
     }
 }
 
-repositories { google(); mavenCentral() }
 dependencies {
     compileOnly 'org.godotengine:godot:4.3.0.stable'
 }
