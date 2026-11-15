@@ -181,7 +181,14 @@ func _advance() -> void:
         else:
             preview.texture = frames[0]
             step = 1
-            action.text = "Valider et exporter MP4"
-            status.text = "%d dessins recus. %d images finales seront assemblees. Controle la premiere image." % [frames.size(), roundi(duration.value * FPS)]
+            action.text = "Exporter MP4"
+            status.text = "%d dessins recus. Assemblage MP4 automatique..." % frames.size()
+            # One-button pipeline: generation proceeds directly to encoding.
+            # The encoder reports explicitly when the native Android plugin is absent.
+            var timeline: Array = []
+            var total := roundi(duration.value * FPS)
+            for i in range(total):
+                timeline.append(mini(frames.size() - 1, floori(float(i) * float(frames.size()) / float(total))))
+            await exporter.call("export_board_mp4", frames, timeline, duration.value)
     busy = false
     action.disabled = false
