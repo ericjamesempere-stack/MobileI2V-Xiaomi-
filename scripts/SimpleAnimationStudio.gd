@@ -170,7 +170,23 @@ func _generate() -> void:
         if file != null:
             file.store_string(JSON.stringify(project, "  "))
             file.close()
-        status.text = "%d images prevues, dont %d poses cles. Dessin fidele et interpolation encore non connectes." % [int(plan_saved["frames"]), int(keyframes_saved["keyframes"])]
+        var model := OfflinePoseEngine.availability()
+        if not model["available"]:
+            status.text = "%d images planifiees, %d poses cles. Modele local absent : %s" % [int(plan_saved["frames"]), int(keyframes_saved["keyframes"]), str(model["reason"])]
+            return
+        var generated_poses := OfflinePoseEngine.generate(keyframes, project_root + "/generated_keyframes")
+        if not generated_poses.get("ok", false):
+            status.text = "Generation des poses impossible : " + str(generated_poses.get("error", "inconnu"))
+            return
+        var review := ReferencePoseReview.prepare(keyframes, project_root + "/generated_keyframes", project_root + "/poses_planche.png")
+        if not review.get("ok", false):
+            status.text = "Controle des poses impossible : " + str(review.get("error", "inconnu"))
+            return
+        contact_sheet_path = str(review["sheet_path"])
+        var pose_image := Image.new()
+        if pose_image.load(contact_sheet_path) == OK:
+            preview.texture = ImageTexture.create_from_image(pose_image)
+        status.text = "%d vraies poses cles creees. Verifie la planche. Images intermediaires non generees." % int(generated_poses["keyframes"])
         return
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(project_root)) != OK:
         status.text = "Impossible de creer le dossier."
