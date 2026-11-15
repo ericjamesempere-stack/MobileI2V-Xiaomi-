@@ -32,7 +32,7 @@ jobs:
             ((240,260),(290,320),(0,0,255))]:line(*a,*b,color)
           def chunk(t,data):return struct.pack(">I",len(data))+t+data+struct.pack(">I",zlib.crc32(t+data)&0xffffffff)
           raw=b"".join(b"\x00"+pixels[y*W*3:(y+1)*W*3] for y in range(H))
-          png=b"\x89PNG\\r\\n\x1a\\n"+chunk(b"IHDR",struct.pack(">2I5B",W,H,8,2,0,0,0))+chunk(b"IDAT",zlib.compress(raw))+chunk(b"IEND",b"")
+          png=b"\x89PNG\r\n\x1a\n"+chunk(b"IHDR",struct.pack(">2I5B",W,H,8,2,0,0,0))+chunk(b"IDAT",zlib.compress(raw))+chunk(b"IEND",b"")
           open("synthetic_pose.png","wb").write(png)
           image_url="data:image/png;base64,"+base64.b64encode(png).decode()
           host="https://techfreakworm-z-image-studio.hf.space"
