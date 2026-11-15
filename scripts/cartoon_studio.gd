@@ -88,6 +88,7 @@ func _ready() -> void:
     picker.use_native_dialog = true
     picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp ; Images"])
     picker.file_selected.connect(_image_selected)
+    picker.canceled.connect(func(): status.text = "Selection annulee. Choisis une photo dans Images ou Telechargements.")
     add_child(picker)
     generator = Node.new()
     generator.set_script(load("res://scripts/image_sequence_generator.gd"))
@@ -105,18 +106,42 @@ func _choose_image() -> void:
         picker.popup_centered_ratio(0.95)
 
 func _image_selected(path: String) -> void:
+    # Android's native document picker can return a content:// URI rather
+    # than an ordinary filesystem path. Do not claim a successful import
+    # until a readable PNG has been persisted and loaded back.
+    status.text = "Import de l'image en cours..."
     var img := Image.new()
-    if img.load(path) != OK or img.is_empty():
-        status.text = "Impossible de lire cette image."
+    var load_error := img.load(path)
+    if load_error != OK or img.is_empty():
+        var data := FileAccess.get_file_as_bytes(path)
+        if not data.is_empty():
+            load_error = img.load_png_from_buffer(data)
+            if load_error != OK:
+                load_error = img.load_jpg_from_buffer(data)
+            if load_error != OK:
+                load_error = img.load_webp_from_buffer(data)
+    if load_error != OK or img.is_empty():
+        if path.begins_with("content://"):
+            status.text = "Android a retourne une URI content:// inaccessible au lecteur Godot. Import non effectue : un pont Android ContentResolver est necessaire."
+        else:
+            status.text = "Image illisible ou inaccessible. Essaie une photo JPG ou PNG dans Telechargements."
         return
-    source = img
-    source.save_png(project_dir + "/reference.png")
+    var saved_path := project_dir + "/reference.png"
+    var save_error := img.save_png(saved_path)
+    if save_error != OK:
+        status.text = "Erreur d'enregistrement de la photo (code %d)." % save_error
+        return
+    var persisted := Image.new()
+    if persisted.load(saved_path) != OK or persisted.is_empty():
+        status.text = "Verification de sauvegarde echouee. L'ancienne image est conservee."
+        return
+    source = persisted
     preview.texture = ImageTexture.create_from_image(source)
     frames.clear()
     _clear_saved_frames()
     step = 0
     action.text = "Generer les dessins"
-    status.text = "Image enregistree localement. Decris le mouvement."
+    status.text = "Image importee et sauvegardee : %d x %d pixels." % [source.get_width(), source.get_height()]
     _save()
 
 func _duration_changed(value: float) -> void:
