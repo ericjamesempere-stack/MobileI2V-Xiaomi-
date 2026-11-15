@@ -21,6 +21,11 @@ jobs:
           curl -fL --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
           unzip -q godot.zip
           chmod +x Godot_v4.3-stable_linux.x86_64
+      - name: Install FFmpeg for real MP4 integration test
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version | head -1
       - name: Import project and validate scripts
         run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --import --quit
       - name: Run universal storyboard tests
