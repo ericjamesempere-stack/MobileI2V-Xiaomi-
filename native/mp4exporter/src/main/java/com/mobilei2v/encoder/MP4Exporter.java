@@ -1,6 +1,13 @@
 package com.mobilei2v.encoder;
 
 import android.app.Activity;
+import android.content.ContentValues;
+import android.content.ContentResolver;
+import android.net.Uri;
+import android.os.Environment;
+import android.provider.MediaStore;
+import java.io.FileInputStream;
+import java.io.OutputStream;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
@@ -122,6 +129,49 @@ public final class MP4Exporter extends GodotPlugin {
             release(false);
             return result;
         } catch (Exception e) { error = e.toString(); Log.e("MobileI2V", "Finish failed", e); release(true); return ""; }
+    }
+
+    // Publish a finished video in the user's Downloads collection (Android 10+).
+    // The original app-private MP4 is preserved if publishing fails.
+    @UsedByGodot
+    public String publish_to_downloads(String sourcePath) {
+        Activity activity = getActivity();
+        if (activity == null || Build.VERSION.SDK_INT < 29) {
+            error = "Downloads publishing requires Android 10 or newer";
+            return "";
+        }
+        File source = new File(sourcePath);
+        if (!source.isFile() || source.length() < 1024) {
+            error = "Source MP4 is missing or empty";
+            return "";
+        }
+        ContentResolver resolver = activity.getContentResolver();
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.MediaColumns.DISPLAY_NAME, "CartoonStudio_" + System.currentTimeMillis() + ".mp4");
+        values.put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4");
+        values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/CartoonStudio");
+        values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+        Uri uri = null;
+        try {
+            uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+            if (uri == null) throw new IllegalStateException("MediaStore insert failed");
+            try (FileInputStream input = new FileInputStream(source);
+                 OutputStream outputStream = resolver.openOutputStream(uri)) {
+                if (outputStream == null) throw new IllegalStateException("MediaStore output unavailable");
+                byte[] buffer = new byte[65536];
+                int read;
+                while ((read = input.read(buffer)) != -1) outputStream.write(buffer, 0, read);
+            }
+            ContentValues ready = new ContentValues();
+            ready.put(MediaStore.MediaColumns.IS_PENDING, 0);
+            resolver.update(uri, ready, null, null);
+            return uri.toString();
+        } catch (Exception e) {
+            error = e.toString();
+            Log.e("MobileI2V", "Publishing MP4 failed", e);
+            if (uri != null) resolver.delete(uri, null, null);
+            return "";
+        }
     }
 
     @UsedByGodot public String get_last_error() { return error; }
