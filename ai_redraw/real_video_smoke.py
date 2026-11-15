@@ -69,6 +69,9 @@ def run(reference_path: Path, output_path: Path, action: str, drawings: int, fps
     duration = float(stream.get("duration", drawings / fps))
     if abs(duration - drawings / fps) > 0.15:
         raise RuntimeError(f"Unexpected duration: {duration}")
+    # Distinct pixels alone do not prove anatomical motion, identity fidelity,
+    # or that ControlNet actually obeyed the target pose. Human inspection
+    # remains mandatory before marking character continuity as validated.
     return {"ok": True, "video": str(output_path), "frames": counted,
             "fps": fps, "duration_seconds": duration, "size": sizes[0],
             "mean_interframe_difference": sum(changes) / len(changes),
