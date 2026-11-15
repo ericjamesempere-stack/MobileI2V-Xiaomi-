@@ -65,7 +65,7 @@ static func generate(schedule_data: Dictionary, output_folder: String) -> Dictio
 
 # Generate every planned frame using the installed native image model.
 # This is intentionally not interpolation by duplicating existing PNGs.
-static func generate_full_sequence(plan: Dictionary, output_folder: String) -> Dictionary:
+static func generate_full_sequence(plan: Dictionary, output_folder: String, keyframe_folder: String = "") -> Dictionary:
     var available := availability()
     if not available.get("available", false):
         return {"ok": false, "error": available.get("reason", "model_unavailable")}
@@ -82,6 +82,7 @@ static func generate_full_sequence(plan: Dictionary, output_folder: String) -> D
     var model_path := ProjectSettings.globalize_path(str(manifest["model_path"]))
     var engine := Engine.get_singleton(SINGLETON)
     var paths: Array[String] = []
+    var reused_keyframes := 0
     for i in range(instructions.size()):
         var instruction: Dictionary = instructions[i]
         var original := str(instruction.get("reference_original", ""))
@@ -93,16 +94,30 @@ static func generate_full_sequence(plan: Dictionary, output_folder: String) -> D
             var remove_error := DirAccess.remove_absolute(ProjectSettings.globalize_path(destination))
             if remove_error != OK:
                 return {"ok": false, "error": "stale_frame_removal_failed", "index": i}
-        var request := instruction.duplicate(true)
-        request["reference_original"] = ProjectSettings.globalize_path(original)
-        request["reference_styled"] = ProjectSettings.globalize_path(styled)
-        request["model_path"] = model_path
-        if not bool(engine.call("generate_pose_png", JSON.stringify(request), ProjectSettings.globalize_path(destination))):
-            return {"ok": false, "error": "model_generation_failed", "index": i}
+        var used_keyframe := false
+        # A keyframe already generated for exactly this frame must not be
+        # regenerated. Copy only its matching index; never pad other frames.
+        if not keyframe_folder.is_empty():
+            if not keyframe_folder.begins_with("user://"):
+                return {"ok": false, "error": "invalid_keyframe_folder"}
+            var keyframe_path := "%s/keyframe_%06d.png" % [keyframe_folder, i]
+            if FileAccess.file_exists(keyframe_path):
+                var copied := DirAccess.copy_absolute(ProjectSettings.globalize_path(keyframe_path), ProjectSettings.globalize_path(destination))
+                if copied != OK:
+                    return {"ok": false, "error": "keyframe_copy_failed", "index": i}
+                reused_keyframes += 1
+                used_keyframe = true
+        if not used_keyframe:
+            var request := instruction.duplicate(true)
+            request["reference_original"] = ProjectSettings.globalize_path(original)
+            request["reference_styled"] = ProjectSettings.globalize_path(styled)
+            request["model_path"] = model_path
+            if not bool(engine.call("generate_pose_png", JSON.stringify(request), ProjectSettings.globalize_path(destination))):
+                return {"ok": false, "error": "model_generation_failed", "index": i}
         if not FileAccess.file_exists(destination):
             return {"ok": false, "error": "model_did_not_write_png", "index": i}
         paths.append(destination)
     var checked := GeneratedFrameValidator.inspect(plan, paths)
     if not checked.get("ok", false):
         return checked
-    return {"ok": true, "paths": paths, "frames": paths.size(), "fps": int(plan.get("fps", 12)), "review_required": true, "mp4_encoded": false}
+    return {"ok": true, "paths": paths, "frames": paths.size(), "fps": int(plan.get("fps", 12)), "review_required": true, "mp4_encoded": false, "reused_keyframes": reused_keyframes}
