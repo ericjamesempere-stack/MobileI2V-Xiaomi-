@@ -12,6 +12,9 @@ func _exit_tree() -> void:
     export_plugin = null
 
 class EncoderExportPlugin extends EditorExportPlugin:
+    func _get_name() -> String:
+        return "MobileI2VEncoder"
+
     func _supports_platform(platform: EditorExportPlatform) -> bool:
         return platform is EditorExportPlatformAndroid
 
