@@ -64,6 +64,27 @@ def redraw(reference: Image.Image, prompt: str, action: str, strength: float, se
 def health():
     return {"ok": True, "engine": "diffusers_img2img", "model_loaded": get_pipeline.cache_info().currsize > 0}
 
+@app.get("/health/pose")
+def pose_health():
+    """Readiness check for the ACTUAL pose model, not merely the HTTP server.
+
+    Does not download multi-GB weights on a health probe; use a separate GPU
+    smoke test to warm the pipeline and validate image output.
+    """
+    from .pose import get_pose_pipeline
+    try:
+        import torch
+        gpu = bool(torch.cuda.is_available())
+    except ImportError:
+        gpu = False
+    return {
+        "http_ok": True,
+        "cuda_available": gpu,
+        "model_loaded": get_pose_pipeline.cache_info().currsize > 0,
+        "ready_for_inference": gpu and get_pose_pipeline.cache_info().currsize > 0,
+        "real_inference_verified": False,
+    }
+
 @app.post("/redraw")
 async def redraw_endpoint(
     reference: UploadFile = File(...),
