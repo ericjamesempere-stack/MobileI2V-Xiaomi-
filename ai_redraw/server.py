@@ -100,3 +100,6 @@ app.include_router(create_video_router)
 
 from .animate_anything import router as animate_anything_router
 app.include_router(animate_anything_router)
+
+from .godot_adapter import router as godot_router
+app.include_router(godot_router)
