@@ -12,7 +12,7 @@ jobs:
       - name: Generate synthetic pose guide and request ControlNet image
         run: |
           python - <<'PY'
-          import base64,json,struct,zlib,urllib.request,sys
+          import base64,json,struct,zlib,urllib.request,sys,time
           W=384;H=384
           pixels=bytearray(W*H*3)
           def line(x1,y1,x2,y2,rgb):
@@ -37,31 +37,34 @@ jobs:
           image_url="data:image/png;base64,"+base64.b64encode(png).decode()
           host="https://techfreakworm-z-image-studio.hf.space"
           args=["Original clean 2D cartoon storyboard, blue robot, full body, dynamic running pose, white background",{"url":image_url,"meta":{"_type":"gradio.FileData"},"orig_name":"synthetic_pose.png"},"Pre-processed",0.8,6,20261116,False,None,0.0]
-          req=urllib.request.Request(host+"/gradio_api/call/on_controlnet_generate",data=json.dumps({"data":args}).encode(),headers={"Content-Type":"application/json"},method="POST")
-          with urllib.request.urlopen(req,timeout=60) as r:reply=json.load(r)
-          print("Submission keys",list(reply))
-          event_id=reply.get("event_id")
-          if not event_id:sys.exit("No event id")
-          with urllib.request.urlopen(host+"/gradio_api/call/on_controlnet_generate/"+event_id,timeout=240) as r:
-            event=""
-            for b in r:
-              s=b.decode("utf-8","replace").strip()
-              if s.startswith("event:"):event=s[6:].strip()
-              if s.startswith("data:") and event in ("complete","error"):
-                print("TERMINAL",event,s[:1500])
-                if event!="complete":sys.exit(2)
-                data=json.loads(s[5:])
-                if not data:sys.exit("Empty response")
-                file_url=data[0].get("url") if isinstance(data,list) and isinstance(data[0],dict) else None
-                if not file_url or not file_url.startswith(host+"/gradio_api/file="):sys.exit("Invalid generated image URL")
-                with urllib.request.urlopen(file_url,timeout=40) as image_response:
-                  image_bytes=image_response.read(8000000)
-                if not (image_bytes.startswith(b"RIFF") and image_bytes[8:12]==b"WEBP"):sys.exit("Generated file is not valid WebP")
-                if len(image_bytes)<1024:sys.exit("Generated image unexpectedly small")
-                open("controlnet_generated.webp","wb").write(image_bytes)
-                print("Verified generated WebP bytes:",len(image_bytes))
-                break
-            else:sys.exit("No terminal event")
+          for attempt in range(1,4):
+            print("ControlNet attempt",attempt,flush=True)
+            req=urllib.request.Request(host+"/gradio_api/call/on_controlnet_generate",data=json.dumps({"data":args}).encode(),headers={"Content-Type":"application/json"},method="POST")
+            try:
+              with urllib.request.urlopen(req,timeout=60) as r:reply=json.load(r)
+              event_id=reply.get("event_id")
+              if not event_id:raise RuntimeError("No event id")
+              with urllib.request.urlopen(host+"/gradio_api/call/on_controlnet_generate/"+event_id,timeout=220) as r:
+                event=""
+                for b in r:
+                  s=b.decode("utf-8","replace").strip()
+                  if s.startswith("event:"):event=s[6:].strip()
+                  if s.startswith("data:") and event in ("complete","error"):
+                    print("TERMINAL",event,s[:1200],flush=True)
+                    if event!="complete":raise RuntimeError("Provider reported error")
+                    data=json.loads(s[5:])
+                    file_url=data[0].get("url") if isinstance(data,list) and data and isinstance(data[0],dict) else None
+                    if not file_url or not file_url.startswith(host+"/gradio_api/file="):raise RuntimeError("Invalid image URL")
+                    with urllib.request.urlopen(file_url,timeout=40) as image_response:image_bytes=image_response.read(8000000)
+                    if not (image_bytes.startswith(b"RIFF") and image_bytes[8:12]==b"WEBP" and len(image_bytes)>=1024):raise RuntimeError("Invalid WebP")
+                    open("controlnet_generated.webp","wb").write(image_bytes)
+                    print("Verified WebP",len(image_bytes),flush=True)
+                    sys.exit(0)
+                raise RuntimeError("No terminal event")
+            except Exception as exc:
+              print("Attempt failed",str(exc)[:500],flush=True)
+              if attempt==3:raise
+              time.sleep(12*attempt)
           PY
       - uses: actions/upload-artifact@v4
         with:
