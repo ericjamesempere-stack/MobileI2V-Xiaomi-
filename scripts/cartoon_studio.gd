@@ -411,6 +411,10 @@ func _generate_local_drawings(count: int) -> Dictionary:
     var plan: Dictionary = planner.plan(prompt.text, duration.value)
     if not bool(plan.get("ok", false)):
         return {"ok": false, "error": "Histoire non comprise : " + str(plan.get("error", "action inconnue"))}
+    var palette_result: Dictionary = load("res://scripts/reference_appearance_palette.gd").new().extract(source)
+    if not bool(palette_result.get("ok", false)):
+        return {"ok": false, "error": "Palette de reference impossible a extraire"}
+    var cached_palette: Array = palette_result.get("palette", [])
     var drawings: Array[Image] = []
     for i in range(count):
         var seconds: float = float(i) / float(maxi(1, count - 1)) * duration.value
@@ -427,7 +431,7 @@ func _generate_local_drawings(count: int) -> Dictionary:
                 break
         if action_name in ["marche", "course", "danse"]:
             phase = seconds * (1.8 if action_name == "course" else 1.0)
-        var rendered: Dictionary = renderer.render_with_reference(source, prompt.text, phase, Vector2i(360, 480), action_name)
+        var rendered: Dictionary = renderer.render_with_palette(cached_palette, prompt.text, phase, Vector2i(360, 480), action_name)
         if not bool(rendered.get("ok", false)):
             return {"ok": false, "error": str(rendered.get("reason", "Dessin local impossible"))}
         drawings.append(rendered["image"])
