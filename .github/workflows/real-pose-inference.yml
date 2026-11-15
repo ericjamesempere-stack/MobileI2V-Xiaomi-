@@ -39,7 +39,7 @@ jobs:
           import os, urllib.parse, urllib.request
           url = os.environ.get("TEST_URL", "").strip()
           if not url:
-              url = "https://raw.githubusercontent.com/google-ai-edge/mediapipe/master/mediapipe/tasks/testdata/vision/pose.jpg"
+              url = "https://storage.googleapis.com/mediapipe-assets/pose.jpg"
           parsed = urllib.parse.urlsplit(url)
           if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
               raise SystemExit("Only public HTTPS images are accepted")
