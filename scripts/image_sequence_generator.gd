@@ -29,6 +29,8 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
  # Timeline seconds are independent from the number of requested drawings.
  # The caller may request 120 frames for a six-second film.
  var motion_plan: Dictionary = load("res://scripts/story_motion_planner.gd").new().plan(prompt, duration_seconds if duration_seconds > 0.0 else float(count) / 4.0)
+ if not bool(motion_plan.get("ok", false)):
+  return {"ok": false, "error": str(motion_plan.get("error", "Plan de mouvements invalide"))}
  var motion_steps: Array = motion_plan.get("steps", [])
  var supported_actions: Array[String] = ["repos", "marche", "course", "saut", "chute", "trebuche", "releve", "danse", "salut"]
  # Do not silently draw a generic dancing/standing figure for an action
@@ -110,7 +112,10 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
   var data: Variant = JSON.parse_string((response[3] as PackedByteArray).get_string_from_utf8())
   if not data is Dictionary or not data.has("image_base64"):
    return {"ok": false, "error": "Reponse invalide : image_base64 manquant", "generated": frames.size()}
-  var raw: PackedByteArray = Marshalls.base64_to_raw(str(data["image_base64"]))
+  var encoded_image: String = str(data["image_base64"])
+  if encoded_image.length() > 8000000:
+   return {"ok": false, "error": "Reponse image trop volumineuse", "generated": frames.size()}
+  var raw: PackedByteArray = Marshalls.base64_to_raw(encoded_image)
   var img := Image.new()
   if img.load_png_from_buffer(raw) != OK or img.is_empty():
    return {"ok": false, "error": "PNG invalide", "generated": frames.size()}
@@ -124,7 +129,9 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
    var preview_scale: float = minf(preview_limit / float(img.get_width()), preview_limit / float(img.get_height()))
    img.resize(maxi(1, roundi(img.get_width() * preview_scale)), maxi(1, roundi(img.get_height() * preview_scale)), Image.INTERPOLATE_LANCZOS)
   frames.append(img)
-  previous_b64 = str(data["image_base64"])
+  # Use the resized, decoded frame for temporal continuity instead of
+  # retaining a potentially huge full-resolution response in memory.
+  previous_b64 = Marshalls.raw_to_base64(img.save_png_to_buffer())
   progress.emit(index + 1, count)
  return {"ok": true, "frames": frames, "count": frames.size()}
 
