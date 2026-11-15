@@ -186,8 +186,14 @@ func _advance() -> void:
         status.text = "Generation arretee : " + str(result.get("error", "Erreur inconnue"))
     else:
         frames.clear()
+        var saved_dir: String = project_dir + "/generated_frames"
+        DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(saved_dir))
+        var frame_index: int = 0
         for img in result.get("frames", []):
-            frames.append(ImageTexture.create_from_image(img))
+            if img is Image and not img.is_empty():
+                img.save_png("%s/frame_%04d.png" % [saved_dir, frame_index])
+                frames.append(ImageTexture.create_from_image(img))
+                frame_index += 1
         if frames.is_empty():
             status.text = "Le moteur n'a retourne aucun dessin."
         else:
