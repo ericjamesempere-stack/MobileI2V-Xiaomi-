@@ -6,6 +6,7 @@ var frames: Array[Texture2D] = []
 var prompt: TextEdit
 var duration: SpinBox
 var endpoint: LineEdit
+var upload_consent: CheckBox
 var status: Label
 var preview: TextureRect
 var action: Button
@@ -69,6 +70,10 @@ func _ready() -> void:
     endpoint = LineEdit.new()
     endpoint.placeholder_text = "https://.../generate"
     panel.add_child(endpoint)
+    upload_consent = CheckBox.new()
+    upload_consent.text = "J’autorise l’envoi de mon image au moteur HTTPS indique ci-dessus"
+    upload_consent.button_pressed = false
+    panel.add_child(upload_consent)
     action = Button.new()
     action.text = "Generer les dessins"
     action.custom_minimum_size.y = 100
@@ -164,6 +169,9 @@ func _advance() -> void:
         return
     if not endpoint.text.begins_with("https://"):
         status.text = "Aucun moteur de redessin connecte. Impossible de creer de vrais dessins IA hors ligne."
+        return
+    if not upload_consent.button_pressed:
+        status.text = "Confirme l’envoi de l’image au serveur externe avant la generation."
         return
     _save()
     busy = true
