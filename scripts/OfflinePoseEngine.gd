@@ -52,7 +52,11 @@ static func generate(schedule_data: Dictionary, output_folder: String) -> Dictio
         # Never accept a PNG left behind by a previous failed run.
         if FileAccess.file_exists(path):
             DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+        var pose_map := str(key.get("pose_map_path", ""))
+        if not FileAccess.file_exists(pose_map):
+            return {"ok": false, "error": "pose_map_missing", "index": index}
         var request_data: Dictionary = key.duplicate(true)
+        request_data["pose_map_path"] = ProjectSettings.globalize_path(pose_map)
         request_data["reference_original"] = ProjectSettings.globalize_path(reference)
         var styled := str(key.get("reference_styled", ""))
         if not styled.is_empty():
@@ -118,7 +122,11 @@ static func generate_full_sequence(plan: Dictionary, output_folder: String, keyf
                 reused_keyframes += 1
                 used_keyframe = true
         if not used_keyframe:
+            var pose_map := str(instruction.get("pose_map_path", ""))
+            if not FileAccess.file_exists(pose_map):
+                return {"ok": false, "error": "pose_map_missing", "index": i}
             var request := instruction.duplicate(true)
+            request["pose_map_path"] = ProjectSettings.globalize_path(pose_map)
             request["reference_original"] = ProjectSettings.globalize_path(original)
             request["reference_styled"] = ProjectSettings.globalize_path(styled)
             request["model_path"] = model_path
