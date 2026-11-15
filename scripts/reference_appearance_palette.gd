@@ -5,6 +5,11 @@ func extract(source: Image) -> Dictionary:
     if source == null or source.is_empty():
         return {"ok": false, "reason": "empty_reference"}
     var img: Image = source.duplicate()
+    # Bound pixel work on high-resolution phone photos before histogramming.
+    # Palette sampling does not need the full camera resolution.
+    if img.get_width() > 512 or img.get_height() > 512:
+        var scale: float = minf(512.0 / float(img.get_width()), 512.0 / float(img.get_height()))
+        img.resize(maxi(1, roundi(img.get_width() * scale)), maxi(1, roundi(img.get_height() * scale)), Image.INTERPOLATE_BILINEAR)
     img.convert(Image.FORMAT_RGBA8)
     var colors: Array[Color] = []
     var histogram: Dictionary = {}
