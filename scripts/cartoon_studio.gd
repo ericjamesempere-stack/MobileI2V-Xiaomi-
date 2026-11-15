@@ -6,6 +6,7 @@ var frames: Array[Texture2D] = []
 var prompt: TextEdit
 var duration: SpinBox
 var endpoint: LineEdit
+var free_ai_mode: CheckBox
 var upload_consent: CheckBox
 var status: Label
 var preview: TextureRect
@@ -105,6 +106,10 @@ func _ready() -> void:
     endpoint = LineEdit.new()
     endpoint.placeholder_text = "https://.../generate"
     panel.add_child(endpoint)
+    free_ai_mode = CheckBox.new()
+    free_ai_mode.text = "Essai IA gratuite (texte uniquement, 2 images, visage non garanti)"
+    free_ai_mode.button_pressed = false
+    panel.add_child(free_ai_mode)
     upload_consent = CheckBox.new()
     upload_consent.text = "J’autorise l’envoi de mon image au moteur HTTPS indique ci-dessus"
     upload_consent.button_pressed = false
@@ -272,7 +277,8 @@ func _advance() -> void:
     if prompt.text.strip_edges().is_empty():
         status.text = "Decris les gestes du personnage."
         return
-    var online_mode: bool = endpoint.text.begins_with("https://")
+    var free_mode: bool = free_ai_mode.button_pressed
+    var online_mode: bool = endpoint.text.begins_with("https://") and not free_mode
     if online_mode and not upload_consent.button_pressed:
         status.text = "Autorise l'envoi de la photo au moteur HTTPS ou vide son adresse pour le mode local."
         return
@@ -285,7 +291,15 @@ func _advance() -> void:
     status.text = "Creation de %d dessins distincts pour %.0f secondes..." % [count, duration.value]
     var styled_story: String = "%s, style %s" % [prompt.text, style.get_item_text(style.selected)]
     var result: Dictionary
-    if online_mode:
+    if free_mode:
+        status.text = "Essai de 2 images IA gratuites. Service externe avec quota ; le visage ne sera pas reproduit fidelement."
+        var free_generator := Node.new()
+        free_generator.set_script(load("res://scripts/free_text_image_generator.gd"))
+        add_child(free_generator)
+        free_generator.connect("progress", Callable(self, "_progress"))
+        result = await free_generator.call("generate", prompt.text, style.get_item_text(style.selected), 2)
+        free_generator.queue_free()
+    elif online_mode:
         result = await generator.call("generate", source, styled_story, endpoint.text, count, false, "", duration.value)
     else:
         result = await _generate_local_drawings(count)
@@ -322,7 +336,7 @@ func _advance() -> void:
             step = 1
             action.text = "Exporter MP4"
             _build_sheet()
-            status.text = "%d dessins sauvegardes (%s). Creation du MP4..." % [frames.size(), "IA externe" if online_mode else "animation locale stylisee, visage non reproduit"]
+            status.text = "%d dessins sauvegardes (%s). Creation du MP4..." % [frames.size(), "IA gratuite texte (visage non garanti)" if free_mode else ("IA externe" if online_mode else "animation locale stylisee, visage non reproduit")]
             await _export_generated_mp4()
     busy = false
     action.disabled = false
