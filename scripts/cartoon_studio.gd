@@ -300,7 +300,16 @@ func _advance() -> void:
         var frame_index: int = 0
         for img in result.get("frames", []):
             if img is Image and not img.is_empty():
-                img.save_png("%s/frame_%04d.png" % [saved_dir, frame_index])
+                var frame_path: String = "%s/frame_%04d.png" % [saved_dir, frame_index]
+                var save_error: Error = img.save_png(frame_path)
+                if save_error != OK:
+                    status.text = "Echec enregistrement dessin %d : %s. Export annule." % [frame_index + 1, error_string(save_error)]
+                    frames.clear()
+                    _clear_saved_frames()
+                    busy = false
+                    action.disabled = false
+                    _refresh_review_buttons()
+                    return
                 frames.append(ImageTexture.create_from_image(img))
                 frame_index += 1
         if frames.is_empty():
