@@ -19,6 +19,10 @@ def get_pose_pipeline():
     from diffusers import ControlNetModel, StableDiffusionControlNetImg2ImgPipeline
     model = os.getenv("REDRAW_MODEL_ID", "stable-diffusion-v1-5/stable-diffusion-v1-5")
     control_model = os.getenv("REDRAW_POSE_MODEL_ID", "lllyasviel/control_v11p_sd15_openpose")
+    # A full SD1.5 + ControlNet pipeline on CPU can stall for minutes per frame.
+    # Fail explicitly instead of pretending a 120-frame animation is feasible.
+    if not torch.cuda.is_available() and os.getenv("REDRAW_ALLOW_CPU") != "1":
+        raise RuntimeError("CUDA GPU required for practical pose redraw; set REDRAW_ALLOW_CPU=1 only for slow experiments")
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.float16 if device == "cuda" else torch.float32
     controlnet = ControlNetModel.from_pretrained(control_model, torch_dtype=dtype)
