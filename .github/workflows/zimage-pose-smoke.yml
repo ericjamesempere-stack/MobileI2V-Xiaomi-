@@ -1,0 +1,61 @@
+name: Z-Image ControlNet pose inference smoke
+on:
+  push:
+    branches: [rebuild/cartoon-studio-20261114]
+    paths: ['.github/workflows/zimage-pose-smoke.yml']
+  workflow_dispatch:
+jobs:
+  pose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Generate synthetic pose guide and request ControlNet image
+        run: |
+          python - <<'PY'
+          import base64,json,struct,zlib,urllib.request,sys
+          W=384;H=384
+          pixels=bytearray(W*H*3)
+          def line(x1,y1,x2,y2,rgb):
+            n=max(abs(x2-x1),abs(y2-y1))
+            for i in range(n+1):
+              x=round(x1+(x2-x1)*i/max(n,1));y=round(y1+(y2-y1)*i/max(n,1))
+              for dy in range(-3,4):
+                for dx in range(-3,4):
+                  xx=x+dx;yy=y+dy
+                  if 0<=xx<W and 0<=yy<H and dx*dx+dy*dy<=9:
+                    k=(yy*W+xx)*3;pixels[k:k+3]=bytes(rgb)
+          for a,b,color in [
+            ((192,90),(192,190),(0,255,0)),((192,110),(135,155),(255,0,0)),
+            ((135,155),(90,110),(255,0,0)),((192,110),(250,150),(255,0,0)),
+            ((250,150),(275,95),(255,0,0)),((192,190),(145,260),(0,0,255)),
+            ((145,260),(100,330),(0,0,255)),((192,190),(240,260),(0,0,255)),
+            ((240,260),(290,320),(0,0,255))]:line(*a,*b,color)
+          def chunk(t,data):return struct.pack(">I",len(data))+t+data+struct.pack(">I",zlib.crc32(t+data)&0xffffffff)
+          raw=b"".join(b"\\x00"+pixels[y*W*3:(y+1)*W*3] for y in range(H))
+          png=b"\\x89PNG\\r\\n\\x1a\\n"+chunk(b"IHDR",struct.pack(">2I5B",W,H,8,2,0,0,0))+chunk(b"IDAT",zlib.compress(raw))+chunk(b"IEND",b"")
+          open("synthetic_pose.png","wb").write(png)
+          image_url="data:image/png;base64,"+base64.b64encode(png).decode()
+          host="https://techfreakworm-z-image-studio.hf.space"
+          args=["Original clean 2D cartoon storyboard, blue robot, full body, dynamic running pose, white background",{"url":image_url,"meta":{"_type":"gradio.FileData"},"orig_name":"synthetic_pose.png"},"Pre-processed",0.8,6,20261116,False,None,0.0]
+          req=urllib.request.Request(host+"/gradio_api/call/on_controlnet_generate",data=json.dumps({"data":args}).encode(),headers={"Content-Type":"application/json"},method="POST")
+          with urllib.request.urlopen(req,timeout=60) as r:reply=json.load(r)
+          print("Submission keys",list(reply))
+          event_id=reply.get("event_id")
+          if not event_id:sys.exit("No event id")
+          with urllib.request.urlopen(host+"/gradio_api/call/on_controlnet_generate/"+event_id,timeout=240) as r:
+            event=""
+            for b in r:
+              s=b.decode("utf-8","replace").strip()
+              if s.startswith("event:"):event=s[6:].strip()
+              if s.startswith("data:") and event in ("complete","error"):
+                print("TERMINAL",event,s[:1500])
+                if event!="complete":sys.exit(2)
+                data=json.loads(s[5:])
+                if not data:sys.exit("Empty response")
+                break
+            else:sys.exit("No terminal event")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-pose-guide
+          path: synthetic_pose.png
