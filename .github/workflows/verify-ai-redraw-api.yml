@@ -19,4 +19,4 @@ jobs:
       - run: pip install -r ai_redraw/requirements-api.txt
       - name: Install ffmpeg
         run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
-      - run: python -m pytest -q ai_redraw/test_server.py ai_redraw/test_godot_adapter.py ai_redraw/test_video.py ai_redraw/test_create_video.py ai_redraw/test_animate_anything.py ai_redraw/test_storyboard_sheets.py ai_redraw/test_drawing_generator.py ai_redraw/test_storyboard_verify.py ai_redraw/test_frame_quality.py ai_redraw/test_storyboard_pipeline.py ai_redraw/test_storyboard_stream.py ai_redraw/test_model_storyboard_renderer.py
+      - run: python -m pytest -q ai_redraw/test_server.py ai_redraw/test_godot_adapter.py ai_redraw/test_video.py ai_redraw/test_create_video.py ai_redraw/test_animate_anything.py ai_redraw/test_storyboard_sheets.py ai_redraw/test_drawing_generator.py ai_redraw/test_storyboard_verify.py ai_redraw/test_frame_quality.py ai_redraw/test_storyboard_pipeline.py ai_redraw/test_storyboard_stream.py ai_redraw/test_model_storyboard_renderer.py ai_redraw/test_pose_motion_contract.py
