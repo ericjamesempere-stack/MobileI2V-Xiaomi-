@@ -117,6 +117,9 @@ static func generate_full_sequence(plan: Dictionary, output_folder: String, keyf
         if not FileAccess.file_exists(destination):
             return {"ok": false, "error": "model_did_not_write_png", "index": i}
         paths.append(destination)
+        # Yield after each image so Android can redraw the interface and
+        # handle cancellation/navigation instead of freezing for minutes.
+        await Engine.get_main_loop().process_frame
     var checked := GeneratedFrameValidator.inspect(plan, paths)
     if not checked.get("ok", false):
         return checked
