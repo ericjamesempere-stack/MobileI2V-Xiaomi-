@@ -23,6 +23,14 @@ static func inspect(path: String) -> Dictionary:
     var model_path := str(data["model_path"])
     if not model_path.begins_with("user://") or not FileAccess.file_exists(model_path):
         return {"ok": false, "error": "model_weights_missing"}
+    # Do not trust metadata alone: verify model integrity when a digest
+    # is provided. A corrupted or partial model must never be marked ready.
+    if data.has("sha256"):
+        var expected := str(data["sha256"]).to_lower()
+        if expected.length() != 64 or not expected.is_valid_hex_number():
+            return {"ok": false, "error": "invalid_model_sha256"}
+        if FileAccess.get_sha256(model_path).to_lower() != expected:
+            return {"ok": false, "error": "model_sha256_mismatch"}
     var backend := str(data["backend"])
     if backend != "onnxruntime" and backend != "mediapipe" and backend != "native":
         return {"ok": false, "error": "unsupported_backend"}
