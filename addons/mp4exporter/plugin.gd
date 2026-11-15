@@ -13,6 +13,9 @@ func _exit_tree() -> void:
         android_export = null
 
 class AndroidExportPlugin extends EditorExportPlugin:
+    func _get_name() -> String:
+        return "CartoonStudioMP4Exporter"
+
     func _supports_platform(platform: EditorExportPlatform) -> bool:
         return platform is EditorExportPlatformAndroid
 
