@@ -27,7 +27,7 @@ jobs:
       - name: Install real inference runtime
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y libegl1 libgl1 libglib2.0-0
+          sudo apt-get install -y libegl1 libgles2 libgl1 libglib2.0-0
           python -m pip install mediapipe pillow numpy
       - name: Download official MediaPipe Lite model
         run: |
