@@ -1,6 +1,9 @@
 name: Probe Z-Image Studio external API
 on:
   workflow_dispatch:
+  push:
+    branches: [rebuild/cartoon-studio-20261114]
+    paths: ['.github/workflows/probe-zimage.yml']
 jobs:
   probe:
     runs-on: ubuntu-latest
