@@ -150,11 +150,19 @@ func _generate() -> void:
         if styled_image.load(style_path) == OK:
             preview.texture = ImageTexture.create_from_image(styled_image)
         project["styled_reference_path"] = style_path
+        var keyframe_plan := ReferenceKeyframePlan.build(project, FPS)
+        if not keyframe_plan.get("ok", false):
+            status.text = "Plan de poses impossible : " + str(keyframe_plan.get("error", "inconnu"))
+            return
+        var plan_saved := ReferenceKeyframePlan.save(keyframe_plan, project_root + "/poses_a_generer.json")
+        if not plan_saved.get("ok", false):
+            status.text = "Impossible de sauvegarder les poses"
+            return
         var file := FileAccess.open(project_root + "/storyboard.json", FileAccess.WRITE)
         if file != null:
             file.store_string(JSON.stringify(project, "  "))
             file.close()
-        status.text = "Image convertie en %s et conservee. Animation fidele des elements pas encore disponible." % style.get_item_text(style.selected)
+        status.text = "%d poses planifiees avec photo, style et decor conserves. Generation visuelle fidele non encore connectee." % int(plan_saved["frames"])
         return
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(project_root)) != OK:
         status.text = "Impossible de creer le dossier."
