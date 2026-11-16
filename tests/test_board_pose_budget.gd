@@ -16,5 +16,7 @@ func _initialize() -> void:
     assert(planner.estimate("Deux personnages se serrent la main.", 3.0, 24)["selected"] >= 3)
     assert(planner.estimate("Il court.", 20.0, 24)["selected"] == 24)
     assert(planner.estimate("Il court.", 200.0, 999)["selected"] == 240)
+    assert(planner.estimate("Le personnage danse.", 8.0, 16)["selected"] == 16)
+    assert(planner.estimate("Le personnage danse.", 8.0, 6)["selected"] == 6)
     print("V54_POSE_BUDGET_OK")
     quit(0)

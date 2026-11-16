@@ -17,7 +17,7 @@ var last_error: String = ""
 var hf_token: String = ""
 var engine_status: Dictionary = {}
 var style_reference: Image = null
-const DETAIL_CACHE_VERSION := "style-guide-v1"
+const DETAIL_CACHE_VERSION := "style-guide-v2"
 
 func detailed_layout(style: String) -> bool:
     return style == "bd_detail" or (style_reference != null and not style_reference.is_empty())
@@ -278,10 +278,13 @@ func batch_prompt(briefs: Array, rows: int = 2) -> String:
     var layout: String = "a 2 by 2 animation storyboard grid of FOUR equal square panels, read left to right then top to bottom" if rows == 2 else "exactly TWO equal portrait animation panels side by side, read left to right, one row and two columns"
     var prompt: String = "Create " + layout + ". Reproduce ALL subjects, characters, animals, vehicles, objects and environmental elements actually present in image 1, preserving their identities, count, appearance, spatial relationships and stable background across every panel unless the requested action explicitly changes them. Do not merge subjects, invent extra actors, humanize non-human objects or remove scenery. Keep moving subjects and relevant interacting objects fully visible with comfortable margins. Preserve silhouettes, faces if present, existing appendages, markings, materials, proportions, colors, drawing style, lighting and ground contact. Render the requested action as visibly different successive physical states, not merely alternate camera angles. "
     for index in range(briefs.size()):
-        prompt += "Panel %d: %s; %s. " % [index + 1, str(briefs[index].get("description", "")), str(briefs[index].get("pose", ""))]
+        var position: String = ""
+        if briefs[index].has("sequence_index") and briefs[index].has("sequence_count"):
+            position = "Sequence drawing %d of %d; continue the action at this exact stage without restarting it. " % [int(briefs[index]["sequence_index"]) + 1, int(briefs[index]["sequence_count"])]
+        prompt += "Panel %d: %s%s; %s. " % [index + 1, position, str(briefs[index].get("description", "")), str(briefs[index].get("pose", ""))]
     if briefs.size() < rows * 2:
         prompt += "Leave the remaining panels empty. "
-    return prompt + "Equal panel sizes, no gutters, no captions, no text, no unrequested characters or objects, no human torso unless already present or explicitly requested. Every used panel must advance the requested action with a different physically plausible state of the relevant subjects and interacting objects. Keep unaffected subjects and environmental landmarks stable; do not substitute camera changes or image deformation for motion."
+    return prompt + "Equal panel sizes, no gutters, no captions, no text, no unrequested characters or objects, no human torso unless already present or explicitly requested. Every used panel must advance the requested action with a different physically plausible state of the relevant subjects and interacting objects. Keep unaffected subjects and environmental landmarks stable; do not substitute camera changes or image deformation for motion. Lock the camera position, focal length, horizon, subject scale and panel framing across this sequence unless a camera change is explicitly requested. Keep the complete moving subject inside each panel, including head and existing extremities. Preserve the exact clothing cut, seams, footwear, accessories, face and hair details actually present; do not invent markings, ground debris, motion trails or new props. For articulated subjects use only their existing limbs, with consistent joints and ground contact."
 
 func split_batch(sheet: Image, count: int, rows: int = 2) -> Dictionary:
     if sheet == null or sheet.is_empty() or rows not in [1, 2] or count < 2 or count > rows * 2 or sheet.get_width() < 1024 or sheet.get_height() < 1024:

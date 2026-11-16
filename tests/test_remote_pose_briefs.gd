@@ -38,5 +38,14 @@ func _initialize() -> void:
     assert(interaction["instruction"].contains("each other"))
     assert(interaction["instruction"].contains("ALL existing subjects"))
     assert(interaction["instruction"].contains("No duplicate subjects"))
+    var dance_poses: Dictionary = {}
+    for index in range(16):
+        var dance: Dictionary = planner.remote_frame("Le personnage danse.", 8.0, 16, index)
+        assert(dance["ok"] and dance["action"] == "danse")
+        assert(dance["sequence_index"] == index and dance["sequence_count"] == 16)
+        assert(dance["action_index"] == index and dance["action_count"] == 16)
+        dance_poses[dance["pose"]] = true
+        assert(not dance["pose"].contains("pointing"))
+    assert(dance_poses.size() == 16, "Each dance drawing needs a distinct physical state")
     print("REMOTE_POSE_BRIEFS_OK: course, stumble, fall; no skipped action; same brief on retry")
     quit(0)

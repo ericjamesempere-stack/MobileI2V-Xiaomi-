@@ -62,6 +62,14 @@ func run() -> void:
     assert(split["images"][0].get_size() == Vector2i(512, 1024))
     assert(split["images"][1].get_pixel(0, 0).is_equal_approx(Color.BLUE))
     assert(not worker.split_batch(sheet, 3, 1)["ok"])
+    var planner: RefCounted = load("res://scripts/board_generation_plan.gd").new()
+    var briefs: Array = [planner.remote_frame("Le personnage danse.", 8.0, 16, 8), planner.remote_frame("Le personnage danse.", 8.0, 16, 9)]
+    var batch: String = worker.batch_prompt(briefs, 1)
+    assert(batch.contains("Sequence drawing 9 of 16") and batch.contains("Sequence drawing 10 of 16"))
+    assert(batch.contains(briefs[0]["pose"]) and batch.contains(briefs[1]["pose"]))
+    assert(batch.contains("Lock the camera position"))
+    assert(batch.contains("including head and existing extremities"))
+    assert(batch.contains("exact clothing cut"))
     worker.free()
     board.importing_style_reference = true
     board._native_image_cancelled()

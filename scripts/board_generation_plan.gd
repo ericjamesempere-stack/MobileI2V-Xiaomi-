@@ -2,10 +2,30 @@ extends RefCounted
 # Image-first storyboard production contract for KARMA ONE.
 # Generates precise drawing briefs; does not falsely claim to generate AI images.
 const MAX_BOARDS := 240
-const REMOTE_BRIEF_VERSION := "v54-batch-4"
+const REMOTE_BRIEF_VERSION := "v54-batch-5"
 # Physical states, restricted to the current action. Sending the entire story
 # to every edit encouraged multiple simultaneous poses and duplicate subjects.
 const REMOTE_POSES := {
+    # A continuous dance phrase, sampled across the whole action rather than
+    # restarting the same few vague poses in every remote batch.
+    "danse": [
+        "dance begins with weight over the left support, knees softly bent, torso slightly left, existing arms low",
+        "weight stays left, right heel lifts, torso begins shifting toward center",
+        "right knee lifts slightly forward, left support stays planted, arms counterbalance",
+        "right support steps to the right, torso follows, knees remain soft",
+        "weight transfers right, left heel lifts, left arm begins extending outward",
+        "left support draws inward, torso turns slightly left, right arm extends forward",
+        "both supports grounded, knees bend, existing arms open halfway to the sides",
+        "weight shifts left, torso rises, existing arms open farther to the sides",
+        "right heel lifts, torso turns slightly right, open arms counterbalance",
+        "right support crosses slightly in front of left, torso follows the crossing step",
+        "left support steps outward to uncross, knees bend, arms start lowering",
+        "both supports planted apart, body lowers into a shallow crouch, arms lowered for balance",
+        "weight shifts right while crouched, torso leans slightly right, head follows torso",
+        "body lowers farther with knees flexed, existing arms stay beside the body without touching ground",
+        "body starts rising, weight transfers left, arms begin opening again",
+        "dance phrase ends with weight over the right support, left heel lifted, knees softly bent and arms partly open"
+    ],
     "course": ["forward lean, left support contacting ground, right limb trailing", "push off the ground, rear limb extended", "airborne stride, supports separated", "right support contacting ground, left limb trailing"],
     "trebuche": ["leading support catches on the ground while momentum continues forward", "support blocked, body pitching forward, existing limbs spread to recover balance", "balance lost, body tipping farther forward, no stable support"],
     "roule": ["initial position, existing object touching its support", "existing object rotates while translating along the requested path", "existing object farther along the same path, rotation continues"],
@@ -47,12 +67,12 @@ func remote_frame(story: String, seconds: float, count: int, index: int) -> Dict
             var poses: Array = REMOTE_POSES[action]
             pose = str(poses[mini(poses.size() - 1, int(floor(phase * poses.size())))])
         var instruction: String = "Create exactly one full-frame drawing of the scene from image 1, retaining ALL existing subjects, characters, animals, vehicles, objects, and environmental landmarks unless this action explicitly changes them. Current action only: %s. Required physical state: %s. Move only the subjects and objects involved in this action, keeping other scene elements stable. Preserve each subject's identity, existing anatomy or object structure, proportions, materials, markings, colors, and spatial relationships. Preserve the background and perspective unless the action explicitly requires a change. Do not add human anatomy to a non-human subject or change its species or object type. Show the requested physical action, not merely camera motion, zoom, or image deformation. No duplicate subjects, invented objects, motion trails, collage, grid, captions, or extra panels." % [str(steps[s]["description"]), pose]
-        return {"ok": true, "action": action, "phase": phase, "description": str(steps[s]["description"]), "pose": pose, "instruction": instruction}
+        return {"ok": true, "action": action, "phase": phase, "description": str(steps[s]["description"]), "pose": pose, "instruction": instruction, "sequence_index": index, "sequence_count": count, "action_index": index - offset, "action_count": allocation[s]}
     return {"ok": false, "error": "Action du dessin introuvable."}
 const ACTION_PHASES := {
     "course": ["contact gauche", "propulsion", "suspension", "contact droit"],
     "marche": ["appui gauche", "passage", "appui droit", "passage"],
-    "danse": ["pose initiale", "transfert poids gauche", "extension", "transfert poids droit", "retour"],
+    "danse": ["appui gauche flechi", "talon droit leve", "genou droit leve", "pas lateral droit", "transfert droit", "rotation et bras avant", "ouverture des bras", "extension laterale", "rotation droite", "pas croise", "decroisement", "flexion", "transfert bas", "accroupissement", "remontee", "appui droit final"],
     "chute": ["perte equilibre", "inclinaison", "bascule", "impact", "immobilisation"],
     "trebuche": ["obstacle", "deséquilibre", "rattrapage"],
     "saut": ["preparation", "impulsion", "envol", "sommet", "reception"],
