@@ -18,7 +18,7 @@ func _initialize() -> void:
     assert(arbitrary["steps"][0]["action"] == "course")
     assert(arbitrary["steps"][1]["action"] == "inconnu")
     assert(arbitrary["steps"][1]["needs_generation"])
-    assert(arbitrary["steps"][2]["action"] == "inconnu")
+    assert(arbitrary["steps"][2]["action"] == "vol", "Flying is a supported action, not unknown")
     var chained: Dictionary = planner.plan("Il court et tombe et se relève", 6.0)
     var chain_steps: Array = chained.get("steps", [])
     assert(chain_steps.size() == 3, "Conjoined movements must be split into three actions")
