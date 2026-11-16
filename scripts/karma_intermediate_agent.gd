@@ -101,7 +101,9 @@ func render_pending(plan: Dictionary, folder: String, worker: Node, style: Strin
         var prompt: String = str(task["instruction"]) + " Earlier physical pose: " + str(left.get("pose", "")) + ". Later physical pose: " + str(right.get("pose", "")) + ". Intermediate fraction: %.3f. Keep all subjects and environmental landmarks." % float(task["fraction"])
         var output_path: String = folder.path_join(str(task["id"]) + ".png")
         var meta_path: String = folder.path_join(str(task["id"]) + ".json")
-        var binding: String = (REVISION + FileAccess.get_sha256(left_path) + FileAccess.get_sha256(right_path) + prompt + style).sha256_text()
+        var has_original: bool = original_reference != null and not original_reference.is_empty()
+        var original_hash: String = original_reference.save_png_to_buffer().hex_encode().sha256_text() if has_original else "legacy-left-pose-only"
+        var binding: String = (REVISION + original_hash + FileAccess.get_sha256(left_path) + FileAccess.get_sha256(right_path) + prompt + style).sha256_text()
         if FileAccess.file_exists(output_path) and FileAccess.file_exists(meta_path):
             var meta: Variant = JSON.parse_string(FileAccess.get_file_as_string(meta_path))
             if meta is Dictionary and meta.get("binding", "") == binding and meta.get("image_sha", "") == FileAccess.get_sha256(output_path):
@@ -112,7 +114,10 @@ func render_pending(plan: Dictionary, folder: String, worker: Node, style: Strin
                 continue
         if generated >= max_new:
             break
-        var response: Dictionary = await worker.redraw(left_image, prompt, style)
+        # Original image is the identity anchor; left pose is temporal context.
+        # Do not turn a previous generated drawing into the permanent identity.
+        var identity_source: Image = original_reference if has_original else left_image
+        var response: Dictionary = await worker.redraw(identity_source, prompt, style, left_image)
         if not response.get("ok", false) or not response.get("image") is Image:
             return {"ok": false, "error": "intermediate_generation_failed", "detail": response.get("error", ""), "task": task["id"], "generated": generated, "results": results}
         var candidate: Image = response["image"]
