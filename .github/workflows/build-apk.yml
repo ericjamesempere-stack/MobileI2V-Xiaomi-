@@ -201,6 +201,15 @@ jobs:
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' hf-studio-ui.log; then exit 1; fi
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error' hf-studio-protocol.log; then exit 1; fi
 
+      - name: Test integrated universal Android screen through MP4
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_universal_android_integration.gd 2>&1 | tee universal-android-integration.log
+          grep -q 'UNIVERSAL_ANDROID_INTEGRATION_OK' universal-android-integration.log
+          if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' universal-android-integration.log; then exit 1; fi
       - name: Smoke-test KARMA ONE startup before APK export
         run: |
           set -euo pipefail

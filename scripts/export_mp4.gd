@@ -72,11 +72,12 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
     if board_images.is_empty() or timeline.is_empty():
         _set_status("MP4 impossible : planche vide.")
         return
-    if not Engine.has_singleton("MP4Exporter"):
+    var native_encoder: Object = _get_encoder()
+    if native_encoder == null:
         _set_status("Encodeur MP4 Android indisponible. Utilise l'export AVI local.")
         return
     exporting = true
-    var encoder: Object = Engine.get_singleton("MP4Exporter")
+    var encoder: Object = native_encoder
     var output: String = "/storage/emulated/0/Movies/MobileI2V_Board_%d.mp4" % int(Time.get_unix_time_from_system())
     var begin_result: Variant = encoder.call("begin", output, WIDTH, HEIGHT, FPS)
     if begin_result is bool and not begin_result:
@@ -90,7 +91,7 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
     var image_b: Image = null
     for n in range(total):
         var position: float = float(n) / float(total) * float(timeline.size())
-        var slot: int = mini(timeline.size() - 1, floori(position))
+        var slot: int = mini(timeline.size() - 1, n if timeline.size() == total else floori(position))
         var next_slot: int = mini(timeline.size() - 1, slot + 1)
         var index: int = int(timeline[slot])
         var next_index: int = int(timeline[next_slot])
@@ -153,3 +154,6 @@ func _fit_canvas(source: Image) -> Image:
     canvas.fill(Color.BLACK)
     canvas.blend_rect(image, Rect2i(Vector2i.ZERO, image.get_size()), Vector2i((WIDTH - image.get_width()) / 2, (HEIGHT - image.get_height()) / 2))
     return canvas
+
+func _get_encoder() -> Object:
+    return Engine.get_singleton("MP4Exporter") if Engine.has_singleton("MP4Exporter") else null

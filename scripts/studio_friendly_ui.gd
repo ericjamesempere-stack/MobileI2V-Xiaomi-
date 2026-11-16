@@ -207,7 +207,7 @@ func build(board: Control) -> void:
         preset.custom_minimum_size.y = 60
         preset.add_theme_font_size_override("font_size", 19)
     board.choice_summary = text(story, "", 19, MUTED)
-    text(story, "La création IA se fait en ligne. Ton image et ton histoire sont envoyées aux moteurs ; les quotas gratuits peuvent demander d'attendre.", 18, MUTED)
+    text(story, "En lançant la création, tu envoies ton image et ton histoire aux services en ligne pour analyser la scène, dessiner et contrôler les poses. Les quotas gratuits peuvent demander d'attendre.", 18, MUTED)
     button(board, board.wizard_pages[1], "C'est parti ! Créer mes dessins", board._friendly_generate, true).name = "GenerateStory"
     button(board, board.wizard_pages[1], "Revoir mon personnage", func() -> void: board._go_step(0))
 
@@ -253,11 +253,11 @@ func build(board: Control) -> void:
     board.duration_input.max_value = 300
     board.duration_input.value = 6
     advanced.add_child(board.duration_input)
-    text(advanced, "Dessins IA par lot (commence par 4)", 20)
+    text(advanced, "Limite de poses clés (le nombre nécessaire vient de l’analyse)", 20)
     board.ai_drawings_count = SpinBox.new()
     board.ai_drawings_count.min_value = 2
     board.ai_drawings_count.max_value = 24
-    board.ai_drawings_count.value = 4
+    board.ai_drawings_count.value = 24
     advanced.add_child(board.ai_drawings_count)
     text(advanced, "Compte Hugging Face : jeton facultatif", 20)
     board.ai_token_input = LineEdit.new()

@@ -51,6 +51,12 @@ var review_image: TextureRect
 var review_caption: Label
 var review_index: int = 0
 var session_agent: RefCounted = null
+var universal_pipeline: Node = null
+var universal_folder: String = ""
+var universal_plan: Dictionary = {}
+var universal_quality: Dictionary = {}
+var universal_style: String = ""
+var universal_input_signature: String = ""
 var disk_drawing_running: bool = false
 var karma_auto_export: bool = false
 var karma_auto_export_toggle: CheckBox
@@ -447,7 +453,7 @@ func _export_board_mp4() -> void:
     if exporting_video or disk_drawing_running:
         status.text = "Une generation ou un export est deja en cours."
         return
-    if not Engine.has_singleton("MP4Exporter"):
+    if not _mp4_encoder_available():
         status.text = "MP4 indisponible : plugin Android absent. Utilise EXPORTER AVI."
         return
     if sources.is_empty():
@@ -462,8 +468,7 @@ func _export_board_mp4() -> void:
     if selected == 0 or accepted.size() != sources.size() or selected != sources.size():
         status.text = "Export bloque : valide ou refais chaque dessin de la planche."
         return
-    var exporter: Node = Node.new()
-    exporter.set_script(load("res://scripts/export_mp4.gd"))
+    var exporter: Node = _make_mp4_exporter()
     exporter.set("status_label", status)
     exporter.set("hold_keyframes", v5_sheet_loaded)
     add_child(exporter)
@@ -797,6 +802,7 @@ func _image_chosen(path: String) -> void:
     if img.save_png(saved_path) != OK:
         status.text = "ERREUR : impossible de copier la photo."
         return
+    _clear_universal_state()
     v5_sheet_loaded = false
     required_drawing_count = 0
     session_agent = null
@@ -1787,7 +1793,7 @@ func _save() -> void:
                     nearest_distance = distance
                     nearest = int(original_idx)
             approved_timeline.append(old_to_new[nearest])
-    var data := {"version": 2, "required_drawing_count": required_drawing_count, "explicit_rejections": explicit_rejections.keys(), "character_description": character_description.text, "drawing_style": drawing_style.selected, "custom_style": custom_style_input.text, "ai_drawings_count": ai_drawings_count.value, "karma_auto_export": karma_auto_export, "approved_drawings": approved_drawings, "approved_timeline": approved_timeline, "reference_path": imported_path, "style_reference_path": style_reference_path, "description": action_input.text, "ai_endpoint": ai_endpoint.text, "duration_seconds": duration_input.value, "drawings": paths, "approved": flags, "timeline_indices": plan, "warning": "Offline photo camera motion or existing poses; no AI anatomy generation"}
+    var data := {"version": 3, "universal_folder": universal_folder, "universal_quality": universal_quality, "universal_style": universal_style, "universal_input_signature": universal_input_signature, "required_drawing_count": required_drawing_count, "explicit_rejections": explicit_rejections.keys(), "character_description": character_description.text, "drawing_style": drawing_style.selected, "custom_style": custom_style_input.text, "ai_drawings_count": ai_drawings_count.value, "karma_auto_export": karma_auto_export, "approved_drawings": approved_drawings, "approved_timeline": approved_timeline, "reference_path": imported_path, "style_reference_path": style_reference_path, "description": action_input.text, "ai_endpoint": ai_endpoint.text, "duration_seconds": duration_input.value, "drawings": paths, "approved": flags, "timeline_indices": plan, "warning": "Offline photo camera motion or existing poses; no AI anatomy generation"}
     var f := FileAccess.open(SAVE, FileAccess.WRITE)
     if f == null:
         status.text = "Erreur de sauvegarde"
@@ -1817,6 +1823,24 @@ func _load_saved() -> void:
         karma_auto_export_toggle.set_pressed_no_signal(karma_auto_export)
     required_drawing_count = int(data.get("required_drawing_count", 0))
     imported_path = str(data.get("reference_path", ""))
+    _clear_universal_state()
+    session_agent = null
+    universal_folder = str(data.get("universal_folder", ""))
+    universal_quality = data.get("universal_quality", {})
+    universal_style = str(data.get("universal_style", ""))
+    universal_input_signature = str(data.get("universal_input_signature", ""))
+    if not universal_folder.is_empty():
+        var stored: Variant = JSON.parse_string(FileAccess.get_file_as_string(universal_folder.path_join("plan.json"))) if FileAccess.file_exists(universal_folder.path_join("plan.json")) else null
+        if stored is Dictionary:
+            universal_plan = stored
+        var guide: Image = load("res://scripts/android_image_reader.gd").read_image(style_reference_path) if not style_reference_path.is_empty() else null
+        _configure_universal_pipeline(guide)
+        var ledger_path: String = universal_folder.path_join("karma_agents.json")
+        var ledger: Variant = JSON.parse_string(FileAccess.get_file_as_string(ledger_path)) if FileAccess.file_exists(ledger_path) else null
+        if ledger is Dictionary:
+            session_agent = load("res://scripts/karma_studio_session.gd").new()
+            session_agent.state = ledger
+            session_agent.folder_path = universal_folder
     detected_landmarks.clear()
     sources.clear()
     paths.clear()
@@ -2006,6 +2030,7 @@ func _create_remote_reference() -> void:
 func _reuse_reference_drawing() -> void:
     if ai_running or disk_drawing_running or exporting_video:
         return
+    _clear_universal_state()
     var texture: Texture2D = _texture_for_path(imported_path)
     if texture == null:
         status.text = "Importe ou cree une image de depart."
@@ -2021,175 +2046,138 @@ func _reuse_reference_drawing() -> void:
     _save()
     status.text = "Image de depart reprise a l identique : aucune regeneration."
 
+func _make_universal_pipeline() -> Node:
+    return load("res://scripts/universal_board_pipeline.gd").new()
+
+func _configure_universal_pipeline(style_image: Image = null) -> void:
+    if is_instance_valid(universal_pipeline):
+        universal_pipeline.queue_free()
+    universal_pipeline = _make_universal_pipeline()
+    add_child(universal_pipeline)
+    universal_pipeline.worker.hf_token = ai_token_input.text.strip_edges()
+    universal_pipeline.worker.style_reference = style_image
+    # Pressing Create submits the image/story to the disclosed online analysis
+    # and drawing services. Mere import never uploads the user's image.
+    universal_pipeline.worker.remote_vision_consent = true
+    universal_pipeline.stage_changed.connect(_universal_progress)
+
+func _universal_progress(stage: String, completed: int, total: int) -> void:
+    if stage == "analysis":
+        status.text = "Analyse IA de ton image et de l'histoire…"
+    elif stage == "generation":
+        status.text = "Création des poses : %d / %d" % [completed, total]
+    else:
+        status.text = "Contrôle de fidélité des poses et correction ciblée…"
+
+func _universal_signature() -> String:
+    var identity: String = FileAccess.get_sha256(imported_path) if FileAccess.file_exists(imported_path) else "missing"
+    var guide: String = FileAccess.get_sha256(style_reference_path) if not style_reference_path.is_empty() and FileAccess.file_exists(style_reference_path) else style_reference_path
+    return JSON.stringify([identity, action_input.text.strip_edges(), float(duration_input.value), _selected_drawing_style(), guide]).sha256_text()
+
+func _clear_universal_state() -> void:
+    universal_folder = ""
+    universal_plan.clear()
+    universal_quality.clear()
+    universal_style = ""
+    universal_input_signature = ""
+    if is_instance_valid(universal_pipeline):
+        universal_pipeline.queue_free()
+    universal_pipeline = null
+
 func _draw_remote_story() -> void:
-    if ai_running or disk_drawing_running or exporting_video:
-        status.text = "Une operation est deja en cours."
+    if ai_running or disk_drawing_running or exporting_video or photo_importing:
+        status.text = "Une opération est déjà en cours."
         return
     var reference: Image = load("res://scripts/android_image_reader.gd").read_image(imported_path)
     if reference == null:
-        status.text = "Importe une photo ou cree d abord ton personnage par IA."
+        status.text = "Importe une photo ou crée d'abord ton personnage par IA."
         return
     var story: String = action_input.text.strip_edges()
     if story.is_empty():
-        status.text = "Ecris l histoire avant de lancer les dessins."
+        status.text = "Écris l'histoire avant de lancer les dessins."
         return
-    var style: String = _selected_drawing_style()
     var style_image: Image = null
     if not style_reference_path.is_empty():
         style_image = load("res://scripts/android_image_reader.gd").read_image(style_reference_path)
         if style_image == null:
-            status.text = "La reference de style est manquante. Reimporte-la avant de generer."
+            status.text = "La référence de style est manquante. Réimporte-la avant de générer."
             return
-    var duration: float = duration_input.value
-    # Adaptive pose count is bounded by the user's existing GPU drawing budget.
-    # This heuristic is not a semantic visual analysis or a quality guarantee.
-    var pose_budget: Dictionary = load("res://scripts/board_pose_budget.gd").new().estimate(story, duration, int(ai_drawings_count.value))
-    if not pose_budget.get("ok", false):
-        status.text = str(pose_budget.get("error", "Calcul des poses impossible."))
-        return
-    var total: int = int(pose_budget["selected"])
-    # Every distinct planned action needs at least one drawing. Do not silently
-    # omit actions when the user-selected generation budget is too small.
-    var motion_preview: Dictionary = load("res://scripts/story_motion_planner.gd").new().plan(story, duration)
-    if not motion_preview.get("ok", false):
-        status.text = str(motion_preview.get("error", "Impossible de decomposer les actions."))
-        return
-    var action_count: int = motion_preview.get("steps", []).size()
-    if action_count > int(ai_drawings_count.value):
-        status.text = "Histoire : %d actions, mais seulement %d dessins autorises. Augmente la limite de dessins pour couvrir toutes les actions." % [action_count, int(ai_drawings_count.value)]
-        return
-    total = maxi(total, action_count)
-    session_agent = load("res://scripts/karma_studio_session.gd").new()
-    var preparation: Dictionary = session_agent.begin(story, duration, total)
-    if not preparation.get("ok", false):
-        status.text = str(preparation.get("error", "Scénario impossible."))
-        return
-    var drawing_plan: RefCounted = load("res://scripts/board_generation_plan.gd").new()
-    var first_brief: Dictionary = drawing_plan.remote_frame(story, duration, total, 0)
-    if not first_brief.get("ok", false):
-        status.text = str(first_brief.get("error", "Plan impossible."))
-        return
-    # Ground every drawing in the actual selected image, not just the text story.
-    # This is a measurable reference profile, NOT a semantic vision-model result.
-    var visual_analyzer: RefCounted = load("res://scripts/reference_visual_analysis.gd").new()
-    var reference_profile: Dictionary = visual_analyzer.analyze(reference)
-    if not reference_profile.get("ok", false):
-        status.text = "Analyse de l image sélectionnée impossible : " + str(reference_profile.get("error", "image invalide"))
-        return
-    # Keep the image measurements with the generated storyboard for audits and resume.
-    session_agent.state["reference_analysis"] = {
-        "width": int(reference_profile["width"]),
-        "height": int(reference_profile["height"]),
-        "aspect_ratio": float(reference_profile["aspect_ratio"]),
-        "visible_fraction": float(reference_profile["visible_fraction"]),
-        "palette_hex": reference_profile["palette_hex"],
-        "semantic_analysis": false
-    }
-    var reference_hash := HashingContext.new()
-    reference_hash.start(HashingContext.HASH_SHA256)
-    reference_hash.update(reference.get_data())
-    var reference_digest: String = reference_hash.finish().hex_encode()
-    var style_signature: String = ""
-    if style_image != null:
-        var style_hash := HashingContext.new()
-        style_hash.start(HashingContext.HASH_SHA256)
-        style_hash.update(style_image.get_data())
-        style_signature = style_hash.finish().hex_encode() + str(style_image.get_size())
-    if not style_signature.is_empty() or style in ["original", "bd_detail"]:
-        style_signature += load("res://scripts/hf_studio_generator.gd").DETAIL_CACHE_VERSION
-    var cache_key: String = (reference_digest + story + style + str(total) + str(duration) + drawing_plan.REMOTE_BRIEF_VERSION + style_signature).sha256_text().substr(0, 24)
-    var folder: String = "user://projects/hf_" + cache_key
-    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
-        status.text = "Dossier IA impossible a creer."
-        return
+    var signature: String = _universal_signature()
+    var folder: String = "user://projects/universal_" + signature.substr(0, 24)
+    _configure_universal_pipeline(style_image)
     ai_running = true
     last_ai_sequence_ok = false
-    var worker: Node = load("res://scripts/hf_studio_generator.gd").new()
-    worker.hf_token = ai_token_input.text.strip_edges()
-    worker.style_reference = style_image
-    add_child(worker)
-    var drawings: Array[Texture2D] = []
-    var drawing_paths: Array[String] = []
-    var previous: Image = null
-    var failure: String = ""
-    var pending_frames: Array = []
-    var pending_model: String = ""
-    for index in range(total):
-        var path: String = folder.path_join("frame_%04d.png" % index)
-        var frame := Image.new()
-        var cached: bool = FileAccess.file_exists(path) and frame.load(path) == OK and not frame.is_empty()
-        if not cached:
-            if pending_frames.is_empty():
-                var briefs: Array = []
-                for next_index in range(index, mini(total, index + worker.max_batch_size(style))):
-                    if next_index > index and FileAccess.file_exists(folder.path_join("frame_%04d.png" % next_index)):
-                        break
-                    briefs.append(drawing_plan.remote_frame(story, duration, total, next_index))
-                status.text = "Dessins %d à %d sur %d · Création en un calcul…" % [index + 1, index + briefs.size(), total]
-                var result: Dictionary = await worker.redraw_batch(reference, briefs, style, previous)
-                if not result.get("ok", false):
-                    failure = str(result.get("error", "Erreur distante."))
-                    break
-                pending_frames = result["images"].duplicate()
-                pending_model = str(result.get("model", ""))
-                if result.has("sheet"):
-                    var sheet_path: String = folder.path_join("sheet_%04d.png" % index)
-                    if (result["sheet"] as Image).save_png(sheet_path) != OK:
-                        failure = "Sauvegarde de la planche source impossible."
-                        break
-            frame = pending_frames.pop_front()
-            var quality: Dictionary = session_agent.inspect_frame(frame, previous)
-            if not quality.get("ok", false):
-                failure = "Dessin refusé par le contrôle technique : " + str(quality.get("issues", []))
-                break
-            if previous != null and frame.get_size() == previous.get_size() and frame.get_data() == previous.get_data():
-                failure = "Le moteur a retourne deux dessins identiques. Verifie les directives avant de reprendre."
-                break
-            var temp: String = path + ".part"
-            if frame.save_png(temp) != OK or DirAccess.rename_absolute(temp, path) != OK:
-                failure = "Echec sauvegarde du dessin."
-                break
-        var inspection: Dictionary = session_agent.inspect_frame(frame, previous)
-        if not inspection.get("ok", false):
-            failure = "Un dessin sauvegardé ne passe pas le contrôle technique. Refais ce dessin avant de valider."
-            break
-        inspection["model"] = pending_model if not cached else "cached_generated_image"
-        inspection["identity_verified"] = false
-        session_agent.record_frame(index, path, inspection)
-        session_agent.save(folder)
-        drawings.append(ImageTexture.create_from_image(frame))
-        drawing_paths.append(path)
-        previous = frame
-        preview.texture = drawings.back()
-        await get_tree().process_frame
-    session_agent.state["engines"] = worker.engine_status.duplicate(true)
-    worker.queue_free()
+    var result: Dictionary = await universal_pipeline.build_boards(reference, story, float(duration_input.value), _selected_drawing_style(), folder, int(ai_drawings_count.value))
     ai_running = false
-    session_agent.finish_drawings(failure)
-    session_agent.save(folder)
-    if not drawings.is_empty():
-        explicit_rejections.clear()
-        review_fingerprint = ""
-        review_check.set_pressed_no_signal(false)
-        required_drawing_count = total
-        sources = drawings
-        paths = drawing_paths
-        accepted.clear()
-        plan.clear()
-        for index in range(paths.size()):
-            accepted.append(false)
-            plan.append(index)
-        frame_index = 0
-        duration_input.value = duration
-        v5_sheet_loaded = true
-        _refresh()
-        _build_contact_sheet()
-        _save()
-    if not failure.is_empty():
-        status.text = "%d/%d dessins conserves. Relance avec les memes parametres pour reprendre. %s" % [drawing_paths.size(), total, failure]
+    if result.get("stage", "") == "budget":
+        status.text = "L'analyse prévoit %d poses clés ; ta limite est %d. Augmente la limite dans Réglages et outils, puis relance : l'analyse est sauvegardée." % [int(result["required"]), int(result["budget"])]
         return
-    last_ai_sequence_ok = true
-    status.text = "Tes %d dessins sont prêts ! Regarde les visages et les poses avant de créer ton film." % total
+    if not result.has("plan"):
+        status.text = "Analyse IA non aboutie ; tes dessins sont conservés. " + str(result.get("detail", {}).get("error", result.get("error", "Service indisponible.")))
+        return
+    var generation: Dictionary = result.get("generation", result.get("detail", {}))
+    var generated_paths: Array = generation.get("paths", [])
+    if generated_paths.is_empty():
+        status.text = "Aucun nouveau dessin ; ton projet est conservé. " + str(generation.get("error", "Génération indisponible."))
+        return
+    universal_folder = folder
+    universal_plan = result["plan"]
+    universal_quality = result.get("quality", {"ok": false, "fidelity_verified": false})
+    universal_style = _selected_drawing_style()
+    universal_input_signature = signature
+    sources.clear()
+    paths.clear()
+    accepted.clear()
+    plan.clear()
+    session_agent = load("res://scripts/karma_studio_session.gd").new()
+    session_agent.state = {"version": 2, "story": story, "duration": duration_input.value, "count": universal_plan["keyposes"], "frames": {}, "semantic_analysis": universal_plan["semantic_analysis"], "identity_verified": false, "agents": {"scenario": "live_vision_model", "pose": "universal_physical_phases", "image": "running", "quality": "pending", "recovery": "saving", "video": "waiting_for_user"}}
+    for path in generated_paths:
+        var texture: Texture2D = _texture_for_path(str(path))
+        if texture == null:
+            break
+        sources.append(texture)
+        paths.append(str(path))
+        accepted.append(false)
+        session_agent.record_frame(paths.size() - 1, str(path), {"identity_verified": false})
+    required_drawing_count = int(universal_plan["keyposes"])
+    var cursor: int = 0
+    for frame in range(int(universal_plan["video_frames"])):
+        while cursor + 1 < universal_plan["boards"].size() and int(universal_plan["boards"][cursor + 1]["video_frame"]) <= frame:
+            cursor += 1
+        plan.append(cursor)
+    explicit_rejections.clear()
+    review_fingerprint = ""
+    review_check.set_pressed_no_signal(false)
+    frame_index = 0
+    v5_sheet_loaded = true
+    var failure: String = str(generation.get("error", ""))
+    session_agent.finish_drawings(failure)
+    session_agent.state["quality"] = universal_quality
+    session_agent.state["agents"]["quality"] = "model_review_passed" if universal_quality.get("fidelity_verified", false) else "unverified_or_rejected"
+    session_agent.save(folder)
+    last_ai_sequence_ok = paths.size() == required_drawing_count
+    _refresh()
+    _build_contact_sheet()
+    _save()
+    if not last_ai_sequence_ok:
+        status.text = "%d/%d poses conservées. Relance avec les mêmes paramètres pour reprendre. %s" % [paths.size(), required_drawing_count, failure]
+    elif not universal_quality.get("fidelity_verified", false):
+        status.text = "%d poses affichées ; fidélité non validée. Examine les dessins et refais les poses signalées. %s" % [paths.size(), str(universal_quality.get("error", ""))]
+    else:
+        status.text = "%d poses contrôlées. Agrandis-les, garde ou refuse chaque dessin, puis confirme la planche. Les intermédiaires restent à produire." % paths.size()
+
+func _universal_ready_for_review() -> bool:
+    if universal_folder.is_empty():
+        return true # Existing imported V53/V54 projects retain their review flow.
+    if not universal_plan.get("semantic_analysis", false) or not universal_quality.get("fidelity_verified", false) or universal_input_signature != _universal_signature() or sources.size() != int(universal_plan.get("keyposes", -1)) or not is_instance_valid(universal_pipeline):
+        return false
+    for i in range(paths.size()):
+        if paths[i] != universal_folder.path_join("pose_%04d.png" % i) or not universal_pipeline._cached(universal_plan, i, universal_style, universal_folder):
+            return false
+        var meta: Variant = JSON.parse_string(FileAccess.get_file_as_string(universal_folder.path_join("pose_%04d.json" % i)))
+        if not meta is Dictionary or not meta.get("fidelity_verified", false) or meta.get("review_binding", "") != universal_pipeline._review_binding(universal_plan, i, universal_style, str(meta.get("image_sha", ""))):
+            return false
+    return true
 
 
 func _go_step(index: int) -> void:
@@ -2245,8 +2233,9 @@ func _sync_friendly_ui() -> void:
         drawing_preview_index = 0
         drawing_preview_playing = false
     preview_toggle.text = "Mettre l aperçu en pause" if drawing_preview_playing else "Voir défiler mes dessins"
-    review_check.disabled = busy or sources.size() < 2
-    friendly_export.disabled = busy or sources.size() < 2 or not review_check.button_pressed or not explicit_rejections.is_empty()
+    var minimum: int = 1 if not universal_folder.is_empty() else 2
+    review_check.disabled = busy or sources.size() < minimum
+    friendly_export.disabled = busy or sources.size() < minimum or not review_check.button_pressed or not explicit_rejections.is_empty()
     action_input.editable = not busy
     character_description.editable = not busy
     ai_token_input.editable = not busy
@@ -2362,10 +2351,11 @@ func _native_image_cancelled() -> void:
     status.text = "Sélection annulée. Ton projet est conservé."
 
 func _drawing_fingerprint() -> String:
-    if sources.size() < 2:
+    if sources.is_empty():
         return ""
     var digest := HashingContext.new()
     digest.start(HashingContext.HASH_SHA256)
+    digest.update(JSON.stringify([action_input.text, duration_input.value, _selected_drawing_style(), plan, imported_path, style_reference_path]).to_utf8_buffer())
     for index in range(sources.size()):
         var image: Image = sources[index].get_image()
         if image == null or image.is_empty():
@@ -2377,13 +2367,18 @@ func _drawing_fingerprint() -> String:
     return digest.finish().hex_encode()
 
 func _review_confirmation_changed(checked: bool) -> void:
+    if checked and not _universal_ready_for_review():
+        review_check.set_pressed_no_signal(false)
+        review_fingerprint = ""
+        status.text = "Validation bloquée : l'analyse ou la fidélité des poses n'est pas confirmée, ou les paramètres ont changé. Reprends la création ou refais les dessins signalés."
+        return
     if checked and required_drawing_count > sources.size():
         review_check.set_pressed_no_signal(false)
         review_fingerprint = ""
         status.text = "Planche incomplète : %d/%d dessins. Relance la création pour reprendre." % [sources.size(), required_drawing_count]
         return
     # V54: a global confirmation is valid only after each drawing was kept.
-    var all_approved: bool = sources.size() >= 2 and accepted.size() == sources.size()
+    var all_approved: bool = sources.size() >= (1 if not universal_folder.is_empty() else 2) and accepted.size() == sources.size()
     if all_approved:
         for keep in accepted:
             if not bool(keep):
@@ -2399,9 +2394,11 @@ func _review_confirmation_changed(checked: bool) -> void:
         reviewed_paths = "|".join(paths)
 
 func _has_current_review() -> bool:
+    if ai_running or disk_drawing_running or exporting_video or not _universal_ready_for_review():
+        return false
     if required_drawing_count > sources.size():
         return false
-    if sources.size() < 2 or accepted.size() != sources.size():
+    if sources.size() < (1 if not universal_folder.is_empty() else 2) or accepted.size() != sources.size():
         return false
     for keep in accepted:
         if not keep:
@@ -2479,6 +2476,11 @@ func _refresh_review_dialog() -> void:
     review_image.texture = sources[review_index]
     var state: String = "Refusé" if explicit_rejections.has(review_index) else ("Gardé" if review_index < accepted.size() and accepted[review_index] else "À examiner")
     review_caption.text = "Dessin %d / %d · %s" % [review_index + 1, sources.size(), state]
+    if not universal_folder.is_empty():
+        var meta_path: String = universal_folder.path_join("pose_%04d.json" % review_index)
+        var meta: Variant = JSON.parse_string(FileAccess.get_file_as_string(meta_path)) if FileAccess.file_exists(meta_path) else null
+        if meta is Dictionary and not meta.get("fidelity_verified", false):
+            review_caption.text += " · Contrôle IA non confirmé : " + JSON.stringify(meta.get("model_review", {}).get("defects", []))
 
 func _review_move(direction: int) -> void:
     if ai_running:
@@ -2501,6 +2503,9 @@ func _review_choose(keep: bool) -> void:
 
 func _regenerate_reviewed_drawing() -> void:
     if ai_running or exporting_video or disk_drawing_running:
+        return
+    if not universal_folder.is_empty():
+        await _regenerate_universal_drawing()
         return
     var reference: Image = load("res://scripts/android_image_reader.gd").read_image(imported_path)
     if reference == null or action_input.text.strip_edges().is_empty():
@@ -2563,3 +2568,46 @@ func _regenerate_reviewed_drawing() -> void:
     _save()
     _refresh_review_dialog()
     status.text = "Le dessin a été refait. Agrandis-le et vérifie-le avant validation."
+
+func _mp4_encoder_available() -> bool:
+    return Engine.has_singleton("MP4Exporter")
+
+func _make_mp4_exporter() -> Node:
+    return load("res://scripts/export_mp4.gd").new()
+
+func _regenerate_universal_drawing() -> void:
+    if universal_plan.is_empty() or universal_input_signature != _universal_signature() or not is_instance_valid(universal_pipeline):
+        status.text = "Les paramètres ont changé. Relance la création pour préparer le bon plan."
+        return
+    var reference: Image = load("res://scripts/android_image_reader.gd").read_image(imported_path)
+    if reference == null:
+        status.text = "Réimporte l'image de référence."
+        return
+    var index: int = review_index
+    if index < 0 or index >= paths.size() or not universal_pipeline._cached(universal_plan, index, universal_style, universal_folder):
+        status.text = "Ce dessin est manquant ou a changé. Reprends la création pour le récupérer."
+        return
+    var meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(universal_folder.path_join("pose_%04d.json" % index)))
+    var defect: String = JSON.stringify(meta.get("model_review", {}).get("defects", []))
+    if defect == "[]":
+        defect = "The user rejected this drawing. Faithfully match the original entity identities, requested physical state and contacts in the prepared plan."
+    ai_running = true
+    review_fingerprint = ""
+    review_check.set_pressed_no_signal(false)
+    universal_pipeline.worker.vision_failed = false
+    status.text = "Correction du dessin %d…" % (index + 1)
+    var result: Dictionary = await universal_pipeline.repair_keypose(reference, universal_plan, universal_style, universal_folder, index, defect)
+    if result.get("ok", false):
+        sources[index] = _texture_for_path(paths[index])
+        accepted[index] = false
+        explicit_rejections.erase(index)
+        universal_quality = await universal_pipeline.review_keyposes(reference, universal_plan, universal_folder, universal_style)
+        if session_agent != null:
+            session_agent.record_frame(index, paths[index], {"fidelity_verified": universal_quality.get("fidelity_verified", false)})
+            session_agent.state["quality"] = universal_quality
+            session_agent.save(universal_folder)
+        _build_contact_sheet()
+    ai_running = false
+    _save()
+    _refresh_review_dialog()
+    status.text = ("Dessin refait. Examine-le et garde-le avant une nouvelle confirmation." if universal_quality.get("fidelity_verified", false) else "Dessin refait ; contrôle de fidélité encore non confirmé. " + str(universal_quality.get("error", ""))) if result.get("ok", false) else "L'ancien dessin est conservé. " + str(result.get("error", "Correction indisponible."))

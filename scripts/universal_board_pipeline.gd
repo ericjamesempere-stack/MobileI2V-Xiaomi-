@@ -1,19 +1,25 @@
 extends Node
 # Strict engine API. No UI, video encoding or procedural stand-in.
 var worker: Node
+signal stage_changed(stage: String, completed: int, total: int)
 const REVISION := "v54-registry-density-1"
 
 func _ready() -> void:
     worker = load("res://scripts/hf_studio_generator.gd").new()
     add_child(worker)
 
-func build_boards(reference: Image, story: String, seconds: float, style: String, folder: String) -> Dictionary:
+func build_boards(reference: Image, story: String, seconds: float, style: String, folder: String, maximum_keyposes: int = 24) -> Dictionary:
+    worker.job_folder = folder.path_join("jobs")
+    stage_changed.emit("analysis", 0, 0)
     var plan: Dictionary = await prepare(reference, story, seconds, folder)
     if not plan.get("ok", false):
         return {"ok": false, "stage": "analysis", "detail": plan, "drawings_unchanged": true, "ready_for_animation": false}
+    if plan["keyposes"] > maximum_keyposes:
+        return {"ok": false, "stage": "budget", "plan": plan, "error": "keypose_budget_exceeded", "required": plan["keyposes"], "budget": maximum_keyposes, "drawings_unchanged": true}
     var generation: Dictionary = await generate_keyposes(reference, plan, style, folder)
     if not generation.get("ok", false):
         return {"ok": false, "stage": "generation", "plan": plan, "detail": generation, "ready_for_animation": false}
+    stage_changed.emit("fidelity_review", 0, plan["keyposes"])
     var review: Dictionary = await review_and_correct(reference, plan, style, folder)
     return {"ok": review.get("fidelity_verified", false) and plan.get("semantic_analysis", false), "stage": "fidelity_review", "plan": plan, "generation": generation, "quality": review, "human_approved": false, "ready_for_animation": false, "intermediates_generated": 0}
 
@@ -201,6 +207,7 @@ func generate_keyposes(reference: Image, plan: Dictionary, style: String, folder
             failure = "drawing_save_failed"
             break
         paths.append(path)
+        stage_changed.emit("generation", paths.size(), plan["keyposes"])
         previous = image
     var result: Dictionary = {"ok": failure.is_empty() and paths.size() == plan["keyposes"], "paths": paths, "keyposes_required": plan["keyposes"], "keyposes_generated": paths.size(), "reused": reused, "intermediates_required": plan["intermediate_drawings"], "intermediates_generated": 0, "semantic_analysis": plan["semantic_analysis"], "analysis_origin": plan["analysis_origin"], "automatic_fidelity_check": "unavailable", "fidelity_verified": false, "human_approved": false, "ready_for_animation": false, "error": failure, "engines": worker.engine_status.duplicate(true)}
     _write(folder.path_join("generation.json"), result)

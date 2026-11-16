@@ -96,6 +96,9 @@ func _call_api(base: String, api: String, data: Array) -> Dictionary:
             var result: Dictionary = record["result"].duplicate(true)
             result["cached_job"] = true
             return result
+    var session_hash: String = str(record.get("session_hash", ""))
+    if base == VISION_URL and session_hash.is_empty():
+        session_hash = (str(Time.get_ticks_usec()) + str(randi())).sha256_text().substr(0, 32)
     var queued: Dictionary = {}
     if record.get("state", "") == "pending":
         queued["event_id"] = record.get("event_id", "")
@@ -104,7 +107,10 @@ func _call_api(base: String, api: String, data: Array) -> Dictionary:
         http.timeout = 180.0
         http.body_size_limit = 24000000
         add_child(http)
-        var err: Error = http.request(url, _headers(["Content-Type: application/json"]), HTTPClient.METHOD_POST, JSON.stringify({"data": data}))
+        var payload: Dictionary = {"data": data}
+        if not session_hash.is_empty():
+            payload["session_hash"] = session_hash
+        var err: Error = http.request(url, _headers(["Content-Type: application/json"]), HTTPClient.METHOD_POST, JSON.stringify(payload))
         if err != OK:
             http.queue_free()
             return {"ok": false, "error": "Connexion impossible : " + error_string(err)}
@@ -121,7 +127,7 @@ func _call_api(base: String, api: String, data: Array) -> Dictionary:
     pattern.compile("^[A-Za-z0-9_-]{1,128}$")
     if pattern.search(event_id) == null:
         return {"ok": false, "error": "Identifiant du travail IA invalide."}
-    record = {"url": url, "event_id": event_id, "state": "pending"}
+    record = {"url": url, "event_id": event_id, "state": "pending", "session_hash": session_hash}
     _save_job(job_path, record)
     var stream := _new_http()
     stream.timeout = 240.0
@@ -263,7 +269,12 @@ func _upload_images(base: String, images: Array[Image]) -> Dictionary:
     var body := PackedByteArray()
     for index in range(images.size()):
         body.append_array(("--%s\r\nContent-Disposition: form-data; name=\"files\"; filename=\"reference_%d.png\"\r\nContent-Type: image/png\r\n\r\n" % [boundary, index]).to_utf8_buffer())
-        body.append_array(images[index].save_png_to_buffer())
+        var source: Image = images[index]
+        if base == VISION_URL and maxi(source.get_width(), source.get_height()) > 1024:
+            source = source.duplicate()
+            var ratio: float = 1024.0 / float(maxi(source.get_width(), source.get_height()))
+            source.resize(maxi(1, roundi(source.get_width() * ratio)), maxi(1, roundi(source.get_height() * ratio)), Image.INTERPOLATE_LANCZOS)
+        body.append_array(source.save_png_to_buffer())
         body.append_array("\r\n".to_utf8_buffer())
     body.append_array(("--" + boundary + "--\r\n").to_utf8_buffer())
     var http := _new_http()
