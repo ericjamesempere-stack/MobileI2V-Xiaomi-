@@ -112,7 +112,7 @@ func _ready() -> void:
     endpoint_label.text = "Serveur IA externe (facultatif)"
     advanced_box.add_child(endpoint_label)
     ai_endpoint = LineEdit.new()
-    ai_endpoint.placeholder_text = "https://ton-serveur/generate/storyboard"
+    ai_endpoint.placeholder_text = "Moteurs HTTPS separes par ; (KARMA ONE)"
     advanced_box.add_child(ai_endpoint)
     var token_label := Label.new()
     token_label.text = "Jeton du serveur IA (facultatif, jamais dans GitHub)"
@@ -740,7 +740,7 @@ func _generate_image_sequence() -> void:
         return
     var endpoint: String = ai_endpoint.text.strip_edges()
     var generator := Node.new()
-    generator.set_script(load("res://scripts/image_sequence_generator.gd"))
+    generator.set_script(load("res://scripts/karma_one_orchestrator.gd"))
     add_child(generator)
     generator.progress.connect(func(index: int, total: int) -> void:
         status.text = "Images generees : %d / %d" % [index, total]
@@ -750,7 +750,7 @@ func _generate_image_sequence() -> void:
     var count: int = clampi(ceili(float(duration_input.value) * 4.0), 2, 120)
     if not endpoint.begins_with("https://"):
         ai_running = false
-        status.text = "Moteur IA non configure. Indique son adresse HTTPS dans Options avancees. Aucun modele generatif integre a cette APK."
+        status.text = "KARMA ONE : ajoute au moins un moteur HTTPS dans Options avancees."
         generator.queue_free()
         return
     var result: Dictionary = await generator.call("generate", original, action_input.text, endpoint, count, false, ai_token_input.text.strip_edges(), float(duration_input.value))
