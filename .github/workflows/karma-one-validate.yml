@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - karma/storyboard-story-sequence-20261113
+      - karma/v54-approval-safety-20261116
     paths:
       - 'scripts/**'
       - 'tests/**'

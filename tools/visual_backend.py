@@ -165,7 +165,7 @@ def redraw():
         outputs = []
         digests = []
         for target_pose in target_poses:
-            generated = _draw_model(prompt=prompt + ". Body pose: " + target_pose + ". Preserve character face, hair and clothes.", image=source, strength=0.65,
+            generated = _draw_model(prompt=prompt + ". Subject action or pose: " + target_pose + ". Preserve the exact subject type, silhouette, materials, proportions, colors and original style. Do not add human anatomy unless explicitly requested.", image=source, strength=0.65,
                                     guidance_scale=7.0, num_inference_steps=25).images[0]
             buffer = io.BytesIO()
             generated.save(buffer, format="PNG")

@@ -152,6 +152,8 @@ class VisualBackendContract(unittest.TestCase):
             def from_pretrained(cls, *args, **kwargs): return cls()
             def to(self, device): return self
             def __call__(self, **kwargs):
+                assert "Do not add human anatomy unless explicitly requested" in kwargs["prompt"]
+                assert "Body pose:" not in kwargs["prompt"]
                 color = (10, 20, 30) if "crouched" in kwargs["prompt"] else (30, 20, 10)
                 return types.SimpleNamespace(images=[Image.new("RGB", (64, 64), color)])
         fake_diffusers = types.SimpleNamespace(AutoPipelineForImage2Image=FakePipeline)

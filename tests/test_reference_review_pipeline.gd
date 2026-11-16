@@ -52,6 +52,46 @@ func run() -> void:
     board._review_choose(true)
     board.review_check.set_pressed(true)
     assert(board._has_current_review())
+    board.required_drawing_count = 3
+    board.review_check.set_pressed(false)
+    board.review_check.set_pressed(true)
+    assert(not board._has_current_review(), "A partial generation must not export as a complete story")
+    board.required_drawing_count = 2
+    board.review_check.set_pressed(true)
+    assert(board._has_current_review())
+    # All export routes share the same human-review gate.
+    board.accepted[1] = false
+    assert(not board._has_current_review())
+    var blocked_output: String = folder.path_join("must_not_exist.avi")
+    await board._export_video(blocked_output)
+    assert(not FileAccess.file_exists(blocked_output))
+    board._export_png_sequence()
+    assert(board.status.text.contains("Export bloqué"))
+    board._validate_and_animate()
+    assert(board.status.text.contains("Export bloqué"))
+    board.accepted[1] = true
+    board._reject_all()
+    board._load_saved()
+    assert(not board.accepted[0] and not board.accepted[1], "Reject all must persist after reopening")
+    board.custom_style_input.text = "peinture à l huile"
+    board._save()
+    board.custom_style_input.text = ""
+    board._load_saved()
+    assert(board.custom_style_input.text == "peinture à l huile")
+    # Removing a damaged earlier drawing must remap the rejection to its new index.
+    board.explicit_rejections[1] = true
+    board._save()
+    assert(DirAccess.remove_absolute(first_path) == OK)
+    board._load_saved()
+    assert(board.sources.size() == 1 and board.explicit_rejections.has(0))
+    assert(reference.save_png(first_path) == OK)
+    board.sources.assign([ImageTexture.create_from_image(reference), ImageTexture.create_from_image(second)])
+    board.paths.assign([first_path, second_path])
+    board.accepted.assign([true, true])
+    board.explicit_rejections.clear()
+    board._sync_friendly_ui()
+    board.review_check.set_pressed(true)
+    assert(board._has_current_review())
     second.fill_rect(Rect2i(0, 0, 20, 20), Color.GREEN)
     assert(second.save_png(second_path) == OK)
     assert(not board._has_current_review(), "A drawing changed after review must invalidate approval")

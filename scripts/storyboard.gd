@@ -37,6 +37,7 @@ var imported_path: String = ""
 var last_ai_sequence_ok: bool = false
 var photo_importing: bool = false
 var review_fingerprint: String = ""
+var required_drawing_count: int = 0
 var explicit_rejections: Dictionary = {}
 var review_dialog: PanelContainer
 var review_image: TextureRect
@@ -245,6 +246,7 @@ func _restore_karma_merge() -> void:
             return
         restored_sources.append(tex)
         restored_paths.append(str(p))
+    required_drawing_count = 0
     sources = restored_sources
     paths = restored_paths
     plan.clear()
@@ -281,6 +283,7 @@ func _merge_folder_selected(folder: String) -> void:
     if next_sources.is_empty():
         status.text = "KARMA ONE : aucune image exploitable."
         return
+    required_drawing_count = 0
     sources = next_sources
     paths = next_paths
     accepted.clear()
@@ -361,6 +364,7 @@ func _drawings_folder_selected(folder: String) -> void:
     if imported_textures.is_empty():
         status.text = "KARMA ONE : aucune image lisible ou enregistrable."
         return
+    required_drawing_count = 0
     sources = imported_textures
     paths = imported_paths
     plan.clear()
@@ -413,6 +417,7 @@ func _pose_sheet_selected(path: String) -> void:
             var part: Image = sheet.get_region(Rect2i(x1, y1, x2 - x1, y2 - y1))
             part.resize(540, 960, Image.INTERPOLATE_LANCZOS)
             imported.append(ImageTexture.create_from_image(part))
+    required_drawing_count = 0
     sources = imported
     v5_sheet_loaded = true
     accepted.clear()
@@ -499,6 +504,9 @@ func _choose_video_export() -> void:
     video_picker.popup_centered_ratio(0.9)
 
 func _export_video(destination: String) -> void:
+    if not _has_current_review():
+        status.text = "Export bloqué : examine et garde chaque dessin, puis confirme la planche."
+        return
     if exporting_video:
         return
     exporting_video = true
@@ -737,6 +745,8 @@ func _image_chosen(path: String) -> void:
         status.text = "ERREUR : impossible de copier la photo."
         return
     v5_sheet_loaded = false
+    required_drawing_count = 0
+    session_agent = null
     imported_path = saved_path
     explicit_rejections.clear()
     review_fingerprint = ""
@@ -757,6 +767,8 @@ func _image_chosen(path: String) -> void:
     status.text = "Ton image est affichée et sauvegardée. Ajoute ton histoire pour créer la planche."
 
 func _texture_for_path(path: String) -> Texture2D:
+    if not FileAccess.file_exists(path):
+        return null
     if path.begins_with("user://") or path.begins_with("/"):
         var img := Image.new()
         if img.load(path) == OK:
@@ -924,6 +936,7 @@ func _generate_image_sequence() -> void:
             return
         new_sources.append(ImageTexture.create_from_image(img))
         new_paths.append(file_path)
+    required_drawing_count = 0
     sources = new_sources
     paths = new_paths
     plan.clear()
@@ -996,6 +1009,7 @@ func _ai_completed(_result: int, code: int, _headers: PackedStringArray, body: P
             return
         new_paths.append(path)
         new_sources.append(ImageTexture.create_from_image(imgs[i]))
+    required_drawing_count = 0
     sources = new_sources
     paths = new_paths
     plan.clear()
@@ -1287,6 +1301,7 @@ func _generate_layered_demo() -> void:
         if i % 12 == 0:
             status.text = "Dessin articule : %d/%d" % [i + 1, count]
             await get_tree().process_frame
+    required_drawing_count = 0
     sources = new_sources
     paths.clear()
     paths.append_array(new_paths)
@@ -1606,6 +1621,9 @@ func _generate_from_photo() -> void:
     status.text = "PHOTO VISIBLE : %d images creees et validees. Bouton 2 pour animer." % count
 
 func _export_png_sequence() -> void:
+    if not _has_current_review():
+        status.text = "Export bloqué : examine et garde chaque dessin, puis confirme la planche."
+        return
     if sources.is_empty():
         status.text = "Prepare et valide d'abord la planche."
         return
@@ -1630,6 +1648,7 @@ func _export_png_sequence() -> void:
     status.text = "%d PNG exportes dans %s (dossier interne de l'application). Pas de MP4." % [saved, folder]
 
 func _prepare() -> void:
+    required_drawing_count = 0
     sources.clear()
     paths.clear()
     plan.clear()
@@ -1680,7 +1699,9 @@ func _reject_all() -> void:
         review_check.set_pressed_no_signal(false)
     for i in range(accepted.size()):
         accepted[i] = false
+    review_fingerprint = ""
     _refresh()
+    _save()
 
 func _toggle_approval() -> void:
     if review_check != null:
@@ -1713,7 +1734,7 @@ func _save() -> void:
                     nearest_distance = distance
                     nearest = int(original_idx)
             approved_timeline.append(old_to_new[nearest])
-    var data := {"version": 2, "explicit_rejections": explicit_rejections.keys(), "character_description": character_description.text, "drawing_style": drawing_style.selected, "ai_drawings_count": ai_drawings_count.value, "karma_auto_export": karma_auto_export, "approved_drawings": approved_drawings, "approved_timeline": approved_timeline, "reference_path": imported_path, "description": action_input.text, "ai_endpoint": ai_endpoint.text, "duration_seconds": duration_input.value, "drawings": paths, "approved": flags, "timeline_indices": plan, "warning": "Offline photo camera motion or existing poses; no AI anatomy generation"}
+    var data := {"version": 2, "required_drawing_count": required_drawing_count, "explicit_rejections": explicit_rejections.keys(), "character_description": character_description.text, "drawing_style": drawing_style.selected, "custom_style": custom_style_input.text, "ai_drawings_count": ai_drawings_count.value, "karma_auto_export": karma_auto_export, "approved_drawings": approved_drawings, "approved_timeline": approved_timeline, "reference_path": imported_path, "description": action_input.text, "ai_endpoint": ai_endpoint.text, "duration_seconds": duration_input.value, "drawings": paths, "approved": flags, "timeline_indices": plan, "warning": "Offline photo camera motion or existing poses; no AI anatomy generation"}
     var f := FileAccess.open(SAVE, FileAccess.WRITE)
     if f == null:
         status.text = "Erreur de sauvegarde"
@@ -1731,6 +1752,7 @@ func _load_saved() -> void:
     if not data is Dictionary: return
     character_description.text = str(data.get("character_description", ""))
     drawing_style.select(clampi(int(data.get("drawing_style", 0)), 0, 5))
+    custom_style_input.text = str(data.get("custom_style", ""))
     ai_drawings_count.value = int(data.get("ai_drawings_count", 6))
     action_input.text = str(data.get("description", ""))
     ai_endpoint.text = str(data.get("ai_endpoint", ""))
@@ -1738,6 +1760,7 @@ func _load_saved() -> void:
     karma_auto_export = false
     if karma_auto_export_toggle != null:
         karma_auto_export_toggle.set_pressed_no_signal(karma_auto_export)
+    required_drawing_count = int(data.get("required_drawing_count", 0))
     imported_path = str(data.get("reference_path", ""))
     detected_landmarks.clear()
     sources.clear()
@@ -1765,8 +1788,8 @@ func _load_saved() -> void:
     explicit_rejections.clear()
     for item in data.get("explicit_rejections", []):
         var rejected_index: int = int(item)
-        if rejected_index >= 0 and rejected_index < sources.size():
-            explicit_rejections[rejected_index] = true
+        if old_to_new.has(rejected_index):
+            explicit_rejections[int(old_to_new[rejected_index])] = true
     review_check.set_pressed_no_signal(false)
     review_fingerprint = ""
     frame_index = 0
@@ -1782,6 +1805,9 @@ func _close() -> void:
     queue_free()
 
 func _validate_and_animate() -> void:
+    if not _has_current_review():
+        status.text = "Export bloqué : examine et garde chaque dessin, puis confirme la planche."
+        return
     if sources.is_empty():
         status.text = "Prepare d'abord une planche."
         return
@@ -1929,6 +1955,7 @@ func _reuse_reference_drawing() -> void:
     if texture == null:
         status.text = "Importe ou cree une image de depart."
         return
+    required_drawing_count = 0
     sources.assign([texture])
     paths.assign([imported_path])
     accepted.assign([false])
@@ -2048,6 +2075,7 @@ func _draw_remote_story() -> void:
         explicit_rejections.clear()
         review_fingerprint = ""
         review_check.set_pressed_no_signal(false)
+        required_drawing_count = total
         sources = drawings
         paths = drawing_paths
         accepted.clear()
@@ -2201,6 +2229,11 @@ func _drawing_fingerprint() -> String:
     return digest.finish().hex_encode()
 
 func _review_confirmation_changed(checked: bool) -> void:
+    if checked and required_drawing_count > sources.size():
+        review_check.set_pressed_no_signal(false)
+        review_fingerprint = ""
+        status.text = "Planche incomplète : %d/%d dessins. Relance la création pour reprendre." % [sources.size(), required_drawing_count]
+        return
     # V54: a global confirmation is valid only after each drawing was kept.
     var all_approved: bool = sources.size() >= 2 and accepted.size() == sources.size()
     if all_approved:
@@ -2218,6 +2251,13 @@ func _review_confirmation_changed(checked: bool) -> void:
         reviewed_paths = "|".join(paths)
 
 func _has_current_review() -> bool:
+    if required_drawing_count > sources.size():
+        return false
+    if sources.size() < 2 or accepted.size() != sources.size():
+        return false
+    for keep in accepted:
+        if not keep:
+            return false
     return review_check != null and review_check.button_pressed and explicit_rejections.is_empty() and not review_fingerprint.is_empty() and review_fingerprint == _drawing_fingerprint()
 
 func _show_drawing_review(index: int = 0) -> void:
