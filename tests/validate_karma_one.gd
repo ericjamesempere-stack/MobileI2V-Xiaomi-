@@ -27,7 +27,7 @@ func _initialize() -> void:
   quit(0)
 
 func _test_merge_resume() -> int:
- var folder: String = "user://karma_validation_input"
+ var folder: String = "user://karma_validation_input_%d" % Time.get_ticks_usec()
  var err: Error = DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder))
  if err != OK:
   printerr("Could not create test folder")
