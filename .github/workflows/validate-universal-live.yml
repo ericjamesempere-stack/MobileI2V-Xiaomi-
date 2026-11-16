@@ -58,6 +58,38 @@ jobs:
               results.append(row)
           print(json.dumps({"tls_verification": True, "image_uploads": 0, "providers": results}, indent=2))
           PY
+      - name: Compare Godot HTTPS and production upload transport
+        run: |
+          set -euo pipefail
+          cat > tools/diagnose_https_temp.gd <<'GD'
+          extends SceneTree
+          func _initialize() -> void:
+              call_deferred("run")
+          func run() -> void:
+              var worker: Node = load("res://scripts/hf_studio_generator.gd").new()
+              root.add_child(worker)
+              print("PROXY_PRESENT ", {"HTTPS_PROXY": not OS.get_environment("HTTPS_PROXY").is_empty(), "https_proxy": not OS.get_environment("https_proxy").is_empty(), "SSL_CERT_FILE": not OS.get_environment("SSL_CERT_FILE").is_empty()})
+              for proxied in [true, false]:
+                  var http: HTTPRequest = worker._new_http() if proxied else HTTPRequest.new()
+                  http.timeout = 20.0
+                  root.add_child(http)
+                  var started: Error = http.request(worker.VISION_URL + "/config")
+                  if started == OK:
+                      var response: Array = await http.request_completed
+                      print("GODOT_CONFIG ", {"managed_proxy": proxied, "result": response[0], "http": response[1]})
+                  else:
+                      print("GODOT_CONFIG_START_ERROR ", started)
+                  http.queue_free()
+              var reference := Image.new()
+              assert(reference.load("res://validation/v54-poses/reference.png") == OK)
+              var upload: Dictionary = await worker._upload_images(worker.VISION_URL, [reference])
+              print("GODOT_PUBLIC_FIXTURE_UPLOAD ", {"ok": upload.get("ok", false), "error": upload.get("error", "")})
+              worker.queue_free()
+              await process_frame
+              quit()
+          GD
+          timeout 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tools/diagnose_https_temp.gd 2>&1 | tee live-evidence/godot-connectivity.log
+          rm tools/diagnose_https_temp.gd
       - name: Attempt production image to board path once
         env:
           KARMA_LIVE_EVIDENCE_DIR: ${{ github.workspace }}/live-evidence

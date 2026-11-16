@@ -157,10 +157,27 @@ func run() -> void:
         assert(board.recorder.frames[i] == expected_hashes[timeline[i]], "Export must respect each planned timestamp")
     assert(board.session_agent.state["agents"]["video"] == "encoded_native")
     var probe: Array = []
-    assert(OS.execute("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=nb_frames,duration", "-of", "json", board.session_agent.state["video_output"]], probe) == 0)
+    assert(OS.execute("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,pix_fmt,width,height,r_frame_rate,nb_frames,duration", "-of", "json", board.session_agent.state["video_output"]], probe) == 0)
     var video: Dictionary = JSON.parse_string(str(probe[0]))
     assert(int(video["streams"][0]["nb_frames"]) == 150)
     assert(is_equal_approx(float(video["streams"][0]["duration"]), 5.0))
+    var stream: Dictionary = video["streams"][0]
+    assert(stream["codec_name"] == "h264" and stream["pix_fmt"] == "yuv420p")
+    assert(stream["r_frame_rate"] == "30/1")
+    assert(int(stream["width"]) == 96 and int(stream["height"]) == 160)
+    var decode_log: Array = []
+    assert(OS.execute("ffmpeg", ["-v", "error", "-xerror", "-i", board.session_agent.state["video_output"], "-f", "null", "-"], decode_log, true) == 0, str(decode_log))
+    # This is a transport/export fixture, never a demonstration of AI quality.
+    var proof_dir: String = OS.get_environment("KARMA_INTEGRATION_EVIDENCE_DIR")
+    if not proof_dir.is_empty():
+        assert(DirAccess.make_dir_recursive_absolute(proof_dir) == OK)
+        assert(DirAccess.copy_absolute(board.session_agent.state["video_output"], proof_dir.path_join("EXPORT_TEST_SIMULATED_DRAWINGS.mp4")) == OK)
+        var proof := FileAccess.open(proof_dir.path_join("video_verification.json"), FileAccess.WRITE)
+        assert(proof != null)
+        proof.store_string(JSON.stringify({"simulated_drawings": true, "simulated_mediacodec": true, "real_encoder": "ffmpeg libx264", "decoded_without_error": true, "device_test": false, "streams": video["streams"]}, "  "))
+        proof.close()
+    print("MP4_EXPORT_VERIFIED: H264 yuv420p 96x160 30fps 150 frames 5s; full decode PASS; simulated drawings and MediaCodec")
+
     # Reopening preserves bindings and timing, but requires fresh confirmation.
     board._load_saved()
     assert(board.universal_plan["keyposes"] == 8 and board.plan == timeline)
