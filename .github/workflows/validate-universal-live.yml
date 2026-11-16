@@ -41,7 +41,23 @@ jobs:
                   indent = line[:len(line)-len(line.lstrip())]
                   patched.append(indent + 'print("HTTP_STAGE ' + function + '", {"result": response[0], "http": response[1], "bytes": (response[3] as PackedByteArray).size()})')
           content = "\n".join(patched) + "\n"
-          content = content.replace("    stream.timeout = 240.0", "    stream.accept_gzip = false\n    stream.timeout = 240.0")
+          # Diagnose only a failed result GET. Reuse its existing event; never
+          # submit another model request or repeat the successful upload.
+          target = "    var response: Array = await stream.request_completed"
+          diagnostic = '''
+              if int(response[0]) != HTTPRequest.RESULT_SUCCESS:
+                  var evidence: String = OS.get_environment("KARMA_LIVE_EVIDENCE_DIR")
+                  DirAccess.make_dir_recursive_absolute(evidence)
+                  var diagnostics: Array = []
+                  var code: int = OS.execute("curl", ["--silent", "--show-error", "--max-time", "30", "--http1.1", "-H", "Accept: text/event-stream", "-D", evidence.path_join("stream_headers.txt"), "-o", evidence.path_join("stream_body.txt"), url + "/" + event_id], diagnostics, true)
+                  print("RESULT_STREAM_COMPARISON curl_exit=", code, " stderr=", str(diagnostics))
+                  if FileAccess.file_exists(evidence.path_join("stream_headers.txt")):
+                      print("RESULT_STREAM_HEADERS ", FileAccess.get_file_as_string(evidence.path_join("stream_headers.txt")))
+                  if FileAccess.file_exists(evidence.path_join("stream_body.txt")):
+                      print("RESULT_STREAM_BODY ", FileAccess.get_file_as_string(evidence.path_join("stream_body.txt")).substr(0, 6000))
+          '''
+          assert content.count(target) == 1
+          content = content.replace(target, target + "\n" + diagnostic.rstrip())
           source.write_text(content)
           PY
       - name: Attempt production image to board path once
