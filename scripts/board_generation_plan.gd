@@ -225,12 +225,34 @@ func calculate_density(scene: Dictionary, seconds: float, fps: int = 30, fluidit
         summary.append({"id": step["id"], "instruction": step["instruction"], "actor_ids": step["actor_ids"], "object_ids": step["object_ids"], "duration_frames": allocations[i], "duration_seconds": duration, "risk_score": risk, "mobile_subjects": physical_actors.size(), "requested_features": {"speed": step["speed"], "amplitude": step["amplitude"], "interaction": step["interaction"], "occlusion": step["occlusion"], "camera": step["camera"]}, "minimum_phases": step["phases"].size(), "keyposes": keys, "intermediate_drawings": inbetweens, "unique_drawings": unique, "video_frames": allocations[i], "held_video_frames": allocations[i] - unique, "intermediate_method": "none_static_hold" if static_step else "new_generation_required_no_verified_rig"})
         for k in range(keys):
             var fraction: float = float(k) / maxi(1, keys - 1)
-            var phase: String = str(step["phases"][mini(step["phases"].size() - 1, floori(fraction * step["phases"].size()))])
+            # Allocate extra poses between physical phases, rather than repeat
+            # the same phase text several times when a long action needs more keys.
+            var state: Dictionary = _physical_state(step["phases"], keys, k)
+            var phase: String = state["pose"]
             var frame: int = cursor + roundi(fraction * maxi(0, allocations[i] - 1))
-            boards.append({"id": "pose_%04d" % boards.size(), "index": boards.size(), "step_id": step["id"], "time_seconds": float(frame) / fps, "video_frame": frame, "description": step["instruction"], "pose": phase, "actor_ids": step["actor_ids"], "object_ids": step["object_ids"], "camera": step["camera"], "instruction": "Render the complete scene at this physical phase: " + phase + ". Action: " + str(step["instruction"]) + ". Apply all entity invariants and explicitly allowed changes from the scene registry. Preserve the number and identity of all subjects; do not impose a subject type. No panels or text."})
+            boards.append({"id": "pose_%04d" % boards.size(), "index": boards.size(), "step_id": step["id"], "time_seconds": float(frame) / fps, "video_frame": frame, "description": step["instruction"], "pose": phase, "phase_from": state["from"], "phase_to": state["to"], "phase_progress": state["progress"], "actor_ids": step["actor_ids"], "object_ids": step["object_ids"], "camera": step["camera"], "instruction": "Render the complete scene at this physical phase: " + phase + ". Action: " + str(step["instruction"]) + ". Acting entity IDs: " + JSON.stringify(step["actor_ids"]) + "; interacting object IDs: " + JSON.stringify(step["object_ids"]) + ". Apply all entity invariants and explicitly allowed changes from the scene registry. Preserve the number and identity of all subjects; do not impose a subject type. No panels or text."})
         intermediate_count += inbetweens
         cursor += allocations[i]
     for i in range(boards.size()):
         boards[i]["sequence_index"] = i
         boards[i]["sequence_count"] = boards.size()
+        boards[i]["instruction"] += " Sequence drawing %d of %d, at %.3f seconds. Render only this physical state, not a restart of the action." % [i + 1, boards.size(), float(boards[i]["time_seconds"])]
     return {"ok": true, "schema_version": 1, "reference_sha": scene["reference_sha"], "analysis_origin": validation["analysis_origin"], "semantic_analysis": validation["semantic_analysis"], "entities": scene["entities"], "relations": scene.get("relations", []), "steps": summary, "boards": boards, "duration_seconds": seconds, "fps": fps, "keyposes": boards.size(), "intermediate_drawings": intermediate_count, "total_unique_drawings": boards.size() + intermediate_count, "video_frames": video_count, "count_method": "physical_phase_minimum + duration_and_motion_risk; fluidity_scaled_by_motion_risk", "estimates_not_measurements": true, "intermediates_generated": 0, "interpolation_verified": false, "identity_verified": false, "human_approved": false, "ready_for_animation": false}
+
+func _physical_state(phases: Array, count: int, index: int) -> Dictionary:
+    if phases.size() == 1 or index == count - 1:
+        var phase: String = str(phases.back())
+        return {"pose": phase, "from": phase, "to": phase, "progress": 0.0}
+    var segments: int = phases.size() - 1
+    var intervals: int = count - 1
+    var cursor: int = 0
+    for segment in range(segments):
+        var span: int = intervals / segments + (1 if segment < intervals % segments else 0)
+        if index < cursor + span:
+            var progress: float = float(index - cursor) / float(span)
+            var first: String = str(phases[segment])
+            var last: String = str(phases[segment + 1])
+            var pose: String = first if progress == 0.0 else "Physical transition %.3f%% from [%s] toward [%s]. Draw a single coherent physical state at this progress, preserving entity anatomy and contacts; do not blend images, duplicate subjects or overlay endpoint poses." % [progress * 100.0, first, last]
+            return {"pose": pose, "from": first, "to": last, "progress": progress}
+        cursor += span
+    return {}

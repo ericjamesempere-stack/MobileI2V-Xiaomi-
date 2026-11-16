@@ -213,6 +213,14 @@ jobs:
             timeout --signal=TERM --kill-after=5s 30s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script "res://tests/test_${test}.gd" 2>&1 | tee "${test}.log"
             if grep -E 'SCRIPT ERROR|Assertion failed|Parse Error' "${test}.log"; then exit 1; fi
           done
+      - name: Test universal board planning and resumable fidelity review
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          for test in universal_board_contract universal_generated_cache universal_phase_progress universal_review_resume; do
+            timeout --signal=TERM --kill-after=5s 30s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script "res://tests/test_${test}.gd" 2>&1 | tee "${test}.log"
+            if grep -E 'SCRIPT ERROR|Assertion failed|Parse Error' "${test}.log"; then exit 1; fi
+          done
       - name: Test test_frame_interpolator.gd
         timeout-minutes: 2
         run: |

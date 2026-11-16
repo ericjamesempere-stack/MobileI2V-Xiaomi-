@@ -240,44 +240,84 @@ func repair_keypose(reference: Image, plan: Dictionary, style: String, folder: S
             return {"ok": false, "error": "unrelated_drawing_changed"}
     return {"ok": true, "path": path, "other_drawings_unchanged": true, "fidelity_verified": false, "human_approved": false}
 
-func review_keyposes(reference: Image, plan: Dictionary, folder: String) -> Dictionary:
+func _review_passed(row: Dictionary) -> bool:
+    if row.get("uncertain", true) != false or not row.get("defects") is Array or not row["defects"].is_empty():
+        return false
+    for key in ["identity_match", "count_match", "action_match", "environment_match", "perspective_match"]:
+        if row.get(key) != true:
+            return false
+    return true
+
+func _review_binding(plan: Dictionary, index: int, style: String, image_sha: String) -> String:
+    return ("fidelity-review-v1" + _binding(plan, index, style) + image_sha + str(worker.VISION_URL)).sha256_text()
+
+func review_keyposes(reference: Image, plan: Dictionary, folder: String, style: String = "original") -> Dictionary:
+    if not plan.get("ok", false) or not plan.has("scene"):
+        return {"ok": false, "fidelity_verified": false, "error": "valid_prepared_plan_required"}
+    var analyzer: RefCounted = load("res://scripts/reference_visual_analysis.gd").new()
+    var checked: Dictionary = analyzer.validate_scene(plan["scene"], analyzer.reference_sha(reference))
+    if not checked.get("ok", false):
+        return {"ok": false, "fidelity_verified": false, "error": checked.get("error", "invalid_reference")}
     worker.scene_registry = plan["scene"]
     var failed: Array[int] = []
-    for start in range(0, plan["keyposes"], 4):
+    var pending: Array[int] = []
+    var snapshots: Dictionary = {}
+    var reused: int = 0
+    # Preflight the whole sequence before spending quota on any review.
+    for i in range(plan["keyposes"]):
+        if not _cached(plan, i, style, folder):
+            return {"ok": false, "fidelity_verified": false, "error": "drawing_missing_or_binding_changed", "index": i}
+        var meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(folder.path_join("pose_%04d.json" % i)))
+        snapshots[i] = meta["image_sha"]
+        var binding: String = _review_binding(plan, i, style, meta["image_sha"])
+        if meta.get("review_binding", "") == binding and meta.get("review_origin", "") == "live_vision_model" and meta.get("model_review") is Dictionary:
+            reused += 1
+            if not _review_passed(meta["model_review"]):
+                failed.append(i)
+        else:
+            pending.append(i)
+    for start in range(0, pending.size(), 4):
+        var indices: Array = pending.slice(start, mini(start + 4, pending.size()))
         var images: Array[Image] = []
         var expected: Array = []
-        for i in range(start, mini(start + 4, plan["keyposes"])):
+        for i in indices:
             var image := Image.new()
             if image.load(folder.path_join("pose_%04d.png" % i)) != OK:
                 return {"ok": false, "fidelity_verified": false, "error": "missing_keypose"}
             images.append(image)
             expected.append(plan["boards"][i])
         var result: Dictionary = await worker.assess_keyposes(reference, images, expected)
-        _write(folder.path_join("vision_review_%04d.json" % start), result)
+        if not _write(folder.path_join("vision_review_%04d.json" % int(indices[0])), {"indices": indices, "image_hashes": snapshots, "result": result}):
+            return {"ok": false, "fidelity_verified": false, "error": "review_save_failed"}
         if not result.get("ok", false):
             return result
         for row in result["review"]["frames"]:
-            var index: int = start + int(row["index"])
-            var passed: bool = row.get("uncertain", true) == false and row.get("defects", []).is_empty()
-            for key in ["identity_match", "count_match", "action_match", "environment_match", "perspective_match"]:
-                passed = passed and row.get(key) == true
+            var index: int = int(indices[int(row["index"])])
             var meta_path: String = folder.path_join("pose_%04d.json" % index)
             var meta: Variant = JSON.parse_string(FileAccess.get_file_as_string(meta_path))
-            if not meta is Dictionary or meta.get("image_sha", "") != FileAccess.get_sha256(folder.path_join("pose_%04d.png" % index)):
+            if not meta is Dictionary or meta.get("image_sha", "") != snapshots[index] or FileAccess.get_sha256(folder.path_join("pose_%04d.png" % index)) != snapshots[index] or not _cached(plan, index, style, folder):
                 return {"ok": false, "fidelity_verified": false, "error": "drawing_changed_during_review"}
+            var passed: bool = _review_passed(row)
             meta["fidelity_verified"] = passed
             meta["model_review"] = row
             meta["review_origin"] = "live_vision_model"
-            _write(meta_path, meta)
+            meta["review_binding"] = _review_binding(plan, index, style, snapshots[index])
+            if not _write(meta_path, meta):
+                return {"ok": false, "fidelity_verified": false, "error": "review_metadata_save_failed"}
             if not passed:
                 failed.append(index)
-    return {"ok": true, "failed_indices": failed, "fidelity_verified": failed.is_empty(), "human_approved": false}
+    for i in range(plan["keyposes"]):
+        if FileAccess.get_sha256(folder.path_join("pose_%04d.png" % i)) != snapshots[i] or not _cached(plan, i, style, folder):
+            return {"ok": false, "fidelity_verified": false, "error": "drawing_changed_during_review"}
+    failed.sort()
+    return {"ok": true, "failed_indices": failed, "fidelity_verified": failed.is_empty(), "reviewed": pending.size(), "reused_reviews": reused, "human_approved": false}
 
 func review_and_correct(reference: Image, plan: Dictionary, style: String, folder: String, maximum_repairs: int = 1) -> Dictionary:
-    var review: Dictionary = await review_keyposes(reference, plan, folder)
+    var review: Dictionary = await review_keyposes(reference, plan, folder, style)
     if not review.get("ok", false) or review.get("fidelity_verified", false):
         return review
     var attempts: Array = []
+    var repaired: bool = false
     for index in review["failed_indices"].slice(0, clampi(maximum_repairs, 0, 4)):
         var meta_path: String = folder.path_join("pose_%04d.json" % int(index))
         var meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(meta_path))
@@ -287,8 +327,15 @@ func review_and_correct(reference: Image, plan: Dictionary, style: String, folde
             continue
         # Persist intent before the GPU call; a crash cannot trigger an
         # unbounded automatic correction loop on the next project resume.
-        _write(attempt_path, {"index": index, "state": "started", "image_sha": meta["image_sha"]})
+        if not _write(attempt_path, {"index": index, "state": "started", "image_sha": meta["image_sha"]}):
+            return {"ok": false, "fidelity_verified": false, "error": "repair_budget_save_failed", "human_approved": false}
         var result: Dictionary = await repair_keypose(reference, plan, style, folder, int(index), JSON.stringify(meta.get("model_review", {}).get("defects", [])))
-        _write(attempt_path, result)
+        if not _write(attempt_path, result):
+            return {"ok": false, "fidelity_verified": false, "error": "repair_result_save_failed", "human_approved": false}
+        repaired = repaired or result.get("ok", false)
         attempts.append({"index": index, "result": result})
-    return {"ok": true, "fidelity_verified": false, "repairs": attempts, "requires_new_fidelity_review": true, "human_approved": false}
+    if repaired:
+        review = await review_keyposes(reference, plan, folder, style)
+    review["repairs"] = attempts
+    review["human_approved"] = false
+    return review
