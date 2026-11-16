@@ -2199,9 +2199,6 @@ func _review_confirmation_changed(checked: bool) -> void:
     review_fingerprint = _drawing_fingerprint() if checked and all_approved and explicit_rejections.is_empty() else ""
     if checked and not review_fingerprint.is_empty():
         reviewed_paths = "|".join(paths)
-    if checked and not explicit_rejections.is_empty():
-        review_check.set_pressed_no_signal(false)
-        status.text = "Un dessin est refusé. Refais-le ou garde-le explicitement avant de valider."
 
 func _has_current_review() -> bool:
     return review_check != null and review_check.button_pressed and explicit_rejections.is_empty() and not review_fingerprint.is_empty() and review_fingerprint == _drawing_fingerprint()
