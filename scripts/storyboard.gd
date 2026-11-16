@@ -49,6 +49,8 @@ func _ready() -> void:
     _label("1. Importe ton personnage. 2. Decris son mouvement. 3. Cree et controle les dessins.", 18)
     _label("Important : le mode photo actuel anime un detourage 2D. Il ne redessine pas encore chaque posture avec une IA.", 16)
     _button("1. CHOISIR MA PHOTO", _choose_image)
+    _button("OUVRIR MES PHOTOS (PICTURES)", _choose_gallery)
+    _button("OUVRIR MES PHOTOS CAMERA (DCIM)", _choose_camera_gallery)
     status = _label("Choisis une photo pour creer une planche locale approximative.", 23)
     preview = TextureRect.new()
     preview.custom_minimum_size = Vector2(0, 210)
@@ -466,6 +468,19 @@ func _export_video(destination: String) -> void:
     DirAccess.remove_absolute(ProjectSettings.globalize_path(temp_path))
     exporting_video = false
     status.text = "Video AVI exportee : %d images, %d fps. Pas encore MP4." % [written, fps]
+
+func _choose_gallery() -> void:
+    _open_photo_folder("/storage/emulated/0/Pictures")
+
+func _choose_camera_gallery() -> void:
+    _open_photo_folder("/storage/emulated/0/DCIM/Camera")
+
+func _open_photo_folder(folder: String) -> void:
+    if OS.get_name() == "Android":
+        OS.request_permissions()
+        if DirAccess.dir_exists_absolute(folder):
+            picker.current_dir = folder
+    picker.popup_centered_ratio(0.9)
 
 func _choose_image() -> void:
     if OS.get_name() == "Android":
