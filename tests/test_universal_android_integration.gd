@@ -39,7 +39,11 @@ class FixtureWorker extends "res://scripts/hf_studio_generator.gd":
             rows.append({"index": i, "identity_match": true, "count_match": true, "action_match": true, "environment_match": true, "perspective_match": true, "uncertain": false, "defects": []})
         return {"ok": true, "review": {"frames": rows}, "review_origin": "live_vision_model"}
     func _redraw_qwen(_reference: Image, _story: String, _style: String, _previous: Image, _variation: bool) -> Dictionary:
-        assert(repair_target != null and not scene_registry.is_empty())
+        if repair_target == null:
+            var candidate: Image = drawing(generated)
+            generated += 1
+            return {"ok": true, "image": candidate, "model": "SIMULATED intermediate drawing"}
+        assert(not scene_registry.is_empty())
         repairs += 1
         return {"ok": true, "image": drawing(9), "model": "SIMULATED targeted repair"}
 
@@ -107,7 +111,7 @@ func run() -> void:
     assert(board.universal_plan.get("semantic_analysis", false), board.status.text)
     assert(board.sources.size() == 8 and board.required_drawing_count == 8)
     assert(board.universal_pipeline.worker.analysis_calls == 1)
-    assert(board.universal_pipeline.worker.generated == 8)
+    assert(board.universal_pipeline.worker.generated == 12)
     assert(board.plan.size() == 150 and board.wizard_step == 2)
     assert(board.contact_sheet.texture != null and not board._has_current_review())
     await board._friendly_export()
