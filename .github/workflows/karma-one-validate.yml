@@ -18,6 +18,21 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Verify ARM64 Android export preset before build
+        run: |
+          python3 - <<'PY'
+          import configparser
+          from pathlib import Path
+          p = Path("export_presets.cfg")
+          assert p.is_file(), "Missing Android export preset"
+          c = configparser.ConfigParser(interpolation=None)
+          c.read(p)
+          assert c.get("preset.0", "platform").strip('"') == "Android", "Android preset missing"
+          opts = c["preset.0.options"]
+          assert opts.get("architectures/arm64-v8a") == "true", "ARM64 export disabled"
+          assert opts.get("architectures/armeabi-v7a") == "false", "Unexpected ARMv7 export"
+          print("PASS: Android ARM64 export configuration")
+          PY
       - name: Download Godot 4.5.1 headless-compatible binary
         run: |
           set -euo pipefail
