@@ -1,0 +1,7 @@
+Godot Engine v4.6.3.stable.official.7d41c59c4 - https://godotengine.org
+
+WARNING: Loaded resource as image file, this will not work on export: 'res://validation/v54-poses/reference.png'. Instead, import the image file as an Image resource and load it normally as a resource.
+     at: load (core/io/image.cpp:2756)
+     GDScript backtrace (most recent call first):
+         [0] run (/tmp/karma-universal/repair_one.gd:6)
+TARGETED_REPAIR {"engines":{"anypose":{"error":"Cet adaptateur AnyPose n'a pas de controle de scene valide. Les dessins deja obtenus sont conserves.","error_kind":"unsupported_scene_registry","quota_detail":"","status":"unavailable"},"qwen":{"error":"Quota GPU gratuit atteint. Les dessins termines sont conserves ; aucun nouvel essai automatique sur ce moteur dans ce lot.","error_kind":"quota","quota_detail":"{\"error\": \"You have exceeded your ZeroGPU runs limit. Authenticate with a Hugging Face token for more quota - https://huggingface.co/settings/tokens\", \"duration\": 10, \"visible\": true, \"title\": \"ZeroGPU quota exceeded\"}","status":"unavailable"}},"error":"Aucun moteur n'a produit ce dessin. qwen: Quota GPU gratuit atteint. Les dessins termines sont conserves ; aucun nouvel essai automatique sur ce moteur dans ce lot. | anypose: Cet adaptateur AnyPose n'a pas de controle de scene valide. Les dessins deja obtenus sont conserves.","ok":false}

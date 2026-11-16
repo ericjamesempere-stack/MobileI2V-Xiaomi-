@@ -66,7 +66,7 @@ func remote_frame(story: String, seconds: float, count: int, index: int) -> Dict
         if REMOTE_POSES.has(action):
             var poses: Array = REMOTE_POSES[action]
             pose = str(poses[mini(poses.size() - 1, int(floor(phase * poses.size())))])
-        var instruction: String = "Create exactly one full-frame drawing of the scene from image 1, retaining ALL existing subjects, characters, animals, vehicles, objects, and environmental landmarks unless this action explicitly changes them. Current action only: %s. Required physical state: %s. Move only the subjects and objects involved in this action, keeping other scene elements stable. Preserve each subject's identity, existing anatomy or object structure, proportions, materials, markings, colors, and spatial relationships. Preserve the background and perspective unless the action explicitly requires a change. Do not add human anatomy to a non-human subject or change its species or object type. Show the requested physical action, not merely camera motion, zoom, or image deformation. No duplicate subjects, invented objects, motion trails, collage, grid, captions, or extra panels." % [str(steps[s]["description"]), pose]
+        var instruction: String = "Create exactly one full-frame drawing of the scene from image 1, retaining ALL existing subjects, characters, animals, vehicles, objects, and environmental landmarks unless this action explicitly changes them. Current action only: %s. Required physical state: %s. Move only the subjects and objects involved in this action, keeping other scene elements stable. Preserve each subject's identity, existing anatomy or object structure, proportions, materials, markings, colors, and spatial relationships. Preserve the background and perspective unless the action explicitly requires a change. Do not add human anatomy to a non-human subject or change its species or object type unless explicitly requested by this action. Show the requested physical action, interaction, transformation or explicitly requested camera change; do not substitute camera motion for physical movement. No duplicate subjects or invented objects unless explicitly requested, motion trails, collage, grid, captions, or extra panels." % [str(steps[s]["description"]), pose]
         return {"ok": true, "action": action, "phase": phase, "description": str(steps[s]["description"]), "pose": pose, "instruction": instruction, "sequence_index": index, "sequence_count": count, "action_index": index - offset, "action_count": allocation[s]}
     return {"ok": false, "error": "Action du dessin introuvable."}
 const ACTION_PHASES := {
@@ -175,3 +175,62 @@ func validate_drawings(plan: Dictionary) -> Dictionary:
         if str(board.get("image_path", "")).is_empty() or str(board.get("status", "")) != "approved":
             missing.append(str(board.get("id", "unknown")))
     return {"ok": not plan.get("boards", []).is_empty() and missing.is_empty(), "missing": missing}
+
+func calculate_density(scene: Dictionary, seconds: float, fps: int = 30, fluidity: float = 12.0) -> Dictionary:
+    var validation: Dictionary = load("res://scripts/reference_visual_analysis.gd").new().validate_scene(scene, str(scene.get("reference_sha", "")))
+    if not validation.get("ok", false):
+        return validation
+    if not (seconds > 0.0 and seconds <= 300.0) or fps < 1 or fps > 60 or not (fluidity > 0.0 and fluidity <= fps):
+        return {"ok": false, "error": "invalid_duration_or_fluidity"}
+    var steps: Array = scene["steps"]
+    var video_count: int = maxi(1, roundi(seconds * fps))
+    var allocations: Array[int] = []
+    var minimum: int = 0
+    var weights: float = 0.0
+    for step in steps:
+        var required: int = 1 if step.get("static", false) else step["phases"].size()
+        allocations.append(required)
+        minimum += required
+        weights += float(step["weight"])
+    if minimum > video_count:
+        return {"ok": false, "error": "duration_too_short_for_physical_phases", "minimum_video_frames": minimum}
+    # Weighted allocation in video-frame units avoids duration rounding drift.
+    for unused in range(video_count - minimum):
+        var best: int = 0
+        var deficit: float = -INF
+        for i in range(steps.size()):
+            var wanted: float = video_count * float(steps[i]["weight"]) / weights - allocations[i]
+            if wanted > deficit:
+                best = i
+                deficit = wanted
+        allocations[best] += 1
+    var boards: Array = []
+    var summary: Array = []
+    var cursor: int = 0
+    var intermediate_count: int = 0
+    for i in range(steps.size()):
+        var step: Dictionary = steps[i]
+        var physical_actors: Dictionary = {}
+        for id in step["actor_ids"]:
+            if validation["entities"][id]["kind"] != "camera":
+                physical_actors[id] = true
+        var actor_factor: float = minf(1.0, maxf(0.0, (physical_actors.size() - 1) / 3.0))
+        var risk: float = clampf(0.2 * float(step["speed"]) + 0.2 * float(step["amplitude"]) + 0.2 * float(step["interaction"]) + 0.15 * float(step["occlusion"]) + 0.15 * float(step["camera"]) + 0.1 * actor_factor, 0.0, 1.0)
+        var duration: float = float(allocations[i]) / fps
+        var static_step: bool = bool(step.get("static", false))
+        var keys: int = 1 if static_step else mini(allocations[i], maxi(step["phases"].size(), ceili(duration * (0.5 + risk))))
+        var desired_rate: float = 0.0 if static_step else minf(float(fps), fluidity * (0.5 + risk))
+        var unique: int = 1 if static_step else mini(allocations[i], maxi(keys, ceili(duration * desired_rate)))
+        var inbetweens: int = unique - keys
+        summary.append({"id": step["id"], "instruction": step["instruction"], "actor_ids": step["actor_ids"], "object_ids": step["object_ids"], "duration_frames": allocations[i], "duration_seconds": duration, "risk_score": risk, "mobile_subjects": physical_actors.size(), "requested_features": {"speed": step["speed"], "amplitude": step["amplitude"], "interaction": step["interaction"], "occlusion": step["occlusion"], "camera": step["camera"]}, "minimum_phases": step["phases"].size(), "keyposes": keys, "intermediate_drawings": inbetweens, "unique_drawings": unique, "video_frames": allocations[i], "held_video_frames": allocations[i] - unique, "intermediate_method": "none_static_hold" if static_step else "new_generation_required_no_verified_rig"})
+        for k in range(keys):
+            var fraction: float = float(k) / maxi(1, keys - 1)
+            var phase: String = str(step["phases"][mini(step["phases"].size() - 1, floori(fraction * step["phases"].size()))])
+            var frame: int = cursor + roundi(fraction * maxi(0, allocations[i] - 1))
+            boards.append({"id": "pose_%04d" % boards.size(), "index": boards.size(), "step_id": step["id"], "time_seconds": float(frame) / fps, "video_frame": frame, "description": step["instruction"], "pose": phase, "actor_ids": step["actor_ids"], "object_ids": step["object_ids"], "camera": step["camera"], "instruction": "Render the complete scene at this physical phase: " + phase + ". Action: " + str(step["instruction"]) + ". Apply all entity invariants and explicitly allowed changes from the scene registry. Preserve the number and identity of all subjects; do not impose a subject type. No panels or text."})
+        intermediate_count += inbetweens
+        cursor += allocations[i]
+    for i in range(boards.size()):
+        boards[i]["sequence_index"] = i
+        boards[i]["sequence_count"] = boards.size()
+    return {"ok": true, "schema_version": 1, "reference_sha": scene["reference_sha"], "analysis_origin": validation["analysis_origin"], "semantic_analysis": validation["semantic_analysis"], "entities": scene["entities"], "relations": scene.get("relations", []), "steps": summary, "boards": boards, "duration_seconds": seconds, "fps": fps, "keyposes": boards.size(), "intermediate_drawings": intermediate_count, "total_unique_drawings": boards.size() + intermediate_count, "video_frames": video_count, "count_method": "physical_phase_minimum + duration_and_motion_risk; fluidity_scaled_by_motion_risk", "estimates_not_measurements": true, "intermediates_generated": 0, "interpolation_verified": false, "identity_verified": false, "human_approved": false, "ready_for_animation": false}

@@ -50,6 +50,12 @@ func run() -> void:
     assert(payload["adapter"] == "Style-Transfer" and payload["images"].size() == 3)
     assert(payload["instruction"].contains("Image 2 is a permanent visual-style guide ONLY"))
     assert(payload["instruction"].contains("Image 3 is temporal context only"))
+    worker.repair_target = previous
+    var repair_payload: Dictionary = worker.build_edit_payload(subject, "correct face", "bd_detail", previous)
+    assert(repair_payload["images"].size() == 3)
+    assert(repair_payload["instruction"].contains("Image 3 is the existing candidate drawing to repair"))
+    assert(not repair_payload["instruction"].contains("Image 3 is temporal context only"))
+    worker.repair_target = null
     var decoded := Image.new()
     assert(decoded.load_png_from_buffer(Marshalls.base64_to_raw(payload["images"][1])) == OK)
     assert(decoded.get_pixel(0, 0).is_equal_approx(Color.GREEN))

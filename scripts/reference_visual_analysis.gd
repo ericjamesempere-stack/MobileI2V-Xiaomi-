@@ -1,4 +1,15 @@
 extends RefCounted
+const SCENE_SCHEMA := 1
+func reference_sha(source: Image) -> String:
+    if source == null or source.is_empty():
+        return ""
+    var copy: Image = source.duplicate()
+    copy.convert(Image.FORMAT_RGBA8)
+    var hash := HashingContext.new()
+    hash.start(HashingContext.HASH_SHA256)
+    hash.update(str(copy.get_size()).to_utf8_buffer())
+    hash.update(copy.get_data())
+    return hash.finish().hex_encode()
 # Deterministic visual measurements from the actual selected image.
 # Not a semantic vision model: never invents subject identity or clothing.
 func analyze(source: Image) -> Dictionary:
@@ -59,3 +70,68 @@ func drawing_guidance(profile: Dictionary) -> String:
         int(profile["width"]), int(profile["height"]), float(profile["aspect_ratio"]), float(profile["visible_fraction"]),
         bounds_kind, bounds.position.x, bounds.position.y, bounds.size.x, bounds.size.y, ", ".join(profile["palette_hex"])
     ]
+
+func validate_scene(scene: Dictionary, reference_sha: String) -> Dictionary:
+    # A schema check is NOT visual recognition. Provenance remains explicit.
+    if scene.get("reference_sha", "") != reference_sha or reference_sha.is_empty():
+        return {"ok": false, "error": "scene_reference_mismatch"}
+    if not scene.get("entities") is Array or scene["entities"].is_empty() or not scene.get("steps") is Array or scene["steps"].is_empty():
+        return {"ok": false, "error": "missing_entities_or_actions"}
+    var ids: Dictionary = {}
+    for entity in scene["entities"]:
+        if not entity is Dictionary:
+            return {"ok": false, "error": "invalid_entity"}
+        var id: String = str(entity.get("id", ""))
+        if not entity.get("id") is String or id.is_empty() or ids.has(id) or not entity.get("kind") is String or str(entity.get("kind", "")).is_empty() or not entity.get("appearance") is String or str(entity.get("appearance", "")).is_empty() or not entity.get("invariants") is Array or not entity.get("allowed_changes") is Array:
+            return {"ok": false, "error": "invalid_entity_identity_or_policy"}
+        if entity.get("origin", "") not in ["visible", "requested"]:
+            return {"ok": false, "error": "entity_origin_required"}
+        if entity["origin"] == "visible":
+            var box: Variant = entity.get("bbox")
+            if not box is Array or box.size() != 4:
+                return {"ok": false, "error": "visible_entity_bounds_required"}
+            for coordinate in box:
+                if not (coordinate is float or coordinate is int) or not (float(coordinate) >= 0.0 and float(coordinate) <= 1.0):
+                    return {"ok": false, "error": "invalid_entity_bounds"}
+            if float(box[2]) <= 0.0 or float(box[3]) <= 0.0 or float(box[0]) + float(box[2]) > 1.001 or float(box[1]) + float(box[3]) > 1.001:
+                return {"ok": false, "error": "entity_bounds_outside_reference"}
+        ids[id] = entity
+    var step_ids: Dictionary = {}
+    for step in scene["steps"]:
+        if not step is Dictionary or not step.get("id") is String or str(step.get("id", "")).is_empty() or step_ids.has(str(step.get("id", ""))):
+            return {"ok": false, "error": "invalid_action_identity"}
+        step_ids[step["id"]] = true
+        if not step.get("actor_ids") is Array or not step.get("object_ids") is Array or not step.get("phases") is Array or step["phases"].is_empty() or str(step.get("instruction", "")).is_empty():
+            return {"ok": false, "error": "action_roles_and_phases_required"}
+        for key in ["actor_ids", "object_ids"]:
+            for id in step[key]:
+                if not id is String or not ids.has(id):
+                    return {"ok": false, "error": "unresolved_entity_id: " + str(id)}
+        if step["actor_ids"].is_empty() and float(step.get("camera", 0.0)) <= 0.0 and not step.get("static", false):
+            return {"ok": false, "error": "moving_action_has_no_actor"}
+        for feature in ["speed", "amplitude", "interaction", "occlusion", "camera"]:
+            var value: Variant = step.get(feature)
+            if not (value is float or value is int) or not (float(value) >= 0.0 and float(value) <= 1.0):
+                return {"ok": false, "error": "missing_or_invalid_motion_feature: " + feature}
+        if not (step.get("weight") is float or step.get("weight") is int) or not (float(step.get("weight", 0.0)) > 0.0 and float(step.get("weight", 0.0)) < 1000000000.0):
+            return {"ok": false, "error": "positive_duration_weight_required"}
+        if not step.get("static") is bool:
+            return {"ok": false, "error": "static_flag_must_be_boolean"}
+        if not step.get("static", false) and step["phases"].size() < 2:
+            return {"ok": false, "error": "moving_action_requires_multiple_physical_phases"}
+        for phase in step["phases"]:
+            if not phase is String or phase.strip_edges().is_empty():
+                return {"ok": false, "error": "empty_physical_phase"}
+        if step.get("static", false) and (float(step["speed"]) + float(step["amplitude"]) + float(step["camera"])) > 0.0:
+            return {"ok": false, "error": "static_motion_contradiction"}
+    if not scene.get("relations", []) is Array:
+        return {"ok": false, "error": "invalid_spatial_relations"}
+    for relation in scene.get("relations", []):
+        if not relation is Dictionary or not ids.has(str(relation.get("from", ""))) or not ids.has(str(relation.get("to", ""))):
+            return {"ok": false, "error": "unresolved_spatial_relation"}
+    if not scene.get("unresolved", []) is Array or not scene.get("unresolved", []).is_empty():
+        return {"ok": false, "error": "scene_has_unresolved_instructions"}
+    var origin: String = str(scene.get("analysis_origin", "unknown"))
+    if origin == "live_vision_model" and (str(scene.get("provider", "")).is_empty() or str(scene.get("raw_model_output", "")).is_empty()):
+        return {"ok": false, "error": "missing_model_execution_evidence"}
+    return {"ok": true, "entities": ids, "semantic_analysis": origin == "live_vision_model", "analysis_origin": origin, "identity_verified": false}

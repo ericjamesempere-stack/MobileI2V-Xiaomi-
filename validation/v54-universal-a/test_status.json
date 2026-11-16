@@ -1,0 +1,42 @@
+{
+  "automatic_vision": "blocked: published demo returned error/null",
+  "generation": {
+    "analysis_origin": "assistant_annotation",
+    "automatic_fidelity_check": "unavailable",
+    "engines": {
+      "qwen": {
+        "identity_verified": false,
+        "quota_remaining": "not_exposed",
+        "status": "generated_unreviewed"
+      }
+    },
+    "error": "",
+    "fidelity_verified": false,
+    "human_approved": false,
+    "intermediates_generated": 0,
+    "intermediates_required": 51,
+    "keyposes_generated": 8,
+    "keyposes_required": 8,
+    "ok": true,
+    "paths": [
+      "res://validation/v54-universal-a/pose_0000.png",
+      "res://validation/v54-universal-a/pose_0001.png",
+      "res://validation/v54-universal-a/pose_0002.png",
+      "res://validation/v54-universal-a/pose_0003.png",
+      "res://validation/v54-universal-a/pose_0004.png",
+      "res://validation/v54-universal-a/pose_0005.png",
+      "res://validation/v54-universal-a/pose_0006.png",
+      "res://validation/v54-universal-a/pose_0007.png"
+    ],
+    "ready_for_animation": false,
+    "reused": 0,
+    "semantic_analysis": false
+  },
+  "human_approved": false,
+  "test_A_passed": false,
+  "tests_B_C_D": "not_started",
+  "fidelity_review": "fidelity_review_resumed.json",
+  "repair_attempt": "repair_resume_0006.json",
+  "new_conditioning_policy_live_retest": "one_targeted_pose_two_calls_not_full_sequence",
+  "previous_full_sequence_review": "fidelity_review.json"
+}

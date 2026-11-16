@@ -1,0 +1,18 @@
+{
+  "runtime": "Godot 4.6.3 desktop Linux",
+  "phone_test": false,
+  "results": [
+    {
+      "test": "test_universal_board_contract",
+      "exit_code": 0,
+      "stdout": "Godot Engine v4.6.3.stable.official.7d41c59c4 - https://godotengine.org\n\nUNIVERSAL_BOARD_CONTRACT_OK: deterministic density/roles, no fake vision, consent guard, bounded provider failure, SIMULATED selective repair and unchanged neighbours\n",
+      "stderr": "WARNING: Loaded resource as image file, this will not work on export: 'res://validation/v54-poses/reference.png'. Instead, import the image file as an Image resource and load it normally as a resource.\n     at: load (core/io/image.cpp:2756)\n     GDScript backtrace (most recent call first):\n         [0] run (res://tests/test_universal_board_contract.gd:19)\nWARNING: Loaded resource as image file, this will not work on export: 'res://validation/v54-poses/reference.png'. Instead, import the image file as an Image resource and load it normally as a resource.\n     at: load (core/io/image.cpp:2756)\n     GDScript backtrace (most recent call first):\n         [0] _public_synthetic_fixture (res://scripts/hf_studio_generator.gd:315)\n         [1] analyze_scene (res://scripts/hf_studio_generator.gd:323)\n         [2] run (res://tests/test_universal_board_contract.gd:68)\n"
+    },
+    {
+      "test": "test_detailed_style_reference",
+      "exit_code": 0,
+      "stdout": "Godot Engine v4.6.3.stable.official.7d41c59c4 - https://godotengine.org\n\nDETAILED_STYLE_REFERENCE_OK: separate identity/style/context; portrait crops; source resolution; import/cancel/save/restore; original adapter\n",
+      "stderr": ""
+    }
+  ]
+}

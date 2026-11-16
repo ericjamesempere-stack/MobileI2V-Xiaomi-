@@ -1,0 +1,13 @@
+Godot Engine v4.6.3.stable.official.7d41c59c4 - https://godotengine.org
+
+WARNING: Loaded resource as image file, this will not work on export: 'res://validation/v54-poses/reference.png'. Instead, import the image file as an Image resource and load it normally as a resource.
+     at: load (core/io/image.cpp:2756)
+     GDScript backtrace (most recent call first):
+         [0] run (res://tests/test_universal_board_contract.gd:19)
+WARNING: Loaded resource as image file, this will not work on export: 'res://validation/v54-poses/reference.png'. Instead, import the image file as an Image resource and load it normally as a resource.
+     at: load (core/io/image.cpp:2756)
+     GDScript backtrace (most recent call first):
+         [0] _public_synthetic_fixture (res://scripts/hf_studio_generator.gd:311)
+         [1] analyze_scene (res://scripts/hf_studio_generator.gd:319)
+         [2] run (res://tests/test_universal_board_contract.gd:68)
+UNIVERSAL_BOARD_CONTRACT_OK: deterministic density/roles, no fake vision, consent guard, bounded provider failure, SIMULATED selective repair and unchanged neighbours

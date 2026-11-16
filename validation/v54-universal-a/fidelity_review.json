@@ -1,0 +1,106 @@
+{
+  "test_A_passed": false,
+  "source_analysis_origin": "assistant_annotation_not_automatic_vision",
+  "review_origin": "assistant_visual_review_not_in_app_automatic_review",
+  "frames": [
+    {
+      "index": 0,
+      "image_sha": "55fcf339b9ac6cd03366d610fc60dba3547b5293e09eba7bd0740d38aaf6d03b",
+      "review_origin": "assistant_visual_review",
+      "automatic_review": false,
+      "status": "uncertain",
+      "defects": [
+        "Ground-contact accuracy uncertain"
+      ],
+      "human_approved": false
+    },
+    {
+      "index": 1,
+      "image_sha": "2cef5ccd8f56df663d6d99d8927cdbabcff1cfa4c32b17218311e376388cce62",
+      "review_origin": "assistant_visual_review",
+      "automatic_review": false,
+      "status": "failed",
+      "defects": [
+        "Unrequested object on the ground"
+      ],
+      "human_approved": false
+    },
+    {
+      "index": 2,
+      "image_sha": "e29a656a82700ee07cf8d7b34b60cc68e529aa248622fe278cbcd7fe50590bcb",
+      "review_origin": "assistant_visual_review",
+      "automatic_review": false,
+      "status": "uncertain",
+      "defects": [
+        "Ground-contact accuracy uncertain"
+      ],
+      "human_approved": false
+    },
+    {
+      "index": 3,
+      "image_sha": "170ceb0ebfd8caa25ac1429da31f61d3d20475ffbde0fd202bd3388494dd3ad7",
+      "review_origin": "assistant_visual_review",
+      "automatic_review": false,
+      "status": "failed",
+      "defects": [
+        "Unrequested obstacle; wrong causal contact"
+      ],
+      "human_approved": false
+    },
+    {
+      "index": 4,
+      "image_sha": "be3c00004454d314ad0db3f0c2029528377c3634b8ba1846ab5d063364a23915",
+      "review_origin": "assistant_visual_review",
+      "automatic_review": false,
+      "status": "failed",
+      "defects": [
+        "Requested loss of balance absent"
+      ],
+      "human_approved": false
+    },
+    {
+      "index": 5,
+      "image_sha": "e4b148440024ae9ef1d47e9bbd1843d6f2390929726b7e9064bb2a59cc8375ca",
+      "review_origin": "assistant_visual_review",
+      "automatic_review": false,
+      "status": "failed",
+      "defects": [
+        "Unrequested object",
+        "Body silhouette deformed"
+      ],
+      "human_approved": false
+    },
+    {
+      "index": 6,
+      "image_sha": "8b91a7cd8abf0240e9fca23debc287b82b49cbcd950118d872d31aff76a14445",
+      "review_origin": "assistant_visual_review",
+      "automatic_review": false,
+      "status": "failed",
+      "defects": [
+        "Upper body and face missing",
+        "Unrequested object"
+      ],
+      "human_approved": false
+    },
+    {
+      "index": 7,
+      "image_sha": "d73226c9ab099ddd398449dfe07ec74349f214871fd6ef38d37d964f9aeb0a4e",
+      "review_origin": "assistant_visual_review",
+      "automatic_review": false,
+      "status": "failed",
+      "defects": [
+        "Unrequested object",
+        "Body silhouette deformed"
+      ],
+      "human_approved": false
+    }
+  ],
+  "targeted_repair": {
+    "index": 6,
+    "outcome": "blocked_by_Qwen_ZeroGPU_runs_limit",
+    "all_eight_image_hashes_unchanged": true
+  },
+  "tests_B_C_D": "not_started",
+  "intermediates_generated": 0,
+  "ready_for_animation": false
+}

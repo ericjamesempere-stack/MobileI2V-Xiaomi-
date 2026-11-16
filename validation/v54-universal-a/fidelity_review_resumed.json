@@ -1,0 +1,22 @@
+{
+  "review_origin": "assistant_visual_review_not_in_app_automatic_review",
+  "test_A_passed": false,
+  "human_approved": false,
+  "automatic_vision": false,
+  "index": 6,
+  "image_sha": "572da02ea5e538531012172fff3a8e39cc32ef50b11d69f88cacb00477b1c945",
+  "improvements": [
+    "Complete banana body restored at impact",
+    "No invented ground obstacle visible",
+    "Face visible"
+  ],
+  "remaining_defects": [
+    "Extra fragments and branching around limbs",
+    "Original anatomy and clean joints not preserved",
+    "Full sequence still contains rejected drawings"
+  ],
+  "other_seven_sha_unchanged": true,
+  "repair_calls_this_resume": 2,
+  "intermediates_generated": 0,
+  "ready_for_animation": false
+}
