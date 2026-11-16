@@ -15,6 +15,11 @@ const ACTION_PHASES := {
     "transformation": ["forme initiale", "premiers changements visibles", "transformation a mi-parcours", "forme finale"],
     "metro": ["approche du quai", "arrivee du train", "portes ouvertes", "depart du train"],
     "football": ["approche du ballon", "preparation du tir", "contact", "trajectoire du ballon"],
+    "vol": ["preparation", "decollage", "ascension", "vol stabilise", "atterrissage"],
+    "roule": ["position initiale", "demarrage", "acceleration", "deplacement", "freinage"],
+    "nage": ["entree dans l eau", "propulsion", "glisse", "nouvelle propulsion", "sortie"],
+    "rotation": ["orientation initiale", "quart de tour", "demi-tour", "trois quarts", "orientation finale"],
+    "apparition": ["etat initial", "premiers signes", "transition visible", "apparition ou disparition complete"],
     "inconnu": ["etat initial", "debut du changement demande", "action en cours", "fin de l action", "etat final"]
 }
 
