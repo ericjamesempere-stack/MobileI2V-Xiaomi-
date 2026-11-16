@@ -43,7 +43,7 @@ func make_plan(story: String, reference_images: Array, seconds: float, target_fp
     for step_index in range(steps.size()):
         var step: Dictionary = steps[step_index]
         var action: String = str(step.get("action", "repos"))
-        var phases: Array = ACTION_PHASES.get(action, ACTION_PHASES["repos"])
+        var phases: Array = ACTION_PHASES.get(action, ACTION_PHASES["inconnu"])
         # More key drawings for longer action sequences, capped for mobile memory.
         var step_duration: float = maxf(0.1, float(step.get("end", seconds)) - float(step.get("start", 0.0)))
         var desired: int = clampi(ceili(step_duration * 3.0), phases.size(), 48)
@@ -76,7 +76,7 @@ func make_plan(story: String, reference_images: Array, seconds: float, target_fp
         "palette_policy": "locked_across_scene",
         "line_art_policy": "consistent_line_width_and_style",
         "background_policy": "reuse_approved_background",
-        "negative_constraints": ["different face", "different clothing", "extra limbs", "missing limbs", "flicker", "color shift", "background jump"]
+        "negative_constraints": ["subject identity drift", "unrequested human anatomy", "unrequested shape changes", "flicker", "color shift", "background jump"]
     }
     for board in boards:
         board["continuity"] = continuity.duplicate(true)
