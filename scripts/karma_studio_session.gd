@@ -10,6 +10,8 @@ func begin(story: String, duration: float, count: int) -> Dictionary:
         "agents": {"scenario": "done", "pose": "timed_instructions_ready", "image": "running", "quality": "pending", "recovery": "saving", "video": "waiting_for_user"}}
     return {"ok": true, "motion": preparation["motion"]}
 func inspect_frame(image: Image, previous: Image = null) -> Dictionary:
+    if image == null or image.is_empty():
+        return {"ok": false, "issues": ["missing_or_empty_image"]}
     var result: Dictionary = load("res://scripts/drawing_quality_gate.gd").new().inspect(image, previous)
     if image != null and (image.get_width() < 512 or image.get_height() < 512):
         result["ok"] = false
