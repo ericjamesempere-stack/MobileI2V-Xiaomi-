@@ -293,7 +293,8 @@ func _choose_merge_folder() -> void:
 
 func _merge_folder_selected(folder: String) -> void:
     var merger: RefCounted = load("res://scripts/karma_one_merge.gd").new()
-    var result: Dictionary = merger.merge(folder, paths)
+    var expected_frames: int = clampi(int(ceil(float(duration_input.value) * 4.0)), 2, 240)
+    var result: Dictionary = merger.merge(folder, paths, 240, expected_frames)
     if not bool(result.get("ok", false)):
         status.text = "KARMA ONE : " + str(result.get("error", "Fusion impossible"))
         return
@@ -320,7 +321,7 @@ func _merge_folder_selected(folder: String) -> void:
     _save()
     var missing: Array = result.get("missing", [])
     status.text = "KARMA ONE : %d ajouts, %d doublons ignores, %d dessins manquants." % [int(result.get("added", 0)), int(result.get("duplicates", 0)), missing.size()]
-    if karma_auto_export and missing.is_empty() and Engine.has_singleton("MP4Exporter"):
+    if karma_auto_export and bool(result.get("complete", false)) and Engine.has_singleton("MP4Exporter"):
         await _export_board_mp4()
 
 func _choose_drawings_folder() -> void:
