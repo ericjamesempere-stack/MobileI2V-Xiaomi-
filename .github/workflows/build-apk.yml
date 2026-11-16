@@ -242,11 +242,30 @@ jobs:
             echo "MP4Exporter plugin NOT packaged: MP4 unavailable in this APK; AVI fallback only." >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Publish verified APK checksum and build evidence
+        run: |
+          set -euo pipefail
+          sha256sum build/MobileI2V_V50_ARM64_FIXED.apk | tee build/SHA256SUMS.txt
+          {
+            echo "## MobileI2V Android build"
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Godot: 4.5.2"
+            echo "- KARMA ONE integration tests: passed"
+            echo "- Godot headless startup: passed"
+            echo "- APK signature, launcher, ARM64 checks: passed"
+            echo "- Android device launch and real MP4 encoding: NOT tested by CI"
+            echo "- SHA256:"
+            cat build/SHA256SUMS.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: MobileI2V_V50_ARM64_FIXED
-          path: build/MobileI2V_V50_ARM64_FIXED.apk
+          path: |
+            build/MobileI2V_V50_ARM64_FIXED.apk
+            build/SHA256SUMS.txt
+            build/apk-runtime-metadata.txt
           if-no-files-found: error
           retention-days: 30
 
