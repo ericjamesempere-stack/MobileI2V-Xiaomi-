@@ -709,7 +709,7 @@ func _generate_and_export() -> void:
     if not Engine.has_singleton("MP4Exporter"):
         status.text = "Encodeur MP4 Android absent : generation automatique annulee."
         return
-    if not ai_endpoint.text.strip_edges().begins_with("https://"):
+    if not ai_endpoint.text.strip_edges().contains("https://"):
         status.text = "Moteur de redessin IA absent. Configure un serveur HTTPS compatible dans Options avancees."
         return
     if action_input.text.strip_edges().is_empty():
