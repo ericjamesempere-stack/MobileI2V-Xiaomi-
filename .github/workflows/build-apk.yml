@@ -159,6 +159,13 @@ jobs:
           if grep -Ei 'SCRIPT ERROR|Parse Error|Failed to load script|INVALID SCRIPT|FAILED:|INVALID MAIN SCENE' karma-validation.log; then exit 1; fi
           echo 'KARMA ONE tests passed; continuing directly to Android APK export.' >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Smoke-test KARMA ONE startup before APK export
+        run: |
+          set -euo pipefail
+          timeout 60s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --quit-after 20 2>&1 | tee karma-startup.log
+          if grep -Ei 'SCRIPT ERROR|Parse Error|Failed to load script|ERROR:|FATAL:' karma-startup.log; then exit 1; fi
+          echo 'PASS: Godot application startup completed.' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Write explicit Godot 4.3 Android export preset values
         run: |
           set -euo pipefail
@@ -251,6 +258,7 @@ jobs:
           path: |
             import.log
             karma-validation.log
+            karma-startup.log
             configure.log
             export.log
             signing-check.log
