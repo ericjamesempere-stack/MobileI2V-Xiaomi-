@@ -285,7 +285,9 @@ func _drawings_folder_selected(folder: String) -> void:
         if extension == "png" or extension == "jpg" or extension == "jpeg" or extension == "webp":
             names.append(name)
     directory.list_dir_end()
-    names.sort()
+    names.sort_custom(func(a: String, b: String) -> bool:
+        return a.naturalnocasecmp_to(b) < 0
+    )
     if names.is_empty():
         status.text = "KARMA ONE : aucune image PNG/JPG/WEBP dans ce dossier."
         return
