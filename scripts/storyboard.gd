@@ -1960,7 +1960,18 @@ func _draw_remote_story() -> void:
         status.text = str(preparation.get("error", "Scénario impossible."))
         return
     var motion: Dictionary = preparation["motion"]
-    var cache_key: String = (imported_path + story + style + str(total) + str(duration)).sha256_text().substr(0, 24)
+    # Ground every drawing in the actual selected image, not just the text story.
+    # This is a measurable reference profile, NOT a semantic vision-model result.
+    var reference_profile: Dictionary = load("res://scripts/reference_appearance_palette.gd").new().extract(reference)
+    if not reference_profile.get("ok", false):
+        status.text = "Analyse visuelle de la photo impossible : vérifie le fichier sélectionné."
+        return
+    var palette_hex: Array[String] = []
+    for color in reference_profile.get("palette", []):
+        palette_hex.append("#" + (color as Color).to_html(false))
+    var visual_guidance: String = "Selected reference image: %d by %d pixels. Dominant reference colors: %s. Match the actual reference image subject, composition, silhouette, materials and recognizable features; do not replace it with a generic character. These colors are measured from the image, not an AI semantic description." % [reference.get_width(), reference.get_height(), ", ".join(palette_hex)]
+    var reference_digest: String = reference.get_data().sha256_text()
+    var cache_key: String = (reference_digest + story + style + str(total) + str(duration)).sha256_text().substr(0, 24)
     var folder: String = "user://projects/hf_" + cache_key
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
         status.text = "Dossier IA impossible a creer."
@@ -1991,7 +2002,7 @@ func _draw_remote_story() -> void:
                     break
             status.text = "Dessin %d sur %d · Création en cours…" % [index + 1, total]
             var phase_guide: String = load("res://scripts/board_generation_plan.gd").new().phase_at(action_name, phase)
-            var instruction: String = "Draw exactly ONE NEW full-frame keyframe image, no grid, no panels, no text. Full story: " + story + ". Current action: " + directive + ". Pose or event phase: " + phase_guide + ". Action progression: %d percent. Make a visibly different physical pose, spatial position or scene state from the previous frame. Preserve the subject identity, material, silhouette, colors, chosen style and consistent background. A subject can be a fruit, animal, object, vehicle, person or landscape: never add a human body unless the story asks for one." % roundi(phase * 100.0)
+            var instruction: String = visual_guidance + " Draw exactly ONE NEW full-frame keyframe image, no grid, no panels, no text. Full story: " + story + ". Current action: " + directive + ". Pose or event phase: " + phase_guide + ". Action progression: %d percent. Make a visibly different physical pose, spatial position or scene state from the previous frame. Preserve the subject identity, material, silhouette, colors, chosen style and consistent background. A subject can be a fruit, animal, object, vehicle, person or landscape: never add a human body unless the story asks for one." % roundi(phase * 100.0)
             var result: Dictionary = await worker.redraw(reference, instruction, style, previous)
             if not result.get("ok", false):
                 failure = str(result.get("error", "Erreur distante."))
