@@ -156,6 +156,8 @@ jobs:
           set -euo pipefail
           timeout 120s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/validate_karma_one.gd 2>&1 | tee karma-validation.log
           grep -q 'KARMA ONE: all selected scripts parsed successfully' karma-validation.log
+          grep -q 'PASS: missing frames, restore, multi-batch merge' karma-validation.log
+          grep -q 'VALID MAIN SCENE' karma-validation.log
           if grep -Ei 'SCRIPT ERROR|Parse Error|Failed to load script|INVALID SCRIPT|FAILED:|INVALID MAIN SCENE' karma-validation.log; then exit 1; fi
           echo 'KARMA ONE tests passed; continuing directly to Android APK export.' >> "$GITHUB_STEP_SUMMARY"
 
