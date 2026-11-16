@@ -45,7 +45,7 @@ func schedule(plan: Dictionary) -> Dictionary:
             if used_frames.has(target_frame):
                 unfillable.append({"step_id": step_id, "reason": "duplicate_intermediate_frame", "target_frame": target_frame})
                 continue
-                used_frames[target_frame] = true
+            used_frames[target_frame] = true
             tasks.append({
                 "id": "between_%04d" % tasks.size(),
                 "step_id": step_id,
@@ -154,7 +154,7 @@ func review_candidates(reference: Image, plan: Dictionary, folder: String, worke
         var meta: Variant = JSON.parse_string(FileAccess.get_file_as_string(meta_path))
         if not meta is Dictionary or meta.get("image_sha", "") != FileAccess.get_sha256(path):
             return {"ok": false, "error": "intermediate_candidate_changed", "task": task["id"], "human_approved": false}
-        var review_binding: String = ("intermediate-review-v1" + str(meta["binding"]) + str(meta["image_sha"]) + worker.vision_provider_id()).sha256_text()
+        var review_binding: String = ("intermediate-review-v2-original-and-motion" + str(meta["binding"]) + str(meta["image_sha"]) + worker.vision_provider_id()).sha256_text()
         if meta.get("review_binding", "") == review_binding and meta.get("review_origin", "") == "live_vision_model":
             cached += 1
             if not meta.get("fidelity_verified", false):
@@ -167,23 +167,52 @@ func review_candidates(reference: Image, plan: Dictionary, folder: String, worke
         if image.load(path) != OK:
             return {"ok": false, "error": "intermediate_image_unreadable", "task": task["id"], "human_approved": false}
         var expected: Dictionary = task.duplicate(true)
-        expected["pose"] = "Intermediate physical state at fraction %.3f" % float(task["fraction"])
+        expected["pose"] = "Intermediate physical state at fraction %.3f; preserve original reference identity and appearance; ensure plausible movement between adjacent poses" % float(task["fraction"])
         var review_images: Array[Image] = [image]
         var review_expected: Array = [expected]
+        # First pass: compare with ORIGINAL reference, not merely the preceding frame.
         var response: Dictionary = await worker.assess_keyposes(reference, review_images, review_expected)
         if not response.get("ok", false):
             return {"ok": false, "error": "intermediate_vision_review_failed", "detail": response.get("error", ""), "task": task["id"], "human_approved": false}
         if not response.get("review") is Dictionary or not response["review"].get("frames") is Array or response["review"]["frames"].size() != 1:
             return {"ok": false, "error": "invalid_intermediate_review", "human_approved": false}
         var row: Dictionary = response["review"]["frames"][0]
+        # Second independent pass: compare with both adjacent keyposes to
+        # detect jumps, swapped limbs, missing contacts and scenery drift.
+        var lookup: Dictionary = {}
+        for board in plan.get("boards", []):
+            lookup[str(board.get("id", ""))] = board
+        var left: Dictionary = lookup.get(str(task["from_pose"]), {})
+        var right: Dictionary = lookup.get(str(task["to_pose"]), {})
+        var left_image := Image.new()
+        var right_image := Image.new()
+        if left.is_empty() or right.is_empty() or left_image.load(folder.path_join("pose_%04d.png" % int(left.get("index", -1)))) != OK or right_image.load(folder.path_join("pose_%04d.png" % int(right.get("index", -1)))) != OK:
+            return {"ok": false, "error": "motion_neighbor_missing", "task": task["id"], "human_approved": false}
+        var motion_expected: Array = [
+            {"pose": str(left.get("pose", "")), "actor_ids": task["actor_ids"], "object_ids": task["object_ids"]},
+            {"pose": str(expected["pose"]), "actor_ids": task["actor_ids"], "object_ids": task["object_ids"], "instruction": "Check physical transition from first to third pose; no abrupt changes or duplicate still"},
+            {"pose": str(right.get("pose", "")), "actor_ids": task["actor_ids"], "object_ids": task["object_ids"]}
+        ]
+        var motion_images: Array[Image] = [left_image, image, right_image]
+        var motion_response: Dictionary = await worker.assess_keyposes(reference, motion_images, motion_expected)
+        if not motion_response.get("ok", false) or not motion_response.get("review") is Dictionary or not motion_response["review"].get("frames") is Array or motion_response["review"]["frames"].size() != 3:
+            return {"ok": false, "error": "motion_vision_review_failed", "task": task["id"], "human_approved": false}
+        var motion_row: Dictionary = motion_response["review"]["frames"][1]
         var passed: bool = row.get("uncertain", true) == false and row.get("defects") is Array and row["defects"].is_empty()
         for key in ["identity_match", "count_match", "action_match", "environment_match", "perspective_match"]:
             passed = passed and row.get(key) == true
+        var motion_passed: bool = motion_row.get("uncertain", true) == false and motion_row.get("defects") is Array and motion_row["defects"].is_empty()
+        for key in ["identity_match", "count_match", "action_match", "environment_match", "perspective_match"]:
+            motion_passed = motion_passed and motion_row.get(key) == true
+        passed = passed and motion_passed
         if FileAccess.get_sha256(path) != meta["image_sha"]:
             return {"ok": false, "error": "intermediate_changed_during_review", "human_approved": false}
         meta["review_binding"] = review_binding
         meta["review_origin"] = "live_vision_model"
         meta["model_review"] = row
+        meta["motion_review"] = motion_row
+        meta["reference_fidelity_verified"] = row.get("uncertain", true) == false and row.get("identity_match", false) == true and row.get("count_match", false) == true
+        meta["motion_continuity_verified"] = motion_passed
         meta["fidelity_verified"] = passed
         meta["human_approved"] = false
         var temp_path: String = meta_path + ".part"
