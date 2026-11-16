@@ -1,0 +1,28 @@
+extends SceneTree
+
+func _initialize() -> void:
+    var gate = load("res://scripts/ReferenceFidelityGate.gd")
+    assert(gate != null, "Fidelity gate script missing")
+    var missing = gate.build_request("user://missing_reference.png", "run", "human")
+    assert(not missing.get("ok", true))
+    assert(missing.get("error") == "reference_missing")
+    var image := Image.create(32, 32, false, Image.FORMAT_RGBA8)
+    image.fill(Color(1, 0.8, 0.1, 1))
+    var path := "user://fidelity_test_reference.png"
+    assert(image.save_png(path) == OK)
+    var blank = gate.build_request(path, " ", "object")
+    assert(blank.get("error") == "description_missing")
+    var invalid = gate.build_request(path, "run", "not_a_subject")
+    assert(invalid.get("error") == "unsupported_subject_type")
+    var valid = gate.build_request(path, "the banana rolls downhill", "object")
+    assert(valid.get("ok", false))
+    assert(valid.get("reference_width") == 32)
+    assert(valid.get("reference_height") == 32)
+    assert(not valid.get("identity_verified", true))
+    assert(not valid.get("pose_verified", true))
+    assert(valid.get("requires_human_review", false))
+    assert(not gate.approval_required(valid, false).get("ok", true))
+    assert(gate.approval_required(valid, true).get("ok", false))
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+    print("REFERENCE_FIDELITY_GATE_TEST_OK")
+    quit()

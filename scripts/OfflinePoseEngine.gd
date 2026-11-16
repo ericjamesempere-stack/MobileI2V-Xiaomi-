@@ -59,6 +59,16 @@ static func generate(schedule_data: Dictionary, output_folder: String) -> Dictio
             if not rendered.get("ok", false):
                 return {"ok": false, "error": "pose_map_generation_failed", "index": index}
         var request_data: Dictionary = key.duplicate(true)
+        var subject_type := str(key.get("subject_type", "unknown"))
+        var description := str(key.get("description", "")).strip_edges()
+        if description.is_empty():
+            description = str(key.get("action", "")).strip_edges()
+        var fidelity := ReferenceFidelityGate.build_request(reference, description, subject_type)
+        if not fidelity.get("ok", false):
+            return {"ok": false, "error": fidelity.get("error", "fidelity_request_invalid"), "index": index}
+        request_data["fidelity_constraints"] = fidelity["constraints"]
+        request_data["subject_type"] = subject_type
+        request_data["requires_human_review"] = true
         request_data["pose_map_path"] = ProjectSettings.globalize_path(pose_map)
         request_data["reference_original"] = ProjectSettings.globalize_path(reference)
         var styled := str(key.get("reference_styled", ""))
@@ -132,6 +142,16 @@ static func generate_full_sequence(plan: Dictionary, output_folder: String, keyf
                 if not rendered.get("ok", false):
                     return {"ok": false, "error": "pose_map_generation_failed", "index": i}
             var request := instruction.duplicate(true)
+            var subject_type := str(instruction.get("subject_type", "unknown"))
+            var description := str(instruction.get("description", "")).strip_edges()
+            if description.is_empty():
+                description = str(instruction.get("action", "")).strip_edges()
+            var fidelity := ReferenceFidelityGate.build_request(original, description, subject_type)
+            if not fidelity.get("ok", false):
+                return {"ok": false, "error": fidelity.get("error", "fidelity_request_invalid"), "index": i}
+            request["fidelity_constraints"] = fidelity["constraints"]
+            request["subject_type"] = subject_type
+            request["requires_human_review"] = true
             request["pose_map_path"] = ProjectSettings.globalize_path(pose_map)
             request["reference_original"] = ProjectSettings.globalize_path(original)
             request["reference_styled"] = ProjectSettings.globalize_path(styled)
