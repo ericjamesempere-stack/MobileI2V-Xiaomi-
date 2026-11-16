@@ -2184,7 +2184,19 @@ func _drawing_fingerprint() -> String:
     return digest.finish().hex_encode()
 
 func _review_confirmation_changed(checked: bool) -> void:
-    review_fingerprint = _drawing_fingerprint() if checked and explicit_rejections.is_empty() else ""
+    # V54: a global confirmation is valid only after each drawing was kept.
+    var all_approved: bool = sources.size() >= 2 and accepted.size() == sources.size()
+    if all_approved:
+        for keep in accepted:
+            if not bool(keep):
+                all_approved = false
+                break
+    if checked and (not all_approved or not explicit_rejections.is_empty()):
+        review_check.set_pressed_no_signal(false)
+        review_fingerprint = ""
+        status.text = "Examine et garde chaque dessin avant de confirmer la planche."
+        return
+    review_fingerprint = _drawing_fingerprint() if checked and all_approved and explicit_rejections.is_empty() else ""
     if checked and not review_fingerprint.is_empty():
         reviewed_paths = "|".join(paths)
     if checked and not explicit_rejections.is_empty():
