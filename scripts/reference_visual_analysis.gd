@@ -33,6 +33,9 @@ func analyze(source: Image) -> Dictionary:
     var hex_colors: Array[String] = []
     for color in palette.get("palette", []):
         hex_colors.append("#" + (color as Color).to_html(false))
+    # Alpha bounding box only identifies a subject on a transparent image.
+    # For opaque photos the whole image is visible: never mislabel it as subject segmentation.
+    var has_alpha_subject: bool = visible < total
     var bbox: Rect2 = Rect2(float(min_x) / w, float(min_y) / h, float(max_x - min_x + stride) / w, float(max_y - min_y + stride) / h)
     return {
         "ok": true,
@@ -41,6 +44,7 @@ func analyze(source: Image) -> Dictionary:
         "aspect_ratio": float(w) / float(h),
         "visible_fraction": float(visible) / float(maxi(1, total)),
         "bounds_normalized": bbox,
+        "bounds_are_subject": has_alpha_subject,
         "palette_hex": hex_colors,
         "semantic_analysis": false,
         "reference_required": true
@@ -50,7 +54,8 @@ func drawing_guidance(profile: Dictionary) -> String:
     if not profile.get("ok", false):
         return ""
     var bounds: Rect2 = profile["bounds_normalized"]
-    return "IMAGE-LOCKED REFERENCE: the actual user-selected image is authoritative, not a generic text character. Reference dimensions %d x %d, aspect %.3f, visible coverage %.2f, subject bounds normalized x=%.2f y=%.2f width=%.2f height=%.2f, dominant colors %s. Preserve the reference subject's distinctive silhouette, face if present, hair if present, outfit if present, materials, visual style and palette. Do not invent a human body, new clothing or unrelated subject. Create distinct action keyframes while keeping the same subject recognizable. These are pixel measurements, not semantic AI recognition." % [
+    var bounds_kind: String = "alpha-visible subject bounds" if profile.get("bounds_are_subject", false) else "full opaque photo bounds (NOT subject detection)"
+    return "IMAGE-LOCKED REFERENCE: the actual user-selected image is authoritative, not a generic text character. Reference dimensions %d x %d, aspect %.3f, visible coverage %.2f, %s normalized x=%.2f y=%.2f width=%.2f height=%.2f, dominant colors %s. Preserve the reference subject's distinctive silhouette, face if present, hair if present, outfit if present, materials, visual style and palette. Do not invent a human body, new clothing or unrelated subject. Create distinct action keyframes while keeping the same subject recognizable. These are pixel measurements, not semantic AI recognition." % [
         int(profile["width"]), int(profile["height"]), float(profile["aspect_ratio"]), float(profile["visible_fraction"]),
-        bounds.position.x, bounds.position.y, bounds.size.x, bounds.size.y, ", ".join(profile["palette_hex"])
+        bounds_kind, bounds.position.x, bounds.position.y, bounds.size.x, bounds.size.y, ", ".join(profile["palette_hex"])
     ]
