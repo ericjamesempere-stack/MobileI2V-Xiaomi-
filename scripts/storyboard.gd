@@ -1962,14 +1962,12 @@ func _draw_remote_story() -> void:
     var motion: Dictionary = preparation["motion"]
     # Ground every drawing in the actual selected image, not just the text story.
     # This is a measurable reference profile, NOT a semantic vision-model result.
-    var reference_profile: Dictionary = load("res://scripts/reference_appearance_palette.gd").new().extract(reference)
+    var visual_analyzer: RefCounted = load("res://scripts/reference_visual_analysis.gd").new()
+    var reference_profile: Dictionary = visual_analyzer.analyze(reference)
     if not reference_profile.get("ok", false):
-        status.text = "Analyse visuelle de la photo impossible : vérifie le fichier sélectionné."
+        status.text = "Analyse de l image sélectionnée impossible : " + str(reference_profile.get("error", "image invalide"))
         return
-    var palette_hex: Array[String] = []
-    for color in reference_profile.get("palette", []):
-        palette_hex.append("#" + (color as Color).to_html(false))
-    var visual_guidance: String = "Selected reference image: %d by %d pixels. Dominant reference colors: %s. Match the actual reference image subject, composition, silhouette, materials and recognizable features; do not replace it with a generic character. These colors are measured from the image, not an AI semantic description." % [reference.get_width(), reference.get_height(), ", ".join(palette_hex)]
+    var visual_guidance: String = visual_analyzer.drawing_guidance(reference_profile)
     var reference_hash := HashingContext.new()
     reference_hash.start(HashingContext.HASH_SHA256)
     reference_hash.update(reference.get_data())
