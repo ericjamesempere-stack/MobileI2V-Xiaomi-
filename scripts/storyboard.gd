@@ -103,6 +103,7 @@ func _ready() -> void:
     _button("KARMA ONE : IMPORTER ET PRODUIRE LE MP4", _choose_drawings_folder)
     _button("KARMA ONE : PREPARER UN RELAIS VERS UNE AUTRE IA", _prepare_karma_relay)
     _button("KARMA ONE : FUSIONNER LES DESSINS DES AUTRES IA", _choose_merge_folder)
+    _button("KARMA ONE : REPRENDRE LE DERNIER MONTAGE", _restore_karma_merge)
     karma_auto_export_toggle = CheckBox.new()
     karma_auto_export_toggle.text = "Exporter automatiquement apres import (KARMA ONE)"
     karma_auto_export_toggle.button_pressed = true
@@ -288,6 +289,51 @@ func _prepare_karma_relay() -> void:
     var prompt_path: String = str(result.get("folder", "")).path_join("PROMPT_A_COPIER.txt")
     DisplayServer.clipboard_set(FileAccess.get_file_as_string(prompt_path))
     status.text = "KARMA ONE : relais cree (%d dessins manquants). Instructions copiees dans le presse-papiers. Dossier : %s" % [result.get("missing", []).size(), str(result.get("folder", ""))]
+
+func _restore_karma_merge() -> void:
+    var root: String = "user://projects/karma_merged"
+    var dir := DirAccess.open(root)
+    if dir == null:
+        status.text = "KARMA ONE : aucun montage fusionne a reprendre."
+        return
+    var folders: PackedStringArray = dir.get_directories()
+    folders.sort()
+    if folders.is_empty():
+        status.text = "KARMA ONE : aucun journal de fusion."
+        return
+    var merger: RefCounted = load("res://scripts/karma_one_merge.gd").new()
+    var result: Dictionary = {}
+    for i in range(folders.size() - 1, -1, -1):
+        result = merger.restore(root.path_join(folders[i]))
+        if bool(result.get("ok", false)):
+            break
+    if not bool(result.get("ok", false)):
+        status.text = "KARMA ONE : aucun montage valide a restaurer."
+        return
+    var restored_sources: Array[Texture2D] = []
+    var restored_paths: Array[String] = []
+    for p in result.get("paths", []):
+        var tex: Texture2D = _texture_for_path(str(p))
+        if tex == null:
+            status.text = "KARMA ONE : dessin illisible lors de la reprise."
+            return
+        restored_sources.append(tex)
+        restored_paths.append(str(p))
+    sources = restored_sources
+    paths = restored_paths
+    plan.clear()
+    accepted.clear()
+    for i in range(sources.size()):
+        plan.append(i)
+        accepted.append(true)
+    frame_index = 0
+    _refresh()
+    _build_contact_sheet()
+    _save()
+    var missing: Array = result.get("missing", [])
+    status.text = "KARMA ONE : montage restaure (%d dessins, %d manquants)." % [sources.size(), missing.size()]
+    if karma_auto_export and bool(result.get("complete", false)) and Engine.has_singleton("MP4Exporter"):
+        await _export_board_mp4()
 
 func _choose_merge_folder() -> void:
     merge_folder_picker.popup_centered_ratio(0.9)
