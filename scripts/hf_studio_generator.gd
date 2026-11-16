@@ -276,12 +276,12 @@ func _redraw_anypose(reference: Image, story: String, style: String, previous: I
 
 func batch_prompt(briefs: Array, rows: int = 2) -> String:
     var layout: String = "a 2 by 2 animation storyboard grid of FOUR equal square panels, read left to right then top to bottom" if rows == 2 else "exactly TWO equal portrait animation panels side by side, read left to right, one row and two columns"
-    var prompt: String = "Create " + layout + ". Show exactly the same single subject from image 1 in every used panel. Keep the entire subject visible with comfortable margins: no cropped head, hands, feet or object extremities. Preserve its exact silhouette, face if present, existing appendages, markings, materials, proportions, colors, drawing style, background and ground. "
+    var prompt: String = "Create " + layout + ". Reproduce ALL subjects, characters, animals, vehicles, objects and environmental elements actually present in image 1, preserving their identities, count, appearance, spatial relationships and stable background across every panel unless the requested action explicitly changes them. Do not merge subjects, invent extra actors, humanize non-human objects or remove scenery. Keep moving subjects and relevant interacting objects fully visible with comfortable margins. Preserve silhouettes, faces if present, existing appendages, markings, materials, proportions, colors, drawing style, lighting and ground contact. Render the requested action as visibly different successive physical states, not merely alternate camera angles. "
     for index in range(briefs.size()):
         prompt += "Panel %d: %s; %s. " % [index + 1, str(briefs[index].get("description", "")), str(briefs[index].get("pose", ""))]
     if briefs.size() < rows * 2:
         prompt += "Leave the remaining panels empty. "
-    return prompt + "Equal panel sizes, no gutters, no captions, no text, no extra characters, no human torso unless already present. Every used panel is a different physical pose of the same subject, not a camera change or image deformation."
+    return prompt + "Equal panel sizes, no gutters, no captions, no text, no unrequested characters or objects, no human torso unless already present or explicitly requested. Every used panel must advance the requested action with a different physically plausible state of the relevant subjects and interacting objects. Keep unaffected subjects and environmental landmarks stable; do not substitute camera changes or image deformation for motion."
 
 func split_batch(sheet: Image, count: int, rows: int = 2) -> Dictionary:
     if sheet == null or sheet.is_empty() or rows not in [1, 2] or count < 2 or count > rows * 2 or sheet.get_width() < 1024 or sheet.get_height() < 1024:
