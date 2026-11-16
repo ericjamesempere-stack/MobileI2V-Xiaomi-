@@ -25,86 +25,23 @@ jobs:
           unzip -q godot.zip
           chmod +x Godot_v4.5.2-stable_linux.x86_64
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --editor --path . --import --quit
-      - name: Diagnose production HTTPS connectivity without image upload
+      - name: Instrument HTTP response stages without logging payloads
         run: |
-          set -euo pipefail
-          mkdir -p live-evidence
-          python3 - <<'PY' | tee live-evidence/connectivity.json
-          import json, socket, ssl, urllib.request, urllib.error
-          from urllib.parse import urlsplit
-          urls = [
-              "https://qwen-qwen3-vl-demo.hf.space",
-              "https://prithivmlmods-qwen-image-edit-2511-loras-fast.hf.space",
-              "https://abidlabs-qwen-image-edit-2511-anypose.hf.space",
-          ]
-          results = []
-          for base in urls:
-              row = {"base": base}
-              try:
-                  row["dns_addresses"] = sorted({a[4][0] for a in socket.getaddrinfo(urlsplit(base).hostname, 443)})
-              except OSError as error:
-                  row["dns_error"] = type(error).__name__
-              try:
-                  with urllib.request.urlopen(base + "/config", timeout=20) as response:
-                      payload = json.load(response)
-                      row["http_status"] = response.status
-                      row["gradio_version"] = payload.get("version")
-                      row["api_names"] = [d.get("api_name") for d in payload.get("dependencies", []) if d.get("api_name")]
-              except urllib.error.HTTPError as error:
-                  row["http_status"] = error.code
-              except Exception as error:
-                  row["https_error_type"] = type(error).__name__
-                  row["https_reason"] = str(getattr(error, "reason", error))[:240]
-              results.append(row)
+          python3 - <<'PY'
+          import re
           from pathlib import Path
-          boundary = "KarmaConnectivityPublicFixture"
-          fixture = Path("validation/v54-poses/reference.png").read_bytes()
-          body = (("--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\"reference.png\"\r\nContent-Type: image/png\r\n\r\n").encode() + fixture + ("\r\n--" + boundary + "--\r\n").encode())
-          upload_result = {"fixture": "public synthetic repository fixture"}
-          try:
-              request = urllib.request.Request(urls[0] + "/gradio_api/upload", data=body, headers={"Content-Type": "multipart/form-data; boundary=" + boundary})
-              with urllib.request.urlopen(request, timeout=20) as response:
-                  paths = json.load(response)
-                  upload_result.update({"http_status": response.status, "file_count": len(paths)})
-          except urllib.error.HTTPError as error:
-              upload_result["http_status"] = error.code
-          except Exception as error:
-              upload_result["error_type"] = type(error).__name__
-          print(json.dumps({"tls_verification": True, "providers": results, "public_fixture_upload": upload_result}, indent=2))
+          source = Path("scripts/hf_studio_generator.gd")
+          lines = source.read_text().splitlines()
+          patched, function = [], ""
+          for line in lines:
+              if line.startswith("func "):
+                  function = line.split("(", 1)[0][5:]
+              patched.append(line)
+              if "var response: Array = await " in line and ".request_completed" in line:
+                  indent = line[:len(line)-len(line.lstrip())]
+                  patched.append(indent + 'print("HTTP_STAGE ' + function + '", {"result": response[0], "http": response[1], "bytes": (response[3] as PackedByteArray).size()})')
+          source.write_text("\n".join(patched) + "\n")
           PY
-      - name: Compare Godot HTTPS and production upload transport
-        run: |
-          set -euo pipefail
-          cat > tools/diagnose_https_temp.gd <<'GD'
-          extends SceneTree
-          func _initialize() -> void:
-              call_deferred("run")
-          func run() -> void:
-              var worker: Node = load("res://scripts/hf_studio_generator.gd").new()
-              root.add_child(worker)
-              print("PROXY_PRESENT ", {"HTTPS_PROXY": not OS.get_environment("HTTPS_PROXY").is_empty(), "https_proxy": not OS.get_environment("https_proxy").is_empty(), "SSL_CERT_FILE": not OS.get_environment("SSL_CERT_FILE").is_empty()})
-              for proxied in [true, false]:
-                  var http: HTTPRequest = worker._new_http() if proxied else HTTPRequest.new()
-                  http.timeout = 20.0
-                  root.add_child(http)
-                  var started: Error = http.request(worker.VISION_URL + "/config")
-                  if started == OK:
-                      var response: Array = await http.request_completed
-                      print("GODOT_CONFIG ", {"managed_proxy": proxied, "result": response[0], "http": response[1]})
-                  else:
-                      print("GODOT_CONFIG_START_ERROR ", started)
-                  http.queue_free()
-              var reference := Image.new()
-              assert(reference.load("res://validation/v54-poses/reference.png") == OK)
-              var images: Array[Image] = [reference]
-              var upload: Dictionary = await worker._upload_images(worker.VISION_URL, images)
-              print("GODOT_PUBLIC_FIXTURE_UPLOAD ", {"ok": upload.get("ok", false), "error": upload.get("error", "")})
-              worker.queue_free()
-              await process_frame
-              quit()
-          GD
-          timeout 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tools/diagnose_https_temp.gd 2>&1 | tee live-evidence/godot-connectivity.log
-          rm tools/diagnose_https_temp.gd
       - name: Attempt production image to board path once
         env:
           KARMA_LIVE_EVIDENCE_DIR: ${{ github.workspace }}/live-evidence
