@@ -13,6 +13,10 @@ func _initialize() -> void:
 func _run() -> void:
     var folder: String = "user://test_intermediate_render"
     assert(DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) == OK)
+    for name in ["between_0000.png", "between_0000.json"]:
+        var stale: String = folder.path_join(name)
+        if FileAccess.file_exists(stale):
+            DirAccess.remove_absolute(ProjectSettings.globalize_path(stale))
     var img := Image.create(32, 32, false, Image.FORMAT_RGB8)
     img.fill(Color.ORANGE)
     assert(img.save_png(folder.path_join("pose_0000.png")) == OK)
