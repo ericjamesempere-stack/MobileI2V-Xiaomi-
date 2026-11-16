@@ -25,6 +25,7 @@ var parent_studio: Control
 var picker: FileDialog
 var video_picker: FileDialog
 var v5_sheet_loaded: bool = false
+var merge_folder_picker: FileDialog
 var drawings_folder_picker: FileDialog
 var pose_sheet_picker: FileDialog
 var exporting_video: bool = false
@@ -100,6 +101,7 @@ func _ready() -> void:
     root_box.add_child(contact_sheet)
     _button("KARMA ONE : IMPORTER ET PRODUIRE LE MP4", _choose_drawings_folder)
     _button("KARMA ONE : PREPARER UN RELAIS VERS UNE AUTRE IA", _prepare_karma_relay)
+    _button("KARMA ONE : FUSIONNER LES DESSINS DES AUTRES IA", _choose_merge_folder)
     var auto_export_toggle := CheckBox.new()
     auto_export_toggle.text = "Exporter automatiquement apres import (KARMA ONE)"
     auto_export_toggle.button_pressed = true
@@ -165,6 +167,12 @@ func _ready() -> void:
     drawings_folder_picker.use_native_dialog = true
     drawings_folder_picker.dir_selected.connect(_drawings_folder_selected)
     add_child(drawings_folder_picker)
+    merge_folder_picker = FileDialog.new()
+    merge_folder_picker.file_mode = FileDialog.FILE_MODE_OPEN_DIR
+    merge_folder_picker.access = FileDialog.ACCESS_FILESYSTEM
+    merge_folder_picker.use_native_dialog = true
+    merge_folder_picker.dir_selected.connect(_merge_folder_selected)
+    add_child(merge_folder_picker)
     pose_sheet_picker = FileDialog.new()
     pose_sheet_picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
     pose_sheet_picker.access = FileDialog.ACCESS_FILESYSTEM
@@ -279,6 +287,41 @@ func _prepare_karma_relay() -> void:
     var prompt_path: String = str(result.get("folder", "")).path_join("PROMPT_A_COPIER.txt")
     DisplayServer.clipboard_set(FileAccess.get_file_as_string(prompt_path))
     status.text = "KARMA ONE : relais cree (%d dessins manquants). Instructions copiees dans le presse-papiers. Dossier : %s" % [result.get("missing", []).size(), str(result.get("folder", ""))]
+
+func _choose_merge_folder() -> void:
+    merge_folder_picker.popup_centered_ratio(0.9)
+
+func _merge_folder_selected(folder: String) -> void:
+    var merger: RefCounted = load("res://scripts/karma_one_merge.gd").new()
+    var result: Dictionary = merger.merge(folder, paths)
+    if not bool(result.get("ok", false)):
+        status.text = "KARMA ONE : " + str(result.get("error", "Fusion impossible"))
+        return
+    var next_sources: Array[Texture2D] = []
+    var next_paths: Array[String] = []
+    for path in result.get("paths", []):
+        var tex: Texture2D = _texture_for_path(str(path))
+        if tex != null:
+            next_sources.append(tex)
+            next_paths.append(str(path))
+    if next_sources.is_empty():
+        status.text = "KARMA ONE : aucune image exploitable."
+        return
+    sources = next_sources
+    paths = next_paths
+    accepted.clear()
+    plan.clear()
+    for i in range(sources.size()):
+        accepted.append(true)
+        plan.append(i)
+    frame_index = 0
+    _refresh()
+    _build_contact_sheet()
+    _save()
+    var missing: Array = result.get("missing", [])
+    status.text = "KARMA ONE : %d ajouts, %d doublons ignores, %d dessins manquants." % [int(result.get("added", 0)), int(result.get("duplicates", 0)), missing.size()]
+    if karma_auto_export and missing.is_empty() and Engine.has_singleton("MP4Exporter"):
+        await _export_board_mp4()
 
 func _choose_drawings_folder() -> void:
     drawings_folder_picker.popup_centered_ratio(0.9)
