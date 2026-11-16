@@ -15,6 +15,8 @@ const KEYWORDS: Dictionary = {
     "repos": ["arrete", "arrête", "stop", "immobile", "attend"],
     "vol": ["vole", "voler", "s envole", "flying", "fly", "take off"],
     "roule": ["roule", "rouler", "conduit", "drives", "driving", "rolling"],
+    "rebond": ["rebond", "bounce", "bouncing"],
+    "interaction": ["interagit", "interagissent", "interact", "attrape", "catch", "pousse", "push", "frappe", "hit", "serrent la main", "shake hands"],
     "nage": ["nage", "nager", "swim", "swimming"],
     "rotation": ["tourne", "tourner", "pivote", "rotate", "spins"],
     "apparition": ["apparait", "apparaît", "disparait", "disparaît", "appears", "disappears"]
@@ -31,9 +33,13 @@ func _normalize(value: String) -> String:
 
 func _action_for(fragment: String) -> String:
     # Explicit priorities avoid "tombe" being treated as an unrelated movement.
-    for action in ["transformation", "apparition", "metro", "football", "trebuche", "chute", "releve", "saut", "vol", "roule", "nage", "rotation", "course", "marche", "danse", "salut", "repos"]:
+    for action in ["transformation", "apparition", "metro", "football", "trebuche", "chute", "releve", "saut", "vol", "rebond", "roule", "nage", "interaction", "rotation", "course", "marche", "danse", "salut", "repos"]:
         for keyword in KEYWORDS[action]:
-            if fragment.contains(_normalize(keyword)):
+            var expression := RegEx.new()
+            var word: String = _normalize(keyword)
+            var suffix: String = "[a-z]*" if word in ["rebond", "interact"] else ""
+            expression.compile("\\b" + word + suffix + "\\b")
+            if expression.search(fragment) != null:
                 return action
     return "inconnu"
 

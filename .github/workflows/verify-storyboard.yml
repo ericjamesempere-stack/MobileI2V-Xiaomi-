@@ -205,6 +205,14 @@ jobs:
         timeout-minutes: 2
         run: |
           timeout --signal=TERM --kill-after=5s 75s timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_board_generation_plan.gd
+      - name: Test V54 pose budget and action briefs
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          for test in board_pose_budget remote_pose_briefs full_scene_brief; do
+            timeout --signal=TERM --kill-after=5s 30s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script "res://tests/test_${test}.gd" 2>&1 | tee "${test}.log"
+            if grep -E 'SCRIPT ERROR|Assertion failed|Parse Error' "${test}.log"; then exit 1; fi
+          done
       - name: Test test_frame_interpolator.gd
         timeout-minutes: 2
         run: |

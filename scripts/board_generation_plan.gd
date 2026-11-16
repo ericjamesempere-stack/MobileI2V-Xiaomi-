@@ -2,12 +2,15 @@ extends RefCounted
 # Image-first storyboard production contract for KARMA ONE.
 # Generates precise drawing briefs; does not falsely claim to generate AI images.
 const MAX_BOARDS := 240
-const REMOTE_BRIEF_VERSION := "v54-batch-3"
+const REMOTE_BRIEF_VERSION := "v54-batch-4"
 # Physical states, restricted to the current action. Sending the entire story
 # to every edit encouraged multiple simultaneous poses and duplicate subjects.
 const REMOTE_POSES := {
     "course": ["forward lean, left support contacting ground, right limb trailing", "push off the ground, rear limb extended", "airborne stride, supports separated", "right support contacting ground, left limb trailing"],
     "trebuche": ["leading support catches on the ground while momentum continues forward", "support blocked, body pitching forward, existing limbs spread to recover balance", "balance lost, body tipping farther forward, no stable support"],
+    "roule": ["initial position, existing object touching its support", "existing object rotates while translating along the requested path", "existing object farther along the same path, rotation continues"],
+    "rebond": ["existing object descending toward the existing surface", "existing object contacts the surface", "existing object rising away from the surface after impact", "existing object at the apex of its rebound"],
+    "interaction": ["existing participants preparing the requested interaction", "existing participants carrying out the requested interaction with each other", "existing participants completing the requested interaction"],
     "chute": ["balance lost, body tilting forward above the ground", "body halfway down, descending toward ground", "body nearly horizontal, just above ground", "impact with ground, body horizontal", "lying still on the ground after the fall, no standing pose"]
 }
 
@@ -60,7 +63,9 @@ const ACTION_PHASES := {
     "metro": ["approche du quai", "arrivee du train", "portes ouvertes", "depart du train"],
     "football": ["approche du ballon", "preparation du tir", "contact", "trajectoire du ballon"],
     "vol": ["preparation", "decollage", "ascension", "vol stabilise", "atterrissage"],
-    "roule": ["position initiale", "demarrage", "acceleration", "deplacement", "freinage"],
+    "roule": ["position initiale", "rotation et translation", "roulement en cours", "position plus loin sur le trajet"],
+    "rebond": ["descente", "contact avec la surface", "remontee apres impact", "sommet du rebond"],
+    "interaction": ["preparation de l interaction demandee", "interaction en cours entre les participants existants", "fin de l interaction demandee"],
     "nage": ["entree dans l eau", "propulsion", "glisse", "nouvelle propulsion", "sortie"],
     "rotation": ["orientation initiale", "quart de tour", "demi-tour", "trois quarts", "orientation finale"],
     "apparition": ["etat initial", "premiers signes", "transition visible", "apparition ou disparition complete"],

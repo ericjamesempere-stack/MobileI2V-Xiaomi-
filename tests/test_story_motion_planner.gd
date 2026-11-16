@@ -31,5 +31,7 @@ func _initialize() -> void:
     assert(en_steps[0]["action"] == "course")
     assert(en_steps[1]["action"] == "chute")
     assert(en_steps[2]["action"] == "releve")
+    assert(planner.plan("Deux personnages se serrent la main.", 3.0)["steps"][0]["action"] == "interaction")
+    assert(planner.plan("Un personnage reste immobile.", 3.0)["steps"][0]["action"] == "repos")
     print("STORY_MOTION_PLANNER_TESTS_OK")
     quit(0)
