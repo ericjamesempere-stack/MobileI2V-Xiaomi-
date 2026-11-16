@@ -107,7 +107,7 @@ func _ready() -> void:
     endpoint.placeholder_text = "https://.../generate"
     panel.add_child(endpoint)
     free_ai_mode = CheckBox.new()
-    free_ai_mode.text = "Essai IA gratuite (texte uniquement, 2 images, visage non garanti)"
+    free_ai_mode.text = "Essai IA gratuite ControlNet (2 poses, personnage non garanti)"
     free_ai_mode.button_pressed = false
     panel.add_child(free_ai_mode)
     upload_consent = CheckBox.new()
@@ -296,9 +296,9 @@ func _advance() -> void:
     var styled_story: String = "%s, style %s" % [prompt.text, style.get_item_text(style.selected)]
     var result: Dictionary
     if free_mode:
-        status.text = "Essai de 2 images IA gratuites. Service externe avec quota ; le visage ne sera pas reproduit fidelement."
+        status.text = "Essai de 2 dessins IA avec guide de pose. Service externe avec quota ; visage non garanti."
         var free_generator := Node.new()
-        free_generator.set_script(load("res://scripts/free_text_image_generator.gd"))
+        free_generator.set_script(load("res://scripts/free_pose_image_generator.gd"))
         add_child(free_generator)
         free_generator.connect("progress", Callable(self, "_progress"))
         result = await free_generator.call("generate", prompt.text, style.get_item_text(style.selected), 2)
@@ -340,7 +340,7 @@ func _advance() -> void:
             step = 1
             action.text = "Exporter MP4"
             _build_sheet()
-            status.text = "%d dessins sauvegardes (%s). Creation du MP4..." % [frames.size(), "IA gratuite texte (visage non garanti)" if free_mode else ("IA externe" if online_mode else "animation locale stylisee, visage non reproduit")]
+            status.text = "%d dessins sauvegardes (%s). Creation du MP4..." % [frames.size(), "IA gratuite avec poses (visage non garanti)" if free_mode else ("IA externe" if online_mode else "animation locale stylisee, visage non reproduit")]
             if free_mode:
                 status.text = "Deux images IA de storyboard sauvegardees. Controle la coherence avant export MP4 : ce ne sont pas des mouvements animes fluides."
             elif online_mode:
