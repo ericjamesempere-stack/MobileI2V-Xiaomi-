@@ -28,17 +28,26 @@ func schedule(plan: Dictionary) -> Dictionary:
             var position: float = float(i + 1) * float(poses.size() - 1) / float(count + 1)
             var left: int = mini(poses.size() - 2, int(floor(position)))
             var alpha: float = position - float(left)
+            # A boundary-aligned request would duplicate an existing keypose.
+            # Place it strictly inside the preceding adjacent interval instead.
             if alpha <= 0.00001:
+                left = maxi(0, left - 1)
                 alpha = 0.5
             var a: Dictionary = poses[left]
             var b: Dictionary = poses[left + 1]
+            var start_frame: int = int(a.get("video_frame", 0))
+            var end_frame: int = int(b.get("video_frame", 0))
+            if end_frame <= start_frame + 1:
+                unfillable.append({"step_id": step_id, "reason": "no_video_frame_between_keyposes", "from_pose": str(a.get("id", "")), "to_pose": str(b.get("id", ""))})
+                continue
             tasks.append({
                 "id": "between_%04d" % tasks.size(),
                 "step_id": step_id,
                 "from_pose": str(a.get("id", "")),
                 "to_pose": str(b.get("id", "")),
-                "from_frame": int(a.get("video_frame", 0)),
-                "to_frame": int(b.get("video_frame", 0)),
+                "from_frame": start_frame,
+                "to_frame": end_frame,
+                "target_frame": clampi(roundi(lerpf(float(start_frame), float(end_frame), alpha)), start_frame + 1, end_frame - 1),
                 "fraction": alpha,
                 "actor_ids": a.get("actor_ids", []).duplicate(true),
                 "object_ids": a.get("object_ids", []).duplicate(true),
@@ -48,4 +57,5 @@ func schedule(plan: Dictionary) -> Dictionary:
                 "identity_verified": false,
                 "human_approved": false
             })
+    tasks.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["target_frame"]) < int(b["target_frame"]))
     return {"ok": unfillable.is_empty(), "revision": REVISION, "tasks": tasks, "unfillable": unfillable, "requested": int(plan.get("intermediate_drawings", 0)), "scheduled": tasks.size(), "generated": 0, "verified": false, "ready_for_animation": false}
