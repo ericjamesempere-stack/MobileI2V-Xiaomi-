@@ -7,6 +7,8 @@ const HOST := "https://techfreakworm-z-image-studio.hf.space"
 const LIMIT := 2
 
 func _fetch(url: String, method: int = HTTPClient.METHOD_GET, body: String = "", headers: PackedStringArray = PackedStringArray()) -> Dictionary:
+ if cancel_requested:
+  return {"ok": false, "error": "Annule"}
  var req := HTTPRequest.new()
  req.timeout = 180.0
  req.body_size_limit = 8000000
@@ -59,7 +61,12 @@ func generate(story: String, visual_style: String, count: int = 2) -> Dictionary
   var pose_b64: String = Marshalls.raw_to_base64(pose.save_png_to_buffer())
   var prompt := "One single original 2D %s cartoon character, full body, consistent appearance, clean white background, pose: %s. Story: %s" % [visual_style, action, story]
   var args := [prompt, {"url": "data:image/png;base64," + pose_b64, "meta": {"_type": "gradio.FileData"}, "orig_name": "pose.png"}, "Pre-processed", 1.2, 8, 20261116, false, null, 0.0]
-  var started: Dictionary = await _fetch(HOST + "/gradio_api/call/on_controlnet_generate", HTTPClient.METHOD_POST, JSON.stringify({"data": args}), PackedStringArray(["Content-Type: application/json"]))
+  var started: Dictionary = {}
+  for attempt in range(3):
+   started = await _fetch(HOST + "/gradio_api/call/on_controlnet_generate", HTTPClient.METHOD_POST, JSON.stringify({"data": args}), PackedStringArray(["Content-Type: application/json"]))
+   if bool(started.get("ok", false)) or cancel_requested:
+    break
+   await get_tree().create_timer(float((attempt + 1) * 4)).timeout
   if not bool(started.get("ok", false)):
    return {"ok": false, "error": "Demarrage ControlNet : " + str(started.get("error", "")), "generated": frames.size()}
   var ticket: Variant = JSON.parse_string(str(started.get("text", "")))
@@ -73,14 +80,20 @@ func generate(story: String, visual_style: String, count: int = 2) -> Dictionary
    return {"ok": false, "error": "Attente ControlNet : " + str(done.get("error", "")), "generated": frames.size()}
   var event := ""
   var image_url := ""
+  var provider_error := false
   for line in str(done.get("text", "")).split("\n"):
    if line.begins_with("event:"):
     event = line.substr(6).strip_edges()
+   elif line.begins_with("data:") and event == "error":
+    provider_error = true
+    break
    elif line.begins_with("data:") and event == "complete":
     var data: Variant = JSON.parse_string(line.substr(5).strip_edges())
     if data is Array and data.size() > 0 and data[0] is Dictionary:
      image_url = str(data[0].get("url", ""))
      break
+  if provider_error:
+   return {"ok": false, "error": "Le service gratuit a refuse la generation (quota ou surcharge)", "generated": frames.size(), "retryable": true}
   if not image_url.begins_with(HOST + "/gradio_api/file="):
    return {"ok": false, "error": "ControlNet indisponible ou fichier image absent", "generated": frames.size()}
   var fetched: Dictionary = await _fetch(image_url)
