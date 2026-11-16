@@ -25,6 +25,7 @@ var parent_studio: Control
 var picker: FileDialog
 var video_picker: FileDialog
 var v5_sheet_loaded: bool = false
+var drawings_folder_picker: FileDialog
 var pose_sheet_picker: FileDialog
 var exporting_video: bool = false
 var imported_path: String = ""
@@ -96,6 +97,7 @@ func _ready() -> void:
     contact_sheet.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     root_box.add_child(contact_sheet)
+    _button("IMPORTER UN DOSSIER DE DESSINS CHATGPT (KARMA ONE)", _choose_drawings_folder)
     _button("IMPORTER 18 DESSINS DEJA CREES (V5)", _choose_pose_sheet)
     _button("PREPARER LES POSES POUR IA (SANS RESEAU)", _prepare_pose_guides)
     _button("GENERER DESSINS + MP4 (MOTEUR IA HTTPS)", _generate_and_export)
@@ -150,6 +152,12 @@ func _ready() -> void:
     picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp;Images;image/png,image/jpeg,image/webp"])
     picker.file_selected.connect(_image_chosen)
     add_child(picker)
+    drawings_folder_picker = FileDialog.new()
+    drawings_folder_picker.file_mode = FileDialog.FILE_MODE_OPEN_DIR
+    drawings_folder_picker.access = FileDialog.ACCESS_FILESYSTEM
+    drawings_folder_picker.use_native_dialog = true
+    drawings_folder_picker.dir_selected.connect(_drawings_folder_selected)
+    add_child(drawings_folder_picker)
     pose_sheet_picker = FileDialog.new()
     pose_sheet_picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
     pose_sheet_picker.access = FileDialog.ACCESS_FILESYSTEM
@@ -250,6 +258,65 @@ func _avi_headers(width: int, height: int, fps: int, count: int, max_jpg: int) -
     var hdrl := _avi_chunk("avih", avih)
     hdrl.append_array(_avi_list("strl", stream))
     return _avi_list("hdrl", hdrl)
+
+func _choose_drawings_folder() -> void:
+    drawings_folder_picker.popup_centered_ratio(0.9)
+
+func _drawings_folder_selected(folder: String) -> void:
+    var directory := DirAccess.open(folder)
+    if directory == null:
+        status.text = "KARMA ONE : dossier inaccessible. Choisis un dossier local de PNG."
+        return
+    var names: Array[String] = []
+    directory.list_dir_begin()
+    while true:
+        var name: String = directory.get_next()
+        if name.is_empty():
+            break
+        if directory.current_is_dir():
+            continue
+        var extension: String = name.get_extension().to_lower()
+        if extension == "png" or extension == "jpg" or extension == "jpeg" or extension == "webp":
+            names.append(name)
+    directory.list_dir_end()
+    names.sort()
+    if names.is_empty():
+        status.text = "KARMA ONE : aucune image PNG/JPG/WEBP dans ce dossier."
+        return
+    var folder_out: String = "user://projects/chatgpt_import_%d" % Time.get_ticks_usec()
+    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder_out)) != OK:
+        status.text = "KARMA ONE : sauvegarde impossible."
+        return
+    var imported_textures: Array[Texture2D] = []
+    var imported_paths: Array[String] = []
+    for name in names:
+        if imported_textures.size() >= 240:
+            break
+        var image := Image.new()
+        if image.load(folder.path_join(name)) != OK or image.is_empty():
+            continue
+        var output: String = folder_out.path_join("frame_%04d.png" % imported_textures.size())
+        if image.save_png(output) != OK:
+            continue
+        imported_textures.append(ImageTexture.create_from_image(image))
+        imported_paths.append(output)
+    if imported_textures.is_empty():
+        status.text = "KARMA ONE : aucune image lisible ou enregistrable."
+        return
+    sources = imported_textures
+    paths = imported_paths
+    plan.clear()
+    accepted.clear()
+    for i in range(sources.size()):
+        plan.append(i)
+        accepted.append(true)
+    frame_index = 0
+    v5_sheet_loaded = false
+    last_ai_sequence_ok = false
+    _refresh()
+    _build_contact_sheet()
+    _save()
+    status.text = "KARMA ONE : %d dessins ChatGPT importes et sauvegardes. Pret pour MP4." % sources.size()
 
 func _choose_pose_sheet() -> void:
     pose_sheet_picker.popup_centered_ratio(0.9)
