@@ -93,6 +93,12 @@ jobs:
           print("Android Gradle template extracted with Godot 4.5.2 version marker")
           PY
 
+      - name: Preserve debug signing identity for subsequent updates
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: mobilei2v-debug-signing-v1
+
       - name: Prepare Android SDK and debug signing key
         run: |
           set -euo pipefail
@@ -104,10 +110,12 @@ jobs:
           test -x "$ANDROID_HOME/build-tools/34.0.0/aapt"
           test -d "$ANDROID_HOME/ndk/23.2.8568313"
           mkdir -p "$HOME/.android"
-          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" \
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -keystore "$HOME/.android/debug.keystore" \
             -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 3650 \
             -storepass android -keypass android \
             -dname 'CN=Android Debug,O=Android,C=US' -noprompt
+          fi
           test -s "$HOME/.android/debug.keystore"
 
       - name: Configure and verify Godot Android export settings

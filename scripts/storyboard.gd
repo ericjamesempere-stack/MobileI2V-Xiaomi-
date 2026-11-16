@@ -505,6 +505,9 @@ func _pose_sheet_selected(path: String) -> void:
     status.text = "18 poses V5 importees localement. Export MP4 disponible. ATTENTION : poses maintenues, pas de redessin IA."
 
 func _export_board_mp4() -> void:
+    if exporting_video or disk_drawing_running:
+        status.text = "Une generation ou un export est deja en cours."
+        return
     if not Engine.has_singleton("MP4Exporter"):
         status.text = "MP4 indisponible : plugin Android absent. Utilise EXPORTER AVI."
         return
@@ -537,7 +540,9 @@ func _export_board_mp4() -> void:
         status.text = "Aucun dessin valide a exporter."
         exporter.queue_free()
         return
-    await exporter.call("export_board_mp4", sources, indices, float(duration_input.value))
+    exporting_video = true
+    await exporter.call("export_board_mp4", sources.duplicate(), indices, float(duration_input.value))
+    exporting_video = false
     exporter.queue_free()
 
 func _export_video_direct() -> void:

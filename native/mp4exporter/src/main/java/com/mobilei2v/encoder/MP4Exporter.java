@@ -186,6 +186,8 @@ public final class MP4Exporter extends GodotPlugin {
         return true;
     }
 
+    @UsedByGodot public void abort() { release(true); }
+
     @UsedByGodot public String get_last_error() { return error; }
 
     private void release(boolean delete) {

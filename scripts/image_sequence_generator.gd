@@ -121,7 +121,10 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
    var stream := HTTPRequest.new()
    stream.timeout = 120.0
    add_child(stream)
-   var stream_error: Error = stream.request(event_url, PackedStringArray(["Accept: text/event-stream"]), HTTPClient.METHOD_GET)
+   var stream_headers := PackedStringArray(["Accept: text/event-stream"])
+   if not api_token.is_empty():
+    stream_headers.append("Authorization: Bearer " + api_token)
+   var stream_error: Error = stream.request(event_url, stream_headers, HTTPClient.METHOD_GET)
    if stream_error != OK:
     stream.queue_free()
     return {"ok": false, "error": "Gradio: impossible de lire le resultat", "generated": frames.size()}
@@ -130,21 +133,10 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
    if int(stream_result[0]) != HTTPRequest.RESULT_SUCCESS or int(stream_result[1]) != 200:
     return {"ok": false, "error": "Gradio: requete SSE echouee", "generated": frames.size()}
    var stream_text: String = (stream_result[3] as PackedByteArray).get_string_from_utf8()
-   var completed: bool = false
-   for event_block in stream_text.split("\n\n"):
-    if not event_block.begins_with("event: complete"):
-     continue
-    for event_line in event_block.split("\n"):
-     if event_line.begins_with("data: "):
-      var decoded: Variant = JSON.parse_string(event_line.substr(6))
-      if decoded is Array and not decoded.is_empty():
-       response_body = JSON.stringify({"image_base64": decoded[0]}).to_utf8_buffer()
-       completed = true
-       break
-    if completed:
-     break
-   if not completed:
+   var gradio_image: String = decode_gradio_sse(stream_text)
+   if gradio_image.is_empty():
     return {"ok": false, "error": "Gradio: resultat absent ou quota GPU atteint", "generated": frames.size()}
+   response_body = JSON.stringify({"image_base64": gradio_image}).to_utf8_buffer()
   var data: Variant = JSON.parse_string(response_body.get_string_from_utf8())
   if not data is Dictionary or not data.has("image_base64"):
    return {"ok": false, "error": "Reponse invalide : image_base64 manquant", "generated": frames.size()}
@@ -164,3 +156,19 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
 
 func cancel() -> void:
  cancel_requested = true
+
+
+func decode_gradio_sse(stream_text: String) -> String:
+ for block in stream_text.replace("\r\n", "\n").split("\n\n"):
+  var complete: bool = false
+  var payload: String = ""
+  for line in block.split("\n"):
+   if line.strip_edges() == "event: complete":
+    complete = true
+   elif line.begins_with("data: "):
+    payload += line.substr(6)
+  if complete:
+   var decoded: Variant = JSON.parse_string(payload)
+   if decoded is Array and not decoded.is_empty() and decoded[0] is String:
+    return decoded[0]
+ return ""

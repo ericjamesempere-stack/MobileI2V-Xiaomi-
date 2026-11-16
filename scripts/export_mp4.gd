@@ -94,7 +94,7 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
         var next_index: int = int(timeline[next_slot])
         if index < 0 or index >= board_images.size() or next_index < 0 or next_index >= board_images.size():
             _set_status("Index de pose invalide : export MP4 annule.")
-            encoder.call("finish")
+            encoder.call("abort")
             exporting = false
             return
         var pair: String = "%d:%d" % [index, next_index]
@@ -103,7 +103,7 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
             image_b = image_a if index == next_index else _read_drawing(board_images[next_index])
             if image_a == null or image_a.is_empty() or image_b == null or image_b.is_empty():
                 _set_status("Dessin vide : export MP4 annule.")
-                encoder.call("finish")
+                encoder.call("abort")
                 exporting = false
                 return
             previous_pair = pair
@@ -118,7 +118,7 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
         var frame_ok: Variant = encoder.call("push_frame_rgba", img.get_data())
         if frame_ok is bool and not frame_ok:
             var reason: String = str(encoder.call("get_last_error"))
-            encoder.call("finish")
+            encoder.call("abort")
             exporting = false
             _set_status("Encodage H.264 interrompu a l image %d : %s" % [n + 1, reason])
             return
