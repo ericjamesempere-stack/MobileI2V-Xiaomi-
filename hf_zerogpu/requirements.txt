@@ -1,0 +1,6 @@
+gradio>=5.49,<6
+diffusers>=0.35,<0.38
+transformers>=4.45,<5
+accelerate>=1.0,<2
+safetensors>=0.4
+Pillow>=10
