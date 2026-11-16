@@ -33,7 +33,7 @@ func schedule(plan: Dictionary) -> Dictionary:
             # Place it strictly inside the preceding adjacent interval instead.
             if alpha <= 0.00001:
                 left = maxi(0, left - 1)
-                alpha = 0.5
+                alpha = 0.9
             var a: Dictionary = poses[left]
             var b: Dictionary = poses[left + 1]
             var start_frame: int = int(a.get("video_frame", 0))
