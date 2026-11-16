@@ -154,8 +154,19 @@ func review_candidates(reference: Image, plan: Dictionary, folder: String, worke
         var meta: Variant = JSON.parse_string(FileAccess.get_file_as_string(meta_path))
         if not meta is Dictionary or meta.get("image_sha", "") != FileAccess.get_sha256(path):
             return {"ok": false, "error": "intermediate_candidate_changed", "task": task["id"], "human_approved": false}
-        var review_binding: String = ("intermediate-review-v2-original-and-motion" + str(meta["binding"]) + str(meta["image_sha"]) + worker.vision_provider_id()).sha256_text()
-        if meta.get("review_binding", "") == review_binding and meta.get("review_origin", "") == "live_vision_model":
+        var neighbor_lookup: Dictionary = {}
+        for board in plan.get("boards", []):
+            neighbor_lookup[str(board.get("id", ""))] = board
+        var from_board: Dictionary = neighbor_lookup.get(str(task["from_pose"]), {})
+        var to_board: Dictionary = neighbor_lookup.get(str(task["to_pose"]), {})
+        if from_board.is_empty() or to_board.is_empty():
+            return {"ok": false, "error": "missing_neighbor_metadata", "human_approved": false}
+        var from_path: String = folder.path_join("pose_%04d.png" % int(from_board.get("index", -1)))
+        var to_path: String = folder.path_join("pose_%04d.png" % int(to_board.get("index", -1)))
+        if not FileAccess.file_exists(from_path) or not FileAccess.file_exists(to_path):
+            return {"ok": false, "error": "missing_neighbor_image", "human_approved": false}
+        var review_binding: String = ("intermediate-review-v2-original-and-motion" + str(meta["binding"]) + str(meta["image_sha"]) + FileAccess.get_sha256(from_path) + FileAccess.get_sha256(to_path) + worker.vision_provider_id()).sha256_text()
+        if meta.get("review_binding", "") == review_binding and meta.get("review_origin", "") == "live_vision_model" and meta.get("motion_review") is Dictionary and meta.get("model_review") is Dictionary:
             cached += 1
             if not meta.get("fidelity_verified", false):
                 failed.append(task["id"])
