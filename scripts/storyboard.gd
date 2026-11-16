@@ -27,6 +27,7 @@ var v5_sheet_loaded: bool = false
 var pose_sheet_picker: FileDialog
 var exporting_video: bool = false
 var imported_path: String = ""
+var last_ai_sequence_ok: bool = false
 const SAVE: String = "user://mobilei2v_storyboard_v23.json"
 
 func _ready() -> void:
@@ -96,6 +97,7 @@ func _ready() -> void:
     root_box.add_child(contact_sheet)
     _button("IMPORTER 18 DESSINS DEJA CREES (V5)", _choose_pose_sheet)
     _button("PREPARER LES POSES POUR IA (SANS RESEAU)", _prepare_pose_guides)
+    _button("GENERER DESSINS + MP4 (MOTEUR IA HTTPS)", _generate_and_export)
     _button("GENERER DE NOUVEAUX DESSINS (MOTEUR HTTPS)", _generate_image_sequence)
     _button("EXPORTER LE FILM MP4 (APRES VERIFICATION)", _export_board_mp4)
     var advanced_box := VBoxContainer.new()
@@ -684,7 +686,32 @@ func _pose_completed(result: int, code: int, _headers: PackedStringArray, body: 
     _show_skeleton_preview()
     status.text = "MediaPipe : 33 points detectes. Squelette affiche ci-dessus. Verifie puis lance les poses."
 
+func _generate_and_export() -> void:
+    if ai_running or exporting_video:
+        status.text = "Une generation ou un export est deja en cours."
+        return
+    if not Engine.has_singleton("MP4Exporter"):
+        status.text = "Encodeur MP4 Android absent : generation automatique annulee."
+        return
+    if not ai_endpoint.text.strip_edges().begins_with("https://"):
+        status.text = "Moteur de redessin IA absent. Configure un serveur HTTPS compatible dans Options avancees."
+        return
+    if action_input.text.strip_edges().is_empty():
+        status.text = "Decris d'abord les mouvements."
+        return
+    await _generate_image_sequence()
+    if sources.is_empty():
+        return
+    # Only export a newly generated board, never a stale earlier project.
+    if not last_ai_sequence_ok:
+        return
+    for i in range(sources.size()):
+        accepted[i] = true
+    _save()
+    await _export_board_mp4()
+
 func _generate_image_sequence() -> void:
+    last_ai_sequence_ok = false
     if ai_running:
         status.text = "Generation deja en cours."
         return
@@ -722,7 +749,7 @@ func _generate_image_sequence() -> void:
     if not bool(report.get("ok", false)) or float(report.get("average_difference", 0.0)) < 0.003:
         status.text = "Images refusees : sequence immobile ou invalide."
         return
-    var folder := "user://generated_image_sequence"
+    var folder := "user://projects/ai_sequence_%d" % Time.get_ticks_usec()
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
         status.text = "Impossible de creer le dossier des images."
         return
@@ -747,6 +774,7 @@ func _generate_image_sequence() -> void:
     _refresh()
     _build_contact_sheet()
     _save()
+    last_ai_sequence_ok = true
     status.text = "%d images produites. Verifie la planche avant export MP4." % sources.size()
 
 func _request_ai_board() -> void:
