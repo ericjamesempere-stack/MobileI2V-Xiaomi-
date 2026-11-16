@@ -1807,19 +1807,24 @@ func _load_saved() -> void:
     detected_landmarks.clear()
     sources.clear()
     paths.clear()
-    for p in data.get("drawings", []):
-        var path: String = str(p)
+    var old_to_new: Dictionary = {}
+    var saved_drawings: Array = data.get("drawings", [])
+    for original_idx in range(saved_drawings.size()):
+        var path: String = str(saved_drawings[original_idx])
         var tex: Texture2D = _texture_for_path(path)
         if tex != null:
+            old_to_new[original_idx] = sources.size()
             sources.append(tex)
             paths.append(path)
     accepted.clear()
-    for flag in data.get("approved", []): accepted.append(bool(flag))
-    while accepted.size() < sources.size(): accepted.append(false)
+    var saved_flags: Array = data.get("approved", [])
+    for original_idx in range(saved_drawings.size()):
+        if old_to_new.has(original_idx):
+            accepted.append(bool(saved_flags[original_idx]) if original_idx < saved_flags.size() else false)
     plan.clear()
     for idx in data.get("timeline_indices", []):
-        if int(idx) >= 0 and int(idx) < sources.size():
-            plan.append(int(idx))
+        if old_to_new.has(int(idx)):
+            plan.append(int(old_to_new[int(idx)]))
     if plan.is_empty():
         for i in range(sources.size()): plan.append(i)
     frame_index = 0
