@@ -151,6 +151,14 @@ jobs:
           timeout 120s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --import 2>&1 | tee import.log
           if grep -E 'SCRIPT ERROR|Parse Error|ConfigFile parse error' import.log; then exit 1; fi
 
+      - name: Validate KARMA ONE before building APK
+        run: |
+          set -euo pipefail
+          timeout 120s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/validate_karma_one.gd 2>&1 | tee karma-validation.log
+          grep -q 'KARMA ONE: all selected scripts parsed successfully' karma-validation.log
+          if grep -Ei 'SCRIPT ERROR|Parse Error|Failed to load script|INVALID SCRIPT|FAILED:|INVALID MAIN SCENE' karma-validation.log; then exit 1; fi
+          echo 'KARMA ONE tests passed; continuing directly to Android APK export.' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Write explicit Godot 4.3 Android export preset values
         run: |
           set -euo pipefail
@@ -242,6 +250,7 @@ jobs:
           name: mobilei2v-build-logs
           path: |
             import.log
+            karma-validation.log
             configure.log
             export.log
             signing-check.log
