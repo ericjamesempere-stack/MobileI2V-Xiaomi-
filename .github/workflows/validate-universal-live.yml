@@ -25,6 +25,39 @@ jobs:
           unzip -q godot.zip
           chmod +x Godot_v4.5.2-stable_linux.x86_64
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --editor --path . --import --quit
+      - name: Diagnose production HTTPS connectivity without image upload
+        run: |
+          set -euo pipefail
+          mkdir -p live-evidence
+          python3 - <<'PY' | tee live-evidence/connectivity.json
+          import json, socket, ssl, urllib.request, urllib.error
+          from urllib.parse import urlsplit
+          urls = [
+              "https://qwen-qwen3-vl-demo.hf.space",
+              "https://prithivmlmods-qwen-image-edit-2511-loras-fast.hf.space",
+              "https://abidlabs-qwen-image-edit-2511-anypose.hf.space",
+          ]
+          results = []
+          for base in urls:
+              row = {"base": base}
+              try:
+                  row["dns_addresses"] = sorted({a[4][0] for a in socket.getaddrinfo(urlsplit(base).hostname, 443)})
+              except OSError as error:
+                  row["dns_error"] = type(error).__name__
+              try:
+                  with urllib.request.urlopen(base + "/config", timeout=20) as response:
+                      payload = json.load(response)
+                      row["http_status"] = response.status
+                      row["gradio_version"] = payload.get("version")
+                      row["api_names"] = [d.get("api_name") for d in payload.get("dependencies", []) if d.get("api_name")]
+              except urllib.error.HTTPError as error:
+                  row["http_status"] = error.code
+              except Exception as error:
+                  row["https_error_type"] = type(error).__name__
+                  row["https_reason"] = str(getattr(error, "reason", error))[:240]
+              results.append(row)
+          print(json.dumps({"tls_verification": True, "image_uploads": 0, "providers": results}, indent=2))
+          PY
       - name: Attempt production image to board path once
         env:
           KARMA_LIVE_EVIDENCE_DIR: ${{ github.workspace }}/live-evidence
