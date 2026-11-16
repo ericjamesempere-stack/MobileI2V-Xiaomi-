@@ -50,7 +50,10 @@ func record_video_result(output: String) -> void:
     if valid_mp4:
         var file := FileAccess.open(output, FileAccess.READ)
         if file != null:
-            size_ok = file.get_length() > 1024
+            if file.get_length() > 1024:
+                # MP4 ISO BMFF starts with a box size followed by the ftyp brand.
+                file.seek(4)
+                size_ok = file.get_buffer(4).get_string_from_ascii() == "ftyp"
             file.close()
     state["agents"]["video"] = "encoded_native" if size_ok else "failed"
     state["video_output"] = output if size_ok else ""
