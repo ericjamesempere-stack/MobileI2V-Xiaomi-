@@ -136,7 +136,7 @@ func render_pending(plan: Dictionary, folder: String, worker: Node, style: Strin
 
 # Dedicated visual fidelity agent: candidates are never human-approved here.
 func review_candidates(reference: Image, plan: Dictionary, folder: String, worker: Node, max_review: int = 4) -> Dictionary:
-    if worker == null or not worker.has_method("assess_keyposes"):
+    if worker == null or not worker.has_method("assess_keyposes") or not worker.has_method("vision_provider_id"):
         return {"ok": false, "error": "vision_reviewer_missing", "human_approved": false}
     var schedule_result: Dictionary = schedule(plan)
     if not schedule_result.get("ok", false):
@@ -168,7 +168,9 @@ func review_candidates(reference: Image, plan: Dictionary, folder: String, worke
             return {"ok": false, "error": "intermediate_image_unreadable", "task": task["id"], "human_approved": false}
         var expected: Dictionary = task.duplicate(true)
         expected["pose"] = "Intermediate physical state at fraction %.3f" % float(task["fraction"])
-        var response: Dictionary = await worker.assess_keyposes(reference, [image], [expected])
+        var review_images: Array[Image] = [image]
+        var review_expected: Array = [expected]
+        var response: Dictionary = await worker.assess_keyposes(reference, review_images, review_expected)
         if not response.get("ok", false):
             return {"ok": false, "error": "intermediate_vision_review_failed", "detail": response.get("error", ""), "task": task["id"], "human_approved": false}
         if not response.get("review") is Dictionary or not response["review"].get("frames") is Array or response["review"]["frames"].size() != 1:
