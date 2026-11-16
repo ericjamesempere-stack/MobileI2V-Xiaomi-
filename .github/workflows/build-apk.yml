@@ -159,6 +159,12 @@ jobs:
           timeout 120s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --import 2>&1 | tee import.log
           if grep -E 'SCRIPT ERROR|Parse Error|ConfigFile parse error' import.log; then exit 1; fi
 
+      - name: Test KARMA ONE intermediate rendering and cache
+        run: |
+          set -euo pipefail
+          timeout 60s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_karma_intermediate_render.gd 2>&1 | tee intermediate-render.log
+          grep -q 'V54_INTERMEDIATE_RENDER_CANDIDATES_OK' intermediate-render.log
+          if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' intermediate-render.log; then exit 1; fi
       - name: Test KARMA ONE intermediate agent contract
         run: |
           set -euo pipefail
