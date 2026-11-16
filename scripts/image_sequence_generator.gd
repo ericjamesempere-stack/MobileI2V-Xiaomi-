@@ -95,6 +95,11 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
    "temporal_position": float(index) / float(maxi(1, count - 1))
   }
   var headers := PackedStringArray(["Content-Type: application/json"])
+  # Hugging Face Gradio Spaces use /gradio_api/call/<api_name>.
+  # The initial POST returns an event_id; results arrive through SSE.
+  var gradio_mode: bool = endpoint.contains("/gradio_api/call/redraw")
+  if gradio_mode:
+   payload = {"data": [reference_b64, Marshalls.raw_to_base64(pose_png), active_prompt]}
   if not api_token.is_empty():
    headers.append("Authorization: Bearer " + api_token)
   var err := http.request(endpoint, headers, HTTPClient.METHOD_POST, JSON.stringify(payload))
@@ -107,7 +112,40 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
    var http_code: int = int(response[1])
    var retryable: bool = http_code == 429 or http_code == 503 or http_code == 502 or http_code == 504
    return {"ok": false, "error": "Moteur indisponible (HTTP %s). %s" % [http_code, "Reessayer ou choisir un autre moteur HTTPS." if retryable else "Verifier la configuration du moteur."], "generated": frames.size(), "retryable": retryable, "http_status": http_code}
-  var data: Variant = JSON.parse_string((response[3] as PackedByteArray).get_string_from_utf8())
+  var response_body: PackedByteArray = response[3] as PackedByteArray
+  if gradio_mode:
+   var queued: Variant = JSON.parse_string(response_body.get_string_from_utf8())
+   if not queued is Dictionary or not queued.has("event_id"):
+    return {"ok": false, "error": "Gradio: event_id manquant", "generated": frames.size()}
+   var event_url: String = endpoint.rstrip("/") + "/" + str(queued["event_id"])
+   var stream := HTTPRequest.new()
+   stream.timeout = 120.0
+   add_child(stream)
+   var stream_error: Error = stream.request(event_url, PackedStringArray(["Accept: text/event-stream"]), HTTPClient.METHOD_GET)
+   if stream_error != OK:
+    stream.queue_free()
+    return {"ok": false, "error": "Gradio: impossible de lire le resultat", "generated": frames.size()}
+   var stream_result: Array = await stream.request_completed
+   stream.queue_free()
+   if int(stream_result[0]) != HTTPRequest.RESULT_SUCCESS or int(stream_result[1]) != 200:
+    return {"ok": false, "error": "Gradio: requete SSE echouee", "generated": frames.size()}
+   var stream_text: String = (stream_result[3] as PackedByteArray).get_string_from_utf8()
+   var completed: bool = false
+   for event_block in stream_text.split("\\n\\n"):
+    if not event_block.begins_with("event: complete"):
+     continue
+    for event_line in event_block.split("\\n"):
+     if event_line.begins_with("data: "):
+      var decoded: Variant = JSON.parse_string(event_line.substr(6))
+      if decoded is Array and not decoded.is_empty():
+       response_body = JSON.stringify({"image_base64": decoded[0]}).to_utf8_buffer()
+       completed = true
+       break
+    if completed:
+     break
+   if not completed:
+    return {"ok": false, "error": "Gradio: resultat absent ou quota GPU atteint", "generated": frames.size()}
+  var data: Variant = JSON.parse_string(response_body.get_string_from_utf8())
   if not data is Dictionary or not data.has("image_base64"):
    return {"ok": false, "error": "Reponse invalide : image_base64 manquant", "generated": frames.size()}
   var encoded_image: String = str(data["image_base64"])
