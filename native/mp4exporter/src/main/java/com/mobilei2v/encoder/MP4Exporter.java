@@ -73,7 +73,8 @@ public final class MP4Exporter extends GodotPlugin {
         if (requestCode != PHOTO_REQUEST) return;
         if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) {
             pickingPhoto = false;
-            emitSignal("reference_image_cancelled");
+            Activity cancelActivity = getActivity();
+            if (cancelActivity != null) cancelActivity.runOnUiThread(() -> emitSignal("reference_image_cancelled"));
             return;
         }
         final Uri uri = data.getData();
@@ -90,7 +91,10 @@ public final class MP4Exporter extends GodotPlugin {
                 }
             } catch (Exception e) {
                 Log.w("MobileI2V", "Reference import failed: " + e.getClass().getSimpleName());
-                emitSignal("reference_image_error", "Cette image n'a pas pu être importée. Essaie une autre image.");
+                Activity errorActivity = getActivity();
+                if (errorActivity != null) {
+                    errorActivity.runOnUiThread(() -> emitSignal("reference_image_error", "Cette image n'a pas pu être importée. Essaie une autre image."));
+                }
             } finally { pickingPhoto = false; }
         }, "KarmaPhotoImport").start();
     }
