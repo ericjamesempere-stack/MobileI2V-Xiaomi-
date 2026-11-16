@@ -3,7 +3,7 @@ extends RefCounted
 # No API required. Accept only frame_NNNN.png/jpg/jpeg/webp.
 const ROOT := "user://projects/karma_merged"
 
-func merge(folder: String, existing: Array[String], limit: int = 240) -> Dictionary:
+func merge(folder: String, existing: Array[String], limit: int = 240, expected_frames: int = 0) -> Dictionary:
  var dir := DirAccess.open(folder)
  if dir == null:
   return {"ok": false, "error": "Dossier inaccessible"}
@@ -54,10 +54,10 @@ func merge(folder: String, existing: Array[String], limit: int = 240) -> Diction
   indices.append(int(idx))
  indices.sort()
  var missing: Array[int] = []
- for i in range(indices[-1] + 1):
+ for i in range(maxi(indices[-1] + 1, mini(limit, expected_frames))):
   if not frame_paths.has(i):
    missing.append(i)
  var ordered: Array[String] = []
  for idx in indices:
   ordered.append(str(frame_paths[idx]))
- return {"ok": true, "paths": ordered, "indices": indices, "missing": missing, "added": added, "duplicates": duplicates, "rejected": rejected, "folder": output}
+ return {"ok": true, "paths": ordered, "indices": indices, "missing": missing, "added": added, "duplicates": duplicates, "rejected": rejected, "folder": output, "complete": missing.is_empty() and (expected_frames <= 0 or indices.size() >= expected_frames)}
