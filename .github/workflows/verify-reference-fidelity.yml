@@ -1,0 +1,23 @@
+name: Verify reference fidelity gate
+on:
+  push:
+    branches:
+      - karma/reference-fidelity-gate-20261116
+  workflow_dispatch:
+
+jobs:
+  godot-headless:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Godot 4.3
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.3-stable_linux.x86_64
+      - name: Import Godot project
+        run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --import --quit
+      - name: Verify fidelity request contract
+        run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --script res://tests/test_reference_fidelity_gate.gd
