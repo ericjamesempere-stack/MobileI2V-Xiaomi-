@@ -50,7 +50,9 @@ func merge(folder: String, existing: Array[String], limit: int = 240, expected_f
   if base.begins_with("frame_") and base.substr(6).is_valid_int() and FileAccess.file_exists(path):
    var idx: int = int(base.substr(6))
    if idx >= 0 and idx < limit:
-    frame_paths[idx] = path
+    var old_image := Image.new()
+    if old_image.load(path) == OK and not old_image.is_empty():
+     frame_paths[idx] = path
  var added: int = 0
  var duplicates: int = 0
  var rejected: int = 0
