@@ -196,6 +196,10 @@ jobs:
         timeout-minutes: 2
         run: |
           timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_continuous_rig.gd
+      - name: Test selected-image visual analysis and reference locking
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_reference_visual_analysis.gd
       - name: Test test_board_generation_plan.gd
         timeout-minutes: 2
         run: |
