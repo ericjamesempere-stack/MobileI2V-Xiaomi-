@@ -33,28 +33,28 @@ jobs:
           assert opts.get("architectures/armeabi-v7a") == "false", "Unexpected ARMv7 export"
           print("PASS: Android ARM64 export configuration")
           PY
-      - name: Download Godot 4.5.1 headless-compatible binary
+      - name: Download Godot 4.5.2 headless-compatible binary
         run: |
           set -euo pipefail
-          curl -fL --retry 3 -o /tmp/godot.zip https://github.com/godotengine/godot/releases/download/4.5.1-stable/Godot_v4.5.1-stable_linux.x86_64.zip
+          curl -fL --retry 3 -o /tmp/godot.zip https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
           unzip -q /tmp/godot.zip -d /tmp
-          chmod +x /tmp/Godot_v4.5.1-stable_linux.x86_64
+          chmod +x /tmp/Godot_v4.5.2-stable_linux.x86_64
       - name: Confirm Godot installation
-        run: /tmp/Godot_v4.5.1-stable_linux.x86_64 --version
+        run: /tmp/Godot_v4.5.2-stable_linux.x86_64 --version
       - name: Import Godot project
         run: |
           set -euo pipefail
-          /tmp/Godot_v4.5.1-stable_linux.x86_64 --headless --path . --editor --import --quit 2>&1 | tee /tmp/godot-import.log
+          /tmp/Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --import --quit 2>&1 | tee /tmp/godot-import.log
           if grep -Ei 'SCRIPT ERROR|Parse Error|Failed to load script' /tmp/godot-import.log; then exit 1; fi
       - name: Parse and load project scripts
         run: |
           set -euo pipefail
-          /tmp/Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/validate_karma_one.gd 2>&1 | tee /tmp/godot-validate.log
+          /tmp/Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/validate_karma_one.gd 2>&1 | tee /tmp/godot-validate.log
           if grep -Ei 'SCRIPT ERROR|Parse Error|Failed to load script|INVALID SCRIPT|FAILED:|INVALID MAIN SCENE' /tmp/godot-validate.log; then exit 1; fi
       - name: Smoke-test application startup after successful validation
         run: |
           set -euo pipefail
-          timeout 45s /tmp/Godot_v4.5.1-stable_linux.x86_64 --headless --path . --quit-after 20 2>&1 | tee /tmp/godot-startup.log
+          timeout 45s /tmp/Godot_v4.5.2-stable_linux.x86_64 --headless --path . --quit-after 20 2>&1 | tee /tmp/godot-startup.log
           if grep -Ei 'SCRIPT ERROR|Parse Error|Failed to load script|ERROR:|FATAL:' /tmp/godot-startup.log; then exit 1; fi
           echo "PASS: Godot project startup"
       - name: Upload diagnostic logs
