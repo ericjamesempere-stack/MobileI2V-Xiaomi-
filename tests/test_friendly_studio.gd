@@ -20,9 +20,9 @@ func run() -> void:
     assert(board.status.text.contains("Raconte"))
     board.imported_path = ""
     board.character_description.text = ""
-    board.action_input.text = "Il marche"
+    board.action_input.text = ""
     await board._friendly_generate()
-    assert(board.wizard_step == 0, "Missing character returns to the first step")
+    assert(board.status.text.contains("Raconte"))
     board._go_step(2)
     board._sync_friendly_ui()
     assert(board.friendly_export.disabled, "An empty or unreviewed film cannot be exported")
@@ -58,5 +58,65 @@ func run() -> void:
     board._toggle_drawing_preview()
     assert(not board.drawing_preview_playing)
     board.free()
+    await test_idea_entry()
     print("FRIENDLY_STUDIO_NAVIGATION_AND_GUARDS_OK")
     quit(0)
+
+# SIMULATED inference: tests wiring and preservation, not image quality.
+class FakeImageWorker extends Node:
+    var hf_token: String = ""
+    var observer: Node
+    func create_reference(description: String, _style: String) -> Dictionary:
+        observer.requested_ideas.append(description)
+        if observer.fail_creation:
+            return {"ok": false, "error": "SIMULATED unavailable"}
+        var image := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+        image.fill(Color.SKY_BLUE)
+        return {"ok": true, "image": image, "model": "SIMULATED"}
+class IdeaBoard extends "res://scripts/storyboard.gd":
+    var requested_ideas: Array[String] = []
+    var received_stories: Array[String] = []
+    var fail_creation: bool = false
+    func _make_drawing_worker() -> Node:
+        var worker := FakeImageWorker.new()
+        worker.observer = self
+        return worker
+    func _draw_remote_story() -> void:
+        assert(not imported_path.is_empty() and FileAccess.file_exists(imported_path))
+        received_stories.append(action_input.text)
+func test_idea_entry() -> void:
+    var board := IdeaBoard.new()
+    root.add_child(board)
+    board.imported_path = ""
+    board.character_description.text = ""
+    var idea: String = "Un paysage de montagne se transforme au lever du soleil."
+    board.action_input.text = idea
+    board.photo_importing = true
+    await board._friendly_generate()
+    await board._create_remote_reference("Do not generate during import")
+    assert(board.requested_ideas.is_empty() and board.received_stories.is_empty())
+    board.photo_importing = false
+    await board._friendly_generate()
+    assert(board.requested_ideas == [idea], "Story alone must create the initial scene")
+    assert(board.received_stories == [idea], "Full idea must reach the existing board pipeline")
+    assert(board.character_description.text.is_empty(), "Do not overwrite the optional description")
+    var saved: String = board.imported_path
+    var digest: String = FileAccess.get_sha256(saved)
+    board.action_input.text = "La neige fond."
+    await board._friendly_generate()
+    assert(board.requested_ideas.size() == 1, "Reuse an imported or created reference")
+    assert(board.imported_path == saved and FileAccess.get_sha256(saved) == digest)
+    board.fail_creation = true
+    await board._create_remote_reference("Un bateau")
+    assert(board.imported_path == saved and FileAccess.get_sha256(saved) == digest)
+    assert(board.status.text.contains("SIMULATED unavailable"))
+    board.imported_path = ""
+    board.fail_creation = false
+    board.character_description.text = "Deux véhicules dans un désert"
+    board.action_input.text = "Ils se croisent."
+    await board._friendly_generate()
+    assert(board.requested_ideas.back() == "Deux véhicules dans un désert")
+    assert(board.received_stories.back() == "Ils se croisent.")
+    board.queue_free()
+    await process_frame
+    print("UNIVERSAL_IDEA_ENTRY_WIRING_OK: SIMULATED image creation; idea-only, optional subject, reference reuse, import guard and failure preservation")

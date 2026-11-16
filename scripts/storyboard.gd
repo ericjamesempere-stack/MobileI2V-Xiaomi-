@@ -2020,16 +2020,18 @@ func _selected_drawing_style() -> String:
         return custom_style_input.text.strip_edges().substr(0, 160)
     return ["original", "cartoon", "manga", "anime", "3d", "cinema", "bd_detail"][drawing_style.selected]
 
-func _create_remote_reference() -> void:
-    if ai_running or disk_drawing_running or exporting_video:
+func _create_remote_reference(description_override: String = "") -> void:
+    if ai_running or disk_drawing_running or exporting_video or photo_importing:
         status.text = "Une operation est deja en cours."
         return
-    var description: String = character_description.text.strip_edges()
+    var description: String = description_override.strip_edges()
     if description.is_empty():
-        status.text = "Decris le personnage a creer dans le champ Personnage."
+        description = character_description.text.strip_edges()
+    if description.is_empty():
+        status.text = "Décris le sujet ou la scène à créer."
         return
     ai_running = true
-    status.text = "Création de ton personnage… Cela peut prendre un petit moment."
+    status.text = "Création de ton image de départ… Cela peut prendre un petit moment."
     var worker: Node = _make_drawing_worker()
     worker.hf_token = ai_token_input.text.strip_edges()
     add_child(worker)
@@ -2049,7 +2051,7 @@ func _create_remote_reference() -> void:
         return
     await _image_chosen(path)
     _reuse_reference_drawing()
-    status.text = "Ton personnage est prêt et sauvegardé ! Passe à ton histoire."
+    status.text = "Ton image est prête et sauvegardée ! Passe à ton histoire."
 
 func _reuse_reference_drawing() -> void:
     if ai_running or disk_drawing_running or exporting_video:
@@ -2122,7 +2124,7 @@ func _draw_remote_story() -> void:
         return
     var reference: Image = load("res://scripts/android_image_reader.gd").read_image(imported_path)
     if reference == null:
-        status.text = "Importe une photo ou crée d'abord ton personnage par IA."
+        status.text = "Importe une image ou décris ton idée pour créer l'image de départ."
         return
     var story: String = action_input.text.strip_edges()
     if story.is_empty():
@@ -2282,17 +2284,18 @@ func _sync_friendly_ui() -> void:
     choice_summary.text = "%d secondes · %d dessins · %s" % [int(duration_input.value), int(ai_drawings_count.value), drawing_style.get_item_text(drawing_style.selected)]
 
 func _friendly_generate() -> void:
-    if ai_running or disk_drawing_running or exporting_video:
+    if ai_running or disk_drawing_running or exporting_video or photo_importing:
         return
     if action_input.text.strip_edges().is_empty():
         status.text = "Raconte ton histoire, ou choisis un exemple juste en dessous."
         return
     if imported_path.is_empty():
-        if character_description.text.strip_edges().is_empty():
-            _go_step(0)
-            status.text = "Il nous faut un héros : choisis une photo ou invente ton personnage."
-            return
-        await _create_remote_reference()
+        # One idea can describe a scene, object, landscape or several subjects.
+        # Keep the full story for the same universal pipeline after creation.
+        var initial_idea: String = character_description.text.strip_edges()
+        if initial_idea.is_empty():
+            initial_idea = action_input.text.strip_edges()
+        await _create_remote_reference(initial_idea)
         if imported_path.is_empty():
             return
     var previous_paths: Array[String] = paths.duplicate()
@@ -2325,7 +2328,7 @@ func _friendly_restore() -> void:
     _load_saved()
     _go_step(2 if sources.size() > 1 else 0)
     if sources.is_empty() and imported_path.is_empty():
-        status.text = "Aucun projet enregistré pour le moment. Créons ton premier personnage !"
+        status.text = "Aucun projet enregistré pour le moment. Commence par une image ou une idée."
 
 
 func _cancel_photo_import() -> void:
