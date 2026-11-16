@@ -81,7 +81,7 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
         _set_status("Echec initialisation de l'encodeur H.264.")
         exporting = false
         return
-    var total: int = maxi(1, roundi(clampf(duration, 0.5, 60.0) * float(FPS)))
+    var total: int = maxi(1, roundi(clampf(duration, 0.5, 300.0) * float(FPS)))
     var written: int = 0
     var previous_pair: String = ""
     var image_a: Image = null
