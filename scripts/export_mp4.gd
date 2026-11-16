@@ -78,7 +78,7 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
         _set_status("MP4 impossible : planche vide.")
         return
     if not Engine.has_singleton("MP4Exporter"):
-        _set_status("Encodeur MP4 Android indisponible. Utilise l'export AVI local.")
+        _set_status("Encodeur MP4 Android indisponible sur cet appareil. Aucun faux MP4 ne sera cree.")
         return
     exporting = true
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://exports"))
