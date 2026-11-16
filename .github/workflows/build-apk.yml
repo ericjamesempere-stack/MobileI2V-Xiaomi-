@@ -181,6 +181,9 @@ jobs:
           set -euo pipefail
           timeout 30s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_hf_studio_generator.gd 2>&1 | tee hf-studio-protocol.log
           grep -q 'HF_STUDIO_PROTOCOL_TESTS_OK' hf-studio-protocol.log
+          timeout 30s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_hf_studio_ui.gd 2>&1 | tee hf-studio-ui.log
+          grep -q 'HF_STUDIO_UI_EXACT_REFERENCE_PERSISTENCE_OK' hf-studio-ui.log
+          if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' hf-studio-ui.log; then exit 1; fi
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error' hf-studio-protocol.log; then exit 1; fi
 
       - name: Smoke-test KARMA ONE startup before APK export

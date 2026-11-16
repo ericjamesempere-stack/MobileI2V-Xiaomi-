@@ -1658,8 +1658,10 @@ func _build_contact_sheet() -> void:
         var img: Image = sources[source_index].get_image()
         if img == null or img.is_empty():
             continue
-        img.resize(thumb_w - 8, thumb_h - 8, Image.INTERPOLATE_BILINEAR)
-        board.blit_rect(img, Rect2i(0, 0, img.get_width(), img.get_height()), Vector2i((slot % cols) * thumb_w + 4, int(slot / cols) * thumb_h + 4))
+        var ratio: float = minf(float(thumb_w - 8) / img.get_width(), float(thumb_h - 8) / img.get_height())
+        img.resize(maxi(1, roundi(img.get_width() * ratio)), maxi(1, roundi(img.get_height() * ratio)), Image.INTERPOLATE_BILINEAR)
+        img.convert(Image.FORMAT_RGBA8)
+        board.blit_rect(img, Rect2i(Vector2i.ZERO, img.get_size()), Vector2i((slot % cols) * thumb_w + (thumb_w - img.get_width()) / 2, int(slot / cols) * thumb_h + (thumb_h - img.get_height()) / 2))
     contact_sheet.texture = ImageTexture.create_from_image(board)
     contact_caption.text = ("PLANCHE : apercu de %d / %d dessins (verifier avant validation)" % [shown, sources.size()] if shown < sources.size() else "PLANCHE : %d dessins (verifier avant validation)" % shown)
 
