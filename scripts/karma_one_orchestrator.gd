@@ -13,6 +13,10 @@ func generate(source: Image, prompt: String, endpoints: String, count: int = 12,
    providers.append(address)
  if providers.is_empty():
   return {"ok": false, "error": "KARMA ONE : aucun moteur HTTPS configure"}
+ var agents: RefCounted = load("res://scripts/karma_one_agents.gd").new()
+ var planning: Dictionary = agents.plan(prompt, duration if duration > 0.0 else float(count) / 4.0, count)
+ if not bool(planning.get("ok", false)):
+  return {"ok": false, "error": "KARMA ONE : " + str(planning.get("error", "Planification impossible"))}
  var errors: Array[String] = []
  for address in providers:
   if cancel_requested:
@@ -28,7 +32,8 @@ func generate(source: Image, prompt: String, endpoints: String, count: int = 12,
   if bool(result.get("ok", false)):
    result["provider"] = address
    return result
-  errors.append("%s : %s" % [address, str(result.get("error", "erreur inconnue"))])
+  var diagnosis: Dictionary = agents.diagnose(str(result.get("error", "")), int(result.get("http_status", 0)))
+  errors.append("%s : %s [agent %s : %s]" % [address, str(result.get("error", "erreur inconnue")), str(diagnosis.get("agent", "recovery")), str(diagnosis.get("action", "diagnostiquer"))])
   # Authentication, invalid requests and unsupported actions are not
   # solved by switching providers; stop instead of burning quotas.
   var status: int = int(result.get("http_status", 0))
