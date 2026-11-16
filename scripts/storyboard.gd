@@ -1970,7 +1970,10 @@ func _draw_remote_story() -> void:
     for color in reference_profile.get("palette", []):
         palette_hex.append("#" + (color as Color).to_html(false))
     var visual_guidance: String = "Selected reference image: %d by %d pixels. Dominant reference colors: %s. Match the actual reference image subject, composition, silhouette, materials and recognizable features; do not replace it with a generic character. These colors are measured from the image, not an AI semantic description." % [reference.get_width(), reference.get_height(), ", ".join(palette_hex)]
-    var reference_digest: String = reference.get_data().sha256_text()
+    var reference_hash := HashingContext.new()
+    reference_hash.start(HashingContext.HASH_SHA256)
+    reference_hash.update(reference.get_data())
+    var reference_digest: String = reference_hash.finish().hex_encode()
     var cache_key: String = (reference_digest + story + style + str(total) + str(duration)).sha256_text().substr(0, 24)
     var folder: String = "user://projects/hf_" + cache_key
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
