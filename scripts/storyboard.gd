@@ -99,6 +99,7 @@ func _ready() -> void:
     contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     root_box.add_child(contact_sheet)
     _button("KARMA ONE : IMPORTER ET PRODUIRE LE MP4", _choose_drawings_folder)
+    _button("KARMA ONE : PREPARER UN RELAIS VERS UNE AUTRE IA", _prepare_karma_relay)
     var auto_export_toggle := CheckBox.new()
     auto_export_toggle.text = "Exporter automatiquement apres import (KARMA ONE)"
     auto_export_toggle.button_pressed = true
@@ -264,6 +265,20 @@ func _avi_headers(width: int, height: int, fps: int, count: int, max_jpg: int) -
     var hdrl := _avi_chunk("avih", avih)
     hdrl.append_array(_avi_list("strl", stream))
     return _avi_list("hdrl", hdrl)
+
+func _prepare_karma_relay() -> void:
+    if action_input.text.strip_edges().is_empty():
+        status.text = "KARMA ONE : decris d'abord l'histoire."
+        return
+    var relay: RefCounted = load("res://scripts/karma_one_relay.gd").new()
+    var frame_count: int = clampi(int(ceil(float(duration_input.value) * 4.0)), 2, 240)
+    var result: Dictionary = relay.create_relay(action_input.text, float(duration_input.value), frame_count, paths)
+    if not bool(result.get("ok", false)):
+        status.text = "KARMA ONE : " + str(result.get("error", "Echec du relais"))
+        return
+    var prompt_path: String = str(result.get("folder", "")).path_join("PROMPT_A_COPIER.txt")
+    DisplayServer.clipboard_set(FileAccess.get_file_as_string(prompt_path))
+    status.text = "KARMA ONE : relais cree (%d dessins manquants). Instructions copiees dans le presse-papiers. Dossier : %s" % [result.get("missing", []).size(), str(result.get("folder", ""))]
 
 func _choose_drawings_folder() -> void:
     drawings_folder_picker.popup_centered_ratio(0.9)
