@@ -1991,14 +1991,17 @@ func _draw_remote_story() -> void:
         if not cached:
             var seconds: float = float(index) / float(maxi(1, total - 1)) * duration
             var directive: String = story
+            var action_name: String = "inconnu"
             var phase: float = 0.0
             for step in motion.get("steps", []):
                 if seconds < float(step["end"]) or step == motion["steps"].back():
                     directive = str(step["description"])
+                    action_name = str(step.get("action", "inconnu"))
                     phase = clampf((seconds - float(step["start"])) / maxf(0.001, float(step["end"]) - float(step["start"])), 0.0, 1.0)
                     break
             status.text = "Dessin %d sur %d · Création en cours…" % [index + 1, total]
-            var instruction: String = "Draw exactly ONE full-frame drawing, no grid, no panels, no text. Full story: " + story + ". Current action: " + directive + ". Action progression: %d percent. Preserve the same background and subject proportions." % roundi(phase * 100.0)
+            var phase_guide: String = load("res://scripts/board_generation_plan.gd").new().phase_at(action_name, phase)
+            var instruction: String = "Draw exactly ONE NEW full-frame keyframe image, no grid, no panels, no text. Full story: " + story + ". Current action: " + directive + ". Pose or event phase: " + phase_guide + ". Action progression: %d percent. Make a visibly different physical pose, spatial position or scene state from the previous frame. Preserve the subject identity, material, silhouette, colors, chosen style and consistent background. A subject can be a fruit, animal, object, vehicle, person or landscape: never add a human body unless the story asks for one." % roundi(phase * 100.0)
             var result: Dictionary = await worker.redraw(reference, instruction, style, previous)
             if not result.get("ok", false):
                 failure = str(result.get("error", "Erreur distante."))
