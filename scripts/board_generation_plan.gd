@@ -14,6 +14,15 @@ const ACTION_PHASES := {
     "repos": ["pose stable"]
 }
 
+func phase_at(action: String, progress: float) -> String:
+    # Universal phase labels: unknown actions remain meaningful and never
+    # silently become a human standing still.
+    var phases: Array = ACTION_PHASES.get(action, [])
+    if phases.is_empty():
+        phases = ["initial state", "begin requested change", "mid-action", "complete requested change", "final state"]
+    var index: int = mini(phases.size() - 1, int(floor(clampf(progress, 0.0, 1.0) * phases.size())))
+    return str(phases[index])
+
 func make_plan(story: String, reference_images: Array, seconds: float, target_fps: int = 30) -> Dictionary:
     var planner: RefCounted = load("res://scripts/story_motion_planner.gd").new()
     var parsed: Dictionary = planner.plan(story, seconds)
