@@ -56,7 +56,21 @@ jobs:
                   row["https_error_type"] = type(error).__name__
                   row["https_reason"] = str(getattr(error, "reason", error))[:240]
               results.append(row)
-          print(json.dumps({"tls_verification": True, "image_uploads": 0, "providers": results}, indent=2))
+          from pathlib import Path
+          boundary = "KarmaConnectivityPublicFixture"
+          fixture = Path("validation/v54-poses/reference.png").read_bytes()
+          body = (("--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\"reference.png\"\r\nContent-Type: image/png\r\n\r\n").encode() + fixture + ("\r\n--" + boundary + "--\r\n").encode())
+          upload_result = {"fixture": "public synthetic repository fixture"}
+          try:
+              request = urllib.request.Request(urls[0] + "/gradio_api/upload", data=body, headers={"Content-Type": "multipart/form-data; boundary=" + boundary})
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  paths = json.load(response)
+                  upload_result.update({"http_status": response.status, "file_count": len(paths)})
+          except urllib.error.HTTPError as error:
+              upload_result["http_status"] = error.code
+          except Exception as error:
+              upload_result["error_type"] = type(error).__name__
+          print(json.dumps({"tls_verification": True, "providers": results, "public_fixture_upload": upload_result}, indent=2))
           PY
       - name: Compare Godot HTTPS and production upload transport
         run: |
@@ -82,7 +96,8 @@ jobs:
                   http.queue_free()
               var reference := Image.new()
               assert(reference.load("res://validation/v54-poses/reference.png") == OK)
-              var upload: Dictionary = await worker._upload_images(worker.VISION_URL, [reference])
+              var images: Array[Image] = [reference]
+              var upload: Dictionary = await worker._upload_images(worker.VISION_URL, images)
               print("GODOT_PUBLIC_FIXTURE_UPLOAD ", {"ok": upload.get("ok", false), "error": upload.get("error", "")})
               worker.queue_free()
               await process_frame
