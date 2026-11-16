@@ -169,6 +169,10 @@ func build(board: Control) -> void:
         tile.custom_minimum_size.y = 64
         tile.toggle_mode = true
         board.style_tiles.append(tile)
+    board.custom_style_input = LineEdit.new()
+    board.custom_style_input.placeholder_text = "Autre style libre : aquarelle, pâte à modeler, pixel art..."
+    board.custom_style_input.custom_minimum_size.y = 58
+    person.add_child(board.custom_style_input)
     button(board, board.wizard_pages[0], "Continuer : mon histoire", func() -> void: board._go_step(1), true).name = "NextStory"
 
     var story: VBoxContainer = card(board.wizard_pages[1], "Que va-t-il se passer ?", "Raconte une petite aventure. Tu peux commencer par un exemple.")
