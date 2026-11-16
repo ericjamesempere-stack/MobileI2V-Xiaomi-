@@ -35,13 +35,27 @@ func generate(story: String, visual_style: String, count: int = 2) -> Dictionary
  if not bool(plan.get("ok", false)):
   return {"ok": false, "error": str(plan.get("error", "Plan invalide"))}
  var frames: Array[Image] = []
+ var allowed_actions: Array[String] = ["repos", "marche", "course", "saut", "chute", "trebuche", "releve", "danse", "salut"]
+ for step in plan.get("steps", []):
+  if bool(step.get("needs_generation", false)) or not allowed_actions.has(str(step.get("action", ""))):
+   return {"ok": false, "error": "Aucun guide de pose fiable pour : " + str(step.get("description", ""))}
  for i in range(count):
   if cancel_requested:
    return {"ok": false, "error": "Annule", "generated": frames.size()}
   var seconds := (float(i) + 0.5) / float(count) * float(plan.get("duration", count))
   var action: String = str(planner.action_at(plan, seconds))
   var phase := float(i) / float(maxi(1, count - 1))
+  for step in plan.get("steps", []):
+   if seconds < float(step.get("end", 0.0)) or step == plan.get("steps", []).back():
+    var begin: float = float(step.get("start", 0.0))
+    var end: float = float(step.get("end", begin + 1.0))
+    phase = clampf((seconds - begin) / maxf(0.001, end - begin), 0.0, 1.0)
+    break
+  if action in ["marche", "course", "danse"]:
+   phase = seconds * (1.8 if action == "course" else 1.0)
   var pose: Image = guide_generator.render(story, phase, Vector2i(384, 384), action)
+  if pose == null or pose.is_empty():
+   return {"ok": false, "error": "Guide de pose absent", "generated": frames.size()}
   var pose_b64: String = Marshalls.raw_to_base64(pose.save_png_to_buffer())
   var prompt := "One single original 2D %s cartoon character, full body, consistent appearance, clean white background, pose: %s. Story: %s" % [visual_style, action, story]
   var args := [prompt, {"url": "data:image/png;base64," + pose_b64, "meta": {"_type": "gradio.FileData"}, "orig_name": "pose.png"}, "Pre-processed", 1.2, 8, 20261116, false, null, 0.0]
@@ -74,8 +88,10 @@ func generate(story: String, visual_style: String, count: int = 2) -> Dictionary
    return {"ok": false, "error": "Telechargement dessin impossible", "generated": frames.size()}
   var img := Image.new()
   var bytes: PackedByteArray = fetched["bytes"]
-  if img.load_webp_from_buffer(bytes) != OK or img.is_empty():
+  if bytes.size() < 1024 or bytes.size() > 8000000 or img.load_webp_from_buffer(bytes) != OK or img.is_empty():
    return {"ok": false, "error": "Dessin WebP invalide", "generated": frames.size()}
+  if img.get_width() < 64 or img.get_height() < 64 or img.get_width() > 1024 or img.get_height() > 1024:
+   return {"ok": false, "error": "Dimensions du dessin invalides", "generated": frames.size()}
   frames.append(img)
   progress.emit(i + 1, count)
  return {"ok": true, "frames": frames, "method": "zimage_controlnet_pose_experimental", "identity_verified": false, "pose_conditioned": true}
