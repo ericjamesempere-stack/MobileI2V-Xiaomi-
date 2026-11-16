@@ -3,6 +3,7 @@ extends Node
 signal progress(index: int, total: int)
 const TEXT_URL = "https://mrfakename-z-image-turbo.hf.space"
 const EDIT_URL = "https://prithivmlmods-qwen-image-edit-2511-loras-fast.hf.space"
+const ANYPOSE_URL = "https://abidlabs-qwen-image-edit-2511-anypose.hf.space"
 const STYLES = {
     "original": ["Anything2Real", "Keep the exact original drawing style, subject type, appearance, proportions, materials and colors. Preserve only features actually present in the reference."],
     "cartoon": ["Anime-V2", "2D cartoon animation, clean expressive outlines, flat colors, consistent subject design."],
@@ -13,6 +14,11 @@ const STYLES = {
 }
 var last_error: String = ""
 var hf_token: String = ""
+var engine_status: Dictionary = {}
+
+func _http_failure(code: int, network: int) -> Dictionary:
+    var kind: String = "quota" if code == 429 else ("authentication" if code == 401 or code == 403 else "transport")
+    return {"ok": false, "error_kind": kind, "http_status": code, "error": "Service IA indisponible (HTTP %d, reseau %d)." % [code, network]}
 
 func _call_api(base: String, api: String, data: Array) -> Dictionary:
     var http := _new_http()
@@ -27,7 +33,7 @@ func _call_api(base: String, api: String, data: Array) -> Dictionary:
     var response: Array = await http.request_completed
     http.queue_free()
     if int(response[0]) != HTTPRequest.RESULT_SUCCESS or int(response[1]) != 200:
-        return {"ok": false, "error": "Service IA indisponible (HTTP %d, reseau %d)." % [response[1], response[0]]}
+        return _http_failure(int(response[1]), int(response[0]))
     var queued: Variant = JSON.parse_string((response[3] as PackedByteArray).get_string_from_utf8())
     if not queued is Dictionary or not queued.get("event_id", null) is String:
         return {"ok": false, "error": "Reponse de file IA invalide."}
@@ -42,7 +48,7 @@ func _call_api(base: String, api: String, data: Array) -> Dictionary:
     response = await stream.request_completed
     stream.queue_free()
     if int(response[0]) != HTTPRequest.RESULT_SUCCESS or int(response[1]) != 200:
-        return {"ok": false, "error": "File GPU indisponible (HTTP %d)." % response[1]}
+        return _http_failure(int(response[1]), int(response[0]))
     return decode_event_stream((response[3] as PackedByteArray).get_string_from_utf8())
 
 func decode_event_stream(body: String) -> Dictionary:
@@ -56,8 +62,8 @@ func decode_event_stream(body: String) -> Dictionary:
                 payload += line.substr(6)
         if event == "error":
             if payload.to_lower().contains("quota") or payload.to_lower().contains("runs limit"):
-                return {"ok": false, "error": "Quota GPU gratuit atteint. Attends son renouvellement ou utilise ton compte Hugging Face gratuit via le champ de jeton dans Réglages et outils."}
-            return {"ok": false, "error": "Le service IA a refuse ou interrompu le calcul. Les dessins termines sont conserves."}
+                return {"ok": false, "error_kind": "quota", "quota_detail": payload.substr(0, 600), "error": "Quota GPU gratuit atteint. Les dessins termines sont conserves ; aucun nouvel essai automatique sur ce moteur dans ce lot."}
+            return {"ok": false, "error_kind": "hidden_server_error" if payload == "null" else "server_error", "error": "Le service IA a refuse ou interrompu le calcul. Les dessins termines sont conserves."}
         if event == "complete":
             var value: Variant = JSON.parse_string(payload)
             if value is Array:
@@ -104,6 +110,32 @@ func create_reference(description: String, style: String) -> Dictionary:
 func redraw(reference: Image, story: String, style: String, previous: Image = null, new_variation: bool = false) -> Dictionary:
     if reference == null or reference.is_empty() or style.strip_edges().is_empty() or story.strip_edges().is_empty():
         return {"ok": false, "error": "Image, directive ou style invalide."}
+    var failures: Array[String] = []
+    # A configured name or a reachable page is never proof of GPU availability.
+    # Each provider is attempted at most once after a failure in this worker.
+    for engine in ["qwen", "anypose"]:
+        if engine_status.get(engine, {}).get("status", "") == "unavailable":
+            failures.append(engine + ": " + str(engine_status[engine].get("error", "indisponible")))
+            continue
+        var result: Dictionary
+        if engine == "qwen":
+            result = await _redraw_qwen(reference, story, style, previous, new_variation)
+        else:
+            result = await _redraw_anypose(reference, story, style, previous, new_variation)
+        if result.get("ok", false):
+            var output: Image = result.get("image")
+            if output != null and not output.is_empty():
+                engine_status[engine] = {"status": "generated_unreviewed", "quota_remaining": "not_exposed", "identity_verified": false}
+                result["engine"] = engine
+                return result
+            result = {"ok": false, "error": "Dessin absent ou illisible.", "error_kind": "invalid_image"}
+        if result.get("error_kind", "") == "safety":
+            return result
+        engine_status[engine] = {"status": "unavailable", "error": result.get("error", "Erreur IA"), "error_kind": result.get("error_kind", "unknown"), "quota_detail": result.get("quota_detail", "")}
+        failures.append(engine + ": " + str(result.get("error", "Erreur IA")))
+    return {"ok": false, "error": "Aucun moteur n'a produit ce dessin. " + " | ".join(failures), "engines": engine_status.duplicate(true)}
+
+func _redraw_qwen(reference: Image, story: String, style: String, previous: Image, new_variation: bool) -> Dictionary:
     var instruction: String = _style_instruction(style) + " Image 1 is the permanent subject reference. " + story
     if previous != null:
         instruction += " Image 2 is temporal context only, not an additional subject or a target pose. Keep identity and background continuity, but render ONLY the new pose requested above."
@@ -112,7 +144,7 @@ func redraw(reference: Image, story: String, style: String, previous: Image = nu
         return safety
     var check: Array = safety.get("data", [])
     if check.is_empty() or not check[0] is Dictionary or str(check[0].get("status", "")) != "ok":
-        return {"ok": false, "error": "Directive refusee par le service d images."}
+        return {"ok": false, "error_kind": "safety", "error": "Directive refusee par le service d images."}
     var images: Array[String] = [Marshalls.raw_to_base64(reference.save_png_to_buffer())]
     if previous != null:
         images.append(Marshalls.raw_to_base64(previous.save_png_to_buffer()))
@@ -121,6 +153,8 @@ func redraw(reference: Image, story: String, style: String, previous: Image = nu
         return result
     var data: Array = result.get("data", [])
     if data.is_empty() or not data[0] is Dictionary or str(data[0].get("status", "")) != "success":
+        if not data.is_empty() and data[0] is Dictionary and str(data[0].get("status", "")) == "blocked":
+            return {"ok": false, "error_kind": "safety", "error": "Directive refusee par le moteur d images."}
         return {"ok": false, "error": "Le moteur n a pas retourne de dessin."}
     var encoded: String = str(data[0].get("image", ""))
     if encoded.contains(","):
@@ -131,6 +165,127 @@ func redraw(reference: Image, story: String, style: String, previous: Image = nu
     if output.load_png_from_buffer(Marshalls.base64_to_raw(encoded)) != OK or output.is_empty():
         return {"ok": false, "error": "PNG du moteur invalide."}
     return {"ok": true, "image": output, "model": "Qwen-Image-Edit-2511-Rapid", "identity_verified": false}
+
+func _upload_anypose(images: Array[Image]) -> Dictionary:
+    var boundary: String = "KarmaV54" + str(Time.get_ticks_usec())
+    var body := PackedByteArray()
+    for index in range(images.size()):
+        body.append_array(("--%s\r\nContent-Disposition: form-data; name=\"files\"; filename=\"reference_%d.png\"\r\nContent-Type: image/png\r\n\r\n" % [boundary, index]).to_utf8_buffer())
+        body.append_array(images[index].save_png_to_buffer())
+        body.append_array("\r\n".to_utf8_buffer())
+    body.append_array(("--" + boundary + "--\r\n").to_utf8_buffer())
+    var http := _new_http()
+    http.timeout = 60.0
+    http.body_size_limit = 1000000
+    add_child(http)
+    var err: Error = http.request_raw(ANYPOSE_URL + "/gradio_api/upload", _headers(["Content-Type: multipart/form-data; boundary=" + boundary]), HTTPClient.METHOD_POST, body)
+    if err != OK:
+        http.queue_free()
+        return {"ok": false, "error": "Upload AnyPose impossible."}
+    var response: Array = await http.request_completed
+    http.queue_free()
+    if int(response[0]) != HTTPRequest.RESULT_SUCCESS or int(response[1]) != 200:
+        return _http_failure(int(response[1]), int(response[0]))
+    var paths: Variant = JSON.parse_string((response[3] as PackedByteArray).get_string_from_utf8())
+    if not paths is Array or paths.size() != images.size():
+        return {"ok": false, "error": "Reponse upload AnyPose incompatible."}
+    var files: Array = []
+    for path in paths:
+        if not path is String or path.is_empty():
+            return {"ok": false, "error": "Fichier AnyPose manquant."}
+        files.append({"path": path, "meta": {"_type": "gradio.FileData"}})
+    return {"ok": true, "files": files}
+
+func _redraw_anypose(reference: Image, story: String, style: String, previous: Image, new_variation: bool) -> Dictionary:
+    var images: Array[Image] = [reference]
+    if previous != null:
+        images.append(previous)
+    var uploaded: Dictionary = await _upload_anypose(images)
+    if not uploaded.get("ok", false):
+        return uploaded
+    var files: Array = uploaded["files"]
+    var instruction: String = _style_instruction(style) + " Image 1 is the permanent subject reference. " + story
+    if previous != null:
+        instruction += " Image 2 is previous temporal context, not an extra subject. Render only the requested new states."
+    var result: Dictionary = await _call_api(ANYPOSE_URL, "infer", [files[0], files[1] if files.size() > 1 else files[0], instruction, 1234, new_variation, 1.0, 4, 1024, 1024, false])
+    if not result.get("ok", false):
+        return result
+    var data: Array = result.get("data", [])
+    if data.is_empty() or not data[0] is Array or data[0].is_empty() or not data[0][0] is Dictionary:
+        return {"ok": false, "error": "Galerie AnyPose incompatible."}
+    var file: Variant = data[0][0].get("image", {})
+    if not file is Dictionary:
+        return {"ok": false, "error": "Image AnyPose absente."}
+    var url: String = str(file.get("url", ""))
+    if not url.begins_with(ANYPOSE_URL + "/gradio_api/file="):
+        return {"ok": false, "error": "Adresse de sortie AnyPose non reconnue."}
+    var http := _new_http()
+    http.timeout = 60.0
+    http.body_size_limit = 12000000
+    add_child(http)
+    if http.request(url, _headers([])) != OK:
+        http.queue_free()
+        return {"ok": false, "error": "Telechargement AnyPose impossible."}
+    var response: Array = await http.request_completed
+    http.queue_free()
+    if int(response[0]) != HTTPRequest.RESULT_SUCCESS or int(response[1]) != 200:
+        return _http_failure(int(response[1]), int(response[0]))
+    var output := Image.new()
+    var bytes: PackedByteArray = response[3]
+    if output.load_png_from_buffer(bytes) != OK and output.load_webp_from_buffer(bytes) != OK and output.load_jpg_from_buffer(bytes) != OK:
+        return {"ok": false, "error": "Dessin AnyPose illisible."}
+    if output.is_empty():
+        return {"ok": false, "error": "Dessin AnyPose vide."}
+    return {"ok": true, "image": output, "model": "Qwen-Image-Edit-2511-AnyPose", "identity_verified": false}
+
+func batch_prompt(briefs: Array) -> String:
+    var prompt: String = "Create a 2 by 2 animation storyboard grid of FOUR equal square panels, read left to right then top to bottom. Show exactly the same single subject from image 1 in every used panel. Preserve its exact silhouette, face if present, existing appendages, markings, materials, proportions, colors, drawing style, background and ground. "
+    for index in range(briefs.size()):
+        prompt += "Panel %d: %s; %s. " % [index + 1, str(briefs[index].get("description", "")), str(briefs[index].get("pose", ""))]
+    if briefs.size() < 4:
+        prompt += "Leave the remaining panels empty. "
+    return prompt + "Equal panel sizes, no gutters, no captions, no text, no extra characters, no human torso unless already present. Every used panel is a different physical pose of the same subject, not a camera change or image deformation."
+
+func split_batch(sheet: Image, count: int) -> Dictionary:
+    if sheet == null or sheet.is_empty() or count < 2 or count > 4 or sheet.get_width() < 1024 or sheet.get_height() < 1024:
+        return {"ok": false, "error": "Planche IA insuffisante pour des dessins de 512 pixels minimum."}
+    var frames: Array[Image] = []
+    for index in range(count):
+        var col: int = index % 2
+        var row: int = index / 2
+        var x1: int = col * sheet.get_width() / 2
+        var y1: int = row * sheet.get_height() / 2
+        var x2: int = (col + 1) * sheet.get_width() / 2
+        var y2: int = (row + 1) * sheet.get_height() / 2
+        frames.append(sheet.get_region(Rect2i(x1, y1, x2 - x1, y2 - y1)))
+    return {"ok": true, "images": frames, "layout_verified": false, "identity_verified": false}
+
+func redraw_batch(reference: Image, briefs: Array, style: String, previous: Image = null) -> Dictionary:
+    if reference == null or reference.is_empty() or briefs.is_empty() or briefs.size() > 4:
+        return {"ok": false, "error": "Lot de dessins invalide."}
+    if briefs.size() == 1:
+        var single: Dictionary = await redraw(reference, str(briefs[0]["instruction"]), style, previous)
+        if single.get("ok", false):
+            single["images"] = [single["image"]]
+        return single
+    # Square conditioning canvas preserves proportions and never overwrites the
+    # original. It makes the fixed 1024px service produce 512px square cells.
+    var source: Image = reference.duplicate()
+    var scale_factor: float = 1024.0 / float(maxi(source.get_width(), source.get_height()))
+    source.resize(maxi(1, roundi(source.get_width() * scale_factor)), maxi(1, roundi(source.get_height() * scale_factor)), Image.INTERPOLATE_LANCZOS)
+    var canvas := Image.create(1024, 1024, false, Image.FORMAT_RGBA8)
+    canvas.fill(reference.get_pixel(0, 0))
+    source.convert(Image.FORMAT_RGBA8)
+    canvas.blit_rect(source, Rect2i(Vector2i.ZERO, source.get_size()), Vector2i((1024 - source.get_width()) / 2, (1024 - source.get_height()) / 2))
+    var result: Dictionary = await redraw(canvas, batch_prompt(briefs), style, previous)
+    if not result.get("ok", false):
+        return result
+    var split: Dictionary = split_batch(result["image"], briefs.size())
+    if split.get("ok", false):
+        split["sheet"] = result["image"]
+        split["model"] = result.get("model", "")
+        split["engine"] = result.get("engine", "")
+    return split
 
 
 func _new_http() -> HTTPRequest:

@@ -243,11 +243,11 @@ func build(board: Control) -> void:
     board.duration_input.max_value = 300
     board.duration_input.value = 6
     advanced.add_child(board.duration_input)
-    text(advanced, "Dessins IA par lot (commence par 6)", 20)
+    text(advanced, "Dessins IA par lot (commence par 4)", 20)
     board.ai_drawings_count = SpinBox.new()
     board.ai_drawings_count.min_value = 2
     board.ai_drawings_count.max_value = 24
-    board.ai_drawings_count.value = 6
+    board.ai_drawings_count.value = 4
     advanced.add_child(board.ai_drawings_count)
     text(advanced, "Compte Hugging Face : jeton facultatif", 20)
     board.ai_token_input = LineEdit.new()

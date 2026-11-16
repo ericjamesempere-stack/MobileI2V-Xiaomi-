@@ -1,0 +1,91 @@
+{
+  "agents": {
+    "image": "done",
+    "pose": "timed_instructions_ready",
+    "quality": "technical_checks_only",
+    "recovery": "saved",
+    "scenario": "done",
+    "video": "waiting_for_user"
+  },
+  "count": 4,
+  "duration": 4.0,
+  "engines": {
+    "qwen": {
+      "identity_verified": false,
+      "quota_remaining": "not_exposed",
+      "status": "generated_unreviewed"
+    }
+  },
+  "error": "",
+  "frames": {
+    "0": {
+      "human_approved": false,
+      "path": "user://projects/hf_17200145df719e7528a5d222/frame_0000.png",
+      "technical_quality": {
+        "average_change": -1.0,
+        "brightness": 0.852826293680513,
+        "identity_verified": false,
+        "issues": [],
+        "model": "Qwen-Image-Edit-2511-Rapid",
+        "ok": true,
+        "variance": 0.0175641447979537
+      }
+    },
+    "1": {
+      "human_approved": false,
+      "path": "user://projects/hf_17200145df719e7528a5d222/frame_0001.png",
+      "technical_quality": {
+        "average_change": 0.0608060141627599,
+        "brightness": 0.842232186777589,
+        "identity_verified": false,
+        "issues": [],
+        "model": "Qwen-Image-Edit-2511-Rapid",
+        "ok": true,
+        "variance": 0.0198391877684932
+      }
+    },
+    "2": {
+      "human_approved": false,
+      "path": "user://projects/hf_17200145df719e7528a5d222/frame_0002.png",
+      "technical_quality": {
+        "average_change": 0.0813585051526692,
+        "brightness": 0.817511753043619,
+        "identity_verified": false,
+        "issues": [],
+        "model": "Qwen-Image-Edit-2511-Rapid",
+        "ok": true,
+        "variance": 0.0226246993471214
+      }
+    },
+    "3": {
+      "human_approved": false,
+      "path": "user://projects/hf_17200145df719e7528a5d222/frame_0003.png",
+      "technical_quality": {
+        "average_change": 0.0709571578536271,
+        "brightness": 0.822070321564451,
+        "identity_verified": false,
+        "issues": [],
+        "model": "Qwen-Image-Edit-2511-Rapid",
+        "ok": true,
+        "variance": 0.0197379023922245
+      }
+    }
+  },
+  "identity_verified": false,
+  "reference_analysis": {
+    "aspect_ratio": 1.0,
+    "height": 768,
+    "palette_hex": [
+      "#ffdbdb",
+      "#ffdb24",
+      "#494924",
+      "#6d6d6d",
+      "#242424"
+    ],
+    "semantic_analysis": false,
+    "visible_fraction": 1.0,
+    "width": 768
+  },
+  "story": "Une banane anthropomorphe court, trébuche et tombe.",
+  "version": 1
+}

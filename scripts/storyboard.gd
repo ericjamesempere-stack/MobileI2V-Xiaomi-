@@ -1998,7 +1998,6 @@ func _draw_remote_story() -> void:
     if not reference_profile.get("ok", false):
         status.text = "Analyse de l image sélectionnée impossible : " + str(reference_profile.get("error", "image invalide"))
         return
-    var visual_guidance: String = visual_analyzer.drawing_guidance(reference_profile)
     # Keep the image measurements with the generated storyboard for audits and resume.
     session_agent.state["reference_analysis"] = {
         "width": int(reference_profile["width"]),
@@ -2026,19 +2025,32 @@ func _draw_remote_story() -> void:
     var drawing_paths: Array[String] = []
     var previous: Image = null
     var failure: String = ""
+    var pending_frames: Array = []
+    var pending_model: String = ""
     for index in range(total):
         var path: String = folder.path_join("frame_%04d.png" % index)
         var frame := Image.new()
         var cached: bool = FileAccess.file_exists(path) and frame.load(path) == OK and not frame.is_empty()
         if not cached:
-            var brief: Dictionary = drawing_plan.remote_frame(story, duration, total, index)
-            status.text = "Dessin %d sur %d · Création en cours…" % [index + 1, total]
-            var instruction: String = visual_guidance + " " + str(brief["instruction"])
-            var result: Dictionary = await worker.redraw(reference, instruction, style, previous)
-            if not result.get("ok", false):
-                failure = str(result.get("error", "Erreur distante."))
-                break
-            frame = result["image"]
+            if pending_frames.is_empty():
+                var briefs: Array = []
+                for next_index in range(index, mini(total, index + 4)):
+                    if next_index > index and FileAccess.file_exists(folder.path_join("frame_%04d.png" % next_index)):
+                        break
+                    briefs.append(drawing_plan.remote_frame(story, duration, total, next_index))
+                status.text = "Dessins %d à %d sur %d · Création en un calcul…" % [index + 1, index + briefs.size(), total]
+                var result: Dictionary = await worker.redraw_batch(reference, briefs, style, previous)
+                if not result.get("ok", false):
+                    failure = str(result.get("error", "Erreur distante."))
+                    break
+                pending_frames = result["images"].duplicate()
+                pending_model = str(result.get("model", ""))
+                if result.has("sheet"):
+                    var sheet_path: String = folder.path_join("sheet_%04d.png" % index)
+                    if (result["sheet"] as Image).save_png(sheet_path) != OK:
+                        failure = "Sauvegarde de la planche source impossible."
+                        break
+            frame = pending_frames.pop_front()
             var quality: Dictionary = session_agent.inspect_frame(frame, previous)
             if not quality.get("ok", false):
                 failure = "Dessin refusé par le contrôle technique : " + str(quality.get("issues", []))
@@ -2054,6 +2066,8 @@ func _draw_remote_story() -> void:
         if not inspection.get("ok", false):
             failure = "Un dessin sauvegardé ne passe pas le contrôle technique. Refais ce dessin avant de valider."
             break
+        inspection["model"] = pending_model if not cached else "cached_generated_image"
+        inspection["identity_verified"] = false
         session_agent.record_frame(index, path, inspection)
         session_agent.save(folder)
         drawings.append(ImageTexture.create_from_image(frame))
@@ -2061,6 +2075,7 @@ func _draw_remote_story() -> void:
         previous = frame
         preview.texture = drawings.back()
         await get_tree().process_frame
+    session_agent.state["engines"] = worker.engine_status.duplicate(true)
     worker.queue_free()
     ai_running = false
     session_agent.finish_drawings(failure)
