@@ -5,6 +5,8 @@ on:
       - karma/v54-approval-safety-20261116
     paths:
       - "tools/test_universal_live_board.gd"
+      - "scripts/hf_studio_generator.gd"
+      - "tests/test_hf_studio_generator.gd"
       - ".github/workflows/validate-universal-live.yml"
   workflow_dispatch:
 permissions:
@@ -25,41 +27,12 @@ jobs:
           unzip -q godot.zip
           chmod +x Godot_v4.5.2-stable_linux.x86_64
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --editor --path . --import --quit
-      - name: Instrument HTTP response stages without logging payloads
+      - name: Verify result session routing and parser
         run: |
-          python3 - <<'PY'
-          import re
-          from pathlib import Path
-          source = Path("scripts/hf_studio_generator.gd")
-          lines = source.read_text().splitlines()
-          patched, function = [], ""
-          for line in lines:
-              if line.startswith("func "):
-                  function = line.split("(", 1)[0][5:]
-              patched.append(line)
-              if "var response: Array = await " in line and ".request_completed" in line:
-                  indent = line[:len(line)-len(line.lstrip())]
-                  patched.append(indent + 'print("HTTP_STAGE ' + function + '", {"result": response[0], "http": response[1], "bytes": (response[3] as PackedByteArray).size()})')
-          content = "\n".join(patched) + "\n"
-          # Diagnose only a failed result GET. Reuse its existing event; never
-          # submit another model request or repeat the successful upload.
-          target = "    var response: Array = await stream.request_completed"
-          diagnostic = '''
-              if int(response[0]) != HTTPRequest.RESULT_SUCCESS:
-                  var evidence: String = OS.get_environment("KARMA_LIVE_EVIDENCE_DIR")
-                  DirAccess.make_dir_recursive_absolute(evidence)
-                  var diagnostics: Array = []
-                  var code: int = OS.execute("curl", ["--silent", "--show-error", "--max-time", "30", "--http1.1", "-H", "Accept: text/event-stream", "-D", evidence.path_join("stream_headers.txt"), "-o", evidence.path_join("stream_body.txt"), url + "/" + event_id], diagnostics, true)
-                  print("RESULT_STREAM_COMPARISON curl_exit=", code, " stderr=", str(diagnostics))
-                  if FileAccess.file_exists(evidence.path_join("stream_headers.txt")):
-                      print("RESULT_STREAM_HEADERS ", FileAccess.get_file_as_string(evidence.path_join("stream_headers.txt")))
-                  if FileAccess.file_exists(evidence.path_join("stream_body.txt")):
-                      print("RESULT_STREAM_BODY ", FileAccess.get_file_as_string(evidence.path_join("stream_body.txt")).substr(0, 6000))
-          '''
-          assert content.count(target) == 1
-          content = content.replace(target, target + "\n" + diagnostic.rstrip())
-          source.write_text(content)
-          PY
+          set -euo pipefail
+          timeout 30s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_hf_studio_generator.gd 2>&1 | tee session-protocol.log
+          grep -q 'HF_STUDIO_PROTOCOL_TESTS_OK' session-protocol.log
+          if grep -E 'SCRIPT ERROR|Parse Error|Assertion failed' session-protocol.log; then exit 1; fi
       - name: Attempt production image to board path once
         env:
           KARMA_LIVE_EVIDENCE_DIR: ${{ github.workspace }}/live-evidence

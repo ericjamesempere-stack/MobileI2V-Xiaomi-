@@ -133,7 +133,11 @@ func _call_api(base: String, api: String, data: Array) -> Dictionary:
     stream.timeout = 240.0
     stream.body_size_limit = 24000000
     add_child(stream)
-    if stream.request(url + "/" + event_id, _headers(["Accept: text/event-stream"])) != OK:
+    # Stateful vision jobs must be read from their session queue. Older
+    # Gradio /call GET routes look up the event id as a session and lose it
+    # when a fast stateful job has already finished.
+    var stream_url: String = result_stream_url(base, api, event_id, session_hash)
+    if stream.request(stream_url, _headers(["Accept: text/event-stream"])) != OK:
         stream.queue_free()
         return {"ok": false, "error": "Lecture du resultat impossible; travail conserve pour reprise."}
     var response: Array = await stream.request_completed
@@ -143,12 +147,37 @@ func _call_api(base: String, api: String, data: Array) -> Dictionary:
             record["state"] = "expired"
             _save_job(job_path, record)
         return _http_failure(int(response[1]), int(response[0]))
-    var result: Dictionary = decode_event_stream((response[3] as PackedByteArray).get_string_from_utf8())
+    var body: String = (response[3] as PackedByteArray).get_string_from_utf8()
+    var result: Dictionary = decode_queue_stream(body, event_id) if base == VISION_URL and not session_hash.is_empty() else decode_event_stream(body)
     record["state"] = "complete" if result.get("ok", false) else "failed"
     if result.get("ok", false):
         record["result"] = result
     _save_job(job_path, record)
     return result
+
+func result_stream_url(base: String, api: String, event_id: String, session_hash: String) -> String:
+    if base == VISION_URL and not session_hash.is_empty():
+        return base + "/gradio_api/queue/data?session_hash=" + session_hash.uri_encode()
+    return base + "/gradio_api/call/" + api + "/" + event_id
+
+func decode_queue_stream(body: String, event_id: String) -> Dictionary:
+    for block in body.replace("\r\n", "\n").split("\n\n"):
+        var payload: String = ""
+        for line in block.split("\n"):
+            if line.begins_with("data: "):
+                payload += line.substr(6)
+        var message: Variant = JSON.parse_string(payload)
+        if not message is Dictionary:
+            continue
+        # Never accept another job's result from a shared session.
+        if message.get("event_id", "") != event_id:
+            continue
+        if message.get("msg", "") == "process_completed":
+            var output: Variant = message.get("output")
+            if message.get("success", false) == true and output is Dictionary and output.get("data") is Array:
+                return {"ok": true, "data": output["data"]}
+            return decode_event_stream("event: error\ndata: " + JSON.stringify(output) + "\n\n")
+    return {"ok": false, "error": "Resultat de session IA absent. Aucun resultat d'un autre travail accepte."}
 
 func decode_event_stream(body: String) -> Dictionary:
     for block in body.replace("\r\n", "\n").split("\n\n"):

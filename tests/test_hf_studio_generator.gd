@@ -20,6 +20,13 @@ func run() -> void:
     assert(client.decode_event_stream("event: complete\r\ndata: [1]\r\n\r\n")["ok"])
     assert(not client.decode_event_stream("event: error\ndata: \"quota exceeded\"\n\n")["ok"])
     assert(not client.decode_event_stream("event: complete\ndata: null\n\n")["ok"])
+    var queue: String = 'data: {"msg":"heartbeat"}\n\ndata: {"msg":"process_completed","event_id":"other","success":true,"output":{"data":["wrong"]}}\n\ndata: {"msg":"process_completed","event_id":"target","success":true,"output":{"data":["correct"]}}\n\n'
+    assert(client.decode_queue_stream(queue, "target")["data"] == ["correct"])
+    assert(not client.decode_queue_stream(queue, "missing")["ok"])
+    assert(not client.decode_queue_stream('data: {"msg":"process_completed","event_id":"target","success":false,"output":{"error":"quota exceeded"}}\n\n', "target")["ok"])
+    assert(not client.decode_queue_stream('data: {"msg":"process_completed","event_id":"target","success":true,"output":{"data":null}}\n\n', "target")["ok"])
+    assert(client.result_stream_url(client.VISION_URL, "add_message", "event", "session") == client.VISION_URL + "/gradio_api/queue/data?session_hash=session")
+    assert(client.result_stream_url(client.EDIT_URL, "edit_image", "event", "") == client.EDIT_URL + "/gradio_api/call/edit_image/event")
     client.free()
     var editor := FakeEditor.new()
     root.add_child(editor)
