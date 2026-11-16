@@ -12,6 +12,8 @@ var custom_style_input: LineEdit
 var ai_drawings_count: SpinBox
 var ai_endpoint: LineEdit
 var ai_token_input: LineEdit
+var local_mode: CheckBox
+var local_auth_input: LineEdit
 var ai_http: HTTPRequest
 var ai_running: bool = false
 var pose_http: HTTPRequest
@@ -509,7 +511,8 @@ func _export_board_mp4() -> void:
     exporting_video = true
     if session_agent != null:
         session_agent.record_user_approval(review_fingerprint)
-    await exporter.call("export_board_mp4", sources.duplicate(), indices, float(duration_input.value))
+    var export_images: Array = paths.duplicate() if not universal_folder.is_empty() else sources.duplicate()
+    await exporter.call("export_board_mp4", export_images, indices, float(duration_input.value))
     if session_agent != null:
         session_agent.record_video_result(str(exporter.get("last_output")))
     exporting_video = false
@@ -1813,7 +1816,7 @@ func _save() -> void:
                     nearest_distance = distance
                     nearest = int(original_idx)
             approved_timeline.append(old_to_new[nearest])
-    var data := {"version": 3, "universal_folder": universal_folder, "universal_quality": universal_quality, "universal_style": universal_style, "universal_input_signature": universal_input_signature, "required_drawing_count": required_drawing_count, "explicit_rejections": explicit_rejections.keys(), "character_description": character_description.text, "drawing_style": drawing_style.selected, "custom_style": custom_style_input.text, "ai_drawings_count": ai_drawings_count.value, "karma_auto_export": karma_auto_export, "approved_drawings": approved_drawings, "approved_timeline": approved_timeline, "reference_path": imported_path, "style_reference_path": style_reference_path, "description": action_input.text, "ai_endpoint": ai_endpoint.text, "duration_seconds": duration_input.value, "drawings": paths, "approved": flags, "timeline_indices": plan, "warning": "Offline photo camera motion or existing poses; no AI anatomy generation"}
+    var data := {"version": 3, "local_mode": local_mode.button_pressed, "universal_folder": universal_folder, "universal_quality": universal_quality, "universal_style": universal_style, "universal_input_signature": universal_input_signature, "required_drawing_count": required_drawing_count, "explicit_rejections": explicit_rejections.keys(), "character_description": character_description.text, "drawing_style": drawing_style.selected, "custom_style": custom_style_input.text, "ai_drawings_count": ai_drawings_count.value, "karma_auto_export": karma_auto_export, "approved_drawings": approved_drawings, "approved_timeline": approved_timeline, "reference_path": imported_path, "style_reference_path": style_reference_path, "description": action_input.text, "ai_endpoint": ai_endpoint.text, "duration_seconds": duration_input.value, "drawings": paths, "approved": flags, "timeline_indices": plan, "warning": "Offline photo camera motion or existing poses; no AI anatomy generation"}
     var f := FileAccess.open(SAVE, FileAccess.WRITE)
     if f == null:
         status.text = "Erreur de sauvegarde"
@@ -1829,6 +1832,7 @@ func _load_saved() -> void:
     var data = JSON.parse_string(f.get_as_text())
     f.close()
     if not data is Dictionary: return
+    local_mode.set_pressed_no_signal(bool(data.get("local_mode", str(data.get("universal_folder", "")).is_empty())))
     character_description.text = str(data.get("character_description", ""))
     drawing_style.select(clampi(int(data.get("drawing_style", 0)), 0, drawing_style.item_count - 1))
     style_reference_path = str(data.get("style_reference_path", ""))
@@ -1868,7 +1872,7 @@ func _load_saved() -> void:
     var saved_drawings: Array = data.get("drawings", [])
     for original_idx in range(saved_drawings.size()):
         var path: String = str(saved_drawings[original_idx])
-        var tex: Texture2D = _texture_for_path(path)
+        var tex: Texture2D = _drawing_thumbnail(path) if not universal_folder.is_empty() else _texture_for_path(path)
         if tex != null:
             old_to_new[original_idx] = sources.size()
             sources.append(tex)
@@ -2026,7 +2030,7 @@ func _create_remote_reference() -> void:
         return
     ai_running = true
     status.text = "Création de ton personnage… Cela peut prendre un petit moment."
-    var worker: Node = load("res://scripts/hf_studio_generator.gd").new()
+    var worker: Node = _make_drawing_worker()
     worker.hf_token = ai_token_input.text.strip_edges()
     add_child(worker)
     var result: Dictionary = await worker.create_reference(description, _selected_drawing_style())
@@ -2068,7 +2072,9 @@ func _reuse_reference_drawing() -> void:
     status.text = "Image de depart reprise a l identique : aucune regeneration."
 
 func _make_universal_pipeline() -> Node:
-    return load("res://scripts/universal_board_pipeline.gd").new()
+    var engine: Node = load("res://scripts/universal_board_pipeline.gd").new()
+    engine.local_inference = local_mode.button_pressed
+    return engine
 
 func _configure_universal_pipeline(style_image: Image = null) -> void:
     if is_instance_valid(universal_pipeline):
@@ -2077,6 +2083,8 @@ func _configure_universal_pipeline(style_image: Image = null) -> void:
     add_child(universal_pipeline)
     universal_pipeline.worker.hf_token = ai_token_input.text.strip_edges()
     universal_pipeline.worker.style_reference = style_image
+    if universal_pipeline.worker.has_method("configure_local"):
+        universal_pipeline.worker.configure_local(local_auth_input.text)
     # Pressing Create submits the image/story to the disclosed online analysis
     # and drawing services. Mere import never uploads the user's image.
     universal_pipeline.worker.remote_vision_consent = true
@@ -2093,7 +2101,10 @@ func _universal_progress(stage: String, completed: int, total: int) -> void:
 func _universal_signature() -> String:
     var identity: String = FileAccess.get_sha256(imported_path) if FileAccess.file_exists(imported_path) else "missing"
     var guide: String = FileAccess.get_sha256(style_reference_path) if not style_reference_path.is_empty() and FileAccess.file_exists(style_reference_path) else style_reference_path
-    return JSON.stringify([identity, action_input.text.strip_edges(), float(duration_input.value), _selected_drawing_style(), guide]).sha256_text()
+    var signature: Array = [identity, action_input.text.strip_edges(), float(duration_input.value), _selected_drawing_style(), guide]
+    if local_mode.button_pressed:
+        signature.append("mnn-localdream-v1")
+    return JSON.stringify(signature).sha256_text()
 
 func _clear_universal_state() -> void:
     universal_folder = ""
@@ -2128,7 +2139,7 @@ func _draw_remote_story() -> void:
     _configure_universal_pipeline(style_image)
     ai_running = true
     last_ai_sequence_ok = false
-    var result: Dictionary = await universal_pipeline.build_boards(reference, story, float(duration_input.value), _selected_drawing_style(), folder, int(ai_drawings_count.value))
+    var result: Dictionary = await universal_pipeline.build_boards(reference, story, float(duration_input.value), _selected_drawing_style(), folder, 2147483647 if local_mode.button_pressed else int(ai_drawings_count.value))
     ai_running = false
     if result.get("stage", "") == "budget":
         status.text = "L'analyse prévoit %d poses clés ; ta limite est %d. Augmente la limite dans Réglages et outils, puis relance : l'analyse est sauvegardée." % [int(result["required"]), int(result["budget"])]
@@ -2153,7 +2164,7 @@ func _draw_remote_story() -> void:
     session_agent = load("res://scripts/karma_studio_session.gd").new()
     session_agent.state = {"version": 2, "story": story, "duration": duration_input.value, "count": universal_plan["keyposes"], "frames": {}, "semantic_analysis": universal_plan["semantic_analysis"], "identity_verified": false, "agents": {"scenario": "live_vision_model", "pose": "universal_physical_phases", "image": "running", "quality": "pending", "recovery": "saving", "video": "waiting_for_user"}}
     for path in generated_paths:
-        var texture: Texture2D = _texture_for_path(str(path))
+        var texture: Texture2D = _drawing_thumbnail(str(path))
         if texture == null:
             break
         sources.append(texture)
@@ -2263,6 +2274,8 @@ func _sync_friendly_ui() -> void:
     ai_endpoint.editable = not busy
     duration_input.editable = not busy
     ai_drawings_count.editable = not busy
+    local_mode.disabled = busy
+    local_auth_input.editable = not busy
     busy_bar.visible = busy
     if busy:
         busy_bar.value = 20.0 + 60.0 * (0.5 + 0.5 * sin(float(Time.get_ticks_msec()) / 800.0))
@@ -2376,7 +2389,7 @@ func _drawing_fingerprint() -> String:
         return ""
     var digest := HashingContext.new()
     digest.start(HashingContext.HASH_SHA256)
-    digest.update(JSON.stringify([action_input.text, duration_input.value, _selected_drawing_style(), plan, imported_path, style_reference_path]).to_utf8_buffer())
+    digest.update(JSON.stringify([action_input.text, duration_input.value, _selected_drawing_style(), plan, imported_path, style_reference_path, local_mode.button_pressed]).to_utf8_buffer())
     for index in range(sources.size()):
         var image: Image = sources[index].get_image()
         if image == null or image.is_empty():
@@ -2494,7 +2507,7 @@ func _refresh_review_dialog() -> void:
     if not is_instance_valid(review_dialog) or sources.is_empty():
         return
     review_index = clampi(review_index, 0, sources.size() - 1)
-    review_image.texture = sources[review_index]
+    review_image.texture = _texture_for_path(paths[review_index]) if not universal_folder.is_empty() and review_index < paths.size() else sources[review_index]
     var state: String = "Refusé" if explicit_rejections.has(review_index) else ("Gardé" if review_index < accepted.size() and accepted[review_index] else "À examiner")
     review_caption.text = "Dessin %d / %d · %s" % [review_index + 1, sources.size(), state]
     if not universal_folder.is_empty():
@@ -2539,7 +2552,7 @@ func _regenerate_reviewed_drawing() -> void:
         if style_image == null:
             status.text = "La reference de style est manquante. Reimporte-la avant de refaire."
             return
-    var worker: Node = load("res://scripts/hf_studio_generator.gd").new()
+    var worker: Node = _make_drawing_worker()
     worker.hf_token = ai_token_input.text.strip_edges()
     worker.style_reference = style_image
     add_child(worker)
@@ -2619,7 +2632,7 @@ func _regenerate_universal_drawing() -> void:
     status.text = "Correction du dessin %d…" % (index + 1)
     var result: Dictionary = await universal_pipeline.repair_keypose(reference, universal_plan, universal_style, universal_folder, index, defect)
     if result.get("ok", false):
-        sources[index] = _texture_for_path(paths[index])
+        sources[index] = _drawing_thumbnail(paths[index])
         accepted[index] = false
         explicit_rejections.erase(index)
         universal_quality = await universal_pipeline.review_keyposes(reference, universal_plan, universal_folder, universal_style)
@@ -2632,3 +2645,19 @@ func _regenerate_universal_drawing() -> void:
     _save()
     _refresh_review_dialog()
     status.text = ("Dessin refait. Examine-le et garde-le avant une nouvelle confirmation." if universal_quality.get("fidelity_verified", false) else "Dessin refait ; contrôle de fidélité encore non confirmé. " + str(universal_quality.get("error", ""))) if result.get("ok", false) else "L'ancien dessin est conservé. " + str(result.get("error", "Correction indisponible."))
+
+func _drawing_thumbnail(path: String) -> Texture2D:
+    var image: Image = load("res://scripts/android_image_reader.gd").read_image(path)
+    if image == null:
+        return null
+    var side: int = maxi(image.get_width(), image.get_height())
+    if side > 320:
+        var factor: float = 320.0 / float(side)
+        image.resize(maxi(1, roundi(image.get_width() * factor)), maxi(1, roundi(image.get_height() * factor)), Image.INTERPOLATE_LANCZOS)
+    return ImageTexture.create_from_image(image)
+
+func _make_drawing_worker() -> Node:
+    var worker: Node = load("res://scripts/local_studio_generator.gd" if local_mode.button_pressed else "res://scripts/hf_studio_generator.gd").new()
+    if worker.has_method("configure_local"):
+        worker.configure_local(local_auth_input.text)
+    return worker

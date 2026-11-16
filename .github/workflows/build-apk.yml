@@ -201,6 +201,12 @@ jobs:
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' hf-studio-ui.log; then exit 1; fi
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error' hf-studio-protocol.log; then exit 1; fi
 
+      - name: Test local engines without cloud calls
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          GODOT_BIN="$PWD/Godot_v4.5.2-stable_linux.x86_64" python3 tests/test_local_studio_transport.py 2>&1 | tee local-studio.log
+          grep -q 'LOCAL_HTTP_NO_CLOUD_COUNTS_OK' local-studio.log
       - name: Test integrated universal Android screen through MP4
         timeout-minutes: 3
         run: |
@@ -277,6 +283,9 @@ jobs:
           "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$APK" | grep -E "^(package:|launchable-activity:|native-code:)" | tee build/apk-runtime-metadata.txt
           "$ANDROID_HOME/build-tools/34.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml > build/apk-manifest.txt
           grep -q 'org.godotengine.plugin.v2.MP4Exporter' build/apk-manifest.txt
+          grep -q 'networkSecurityConfig' build/apk-manifest.txt
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump xmltree "$APK" res/xml/karma_network_security.xml > build/apk-local-network.txt
+          grep -q '127.0.0.1' build/apk-local-network.txt
           python3 - <<'PY'
           import zipfile
           with zipfile.ZipFile('build/KARMA_ONE_V54_ARM64.apk') as z:

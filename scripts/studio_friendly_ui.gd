@@ -207,7 +207,12 @@ func build(board: Control) -> void:
         preset.custom_minimum_size.y = 60
         preset.add_theme_font_size_override("font_size", 19)
     board.choice_summary = text(story, "", 19, MUTED)
-    text(story, "En lançant la création, tu envoies ton image et ton histoire aux services en ligne pour analyser la scène, dessiner et contrôler les poses. Les quotas gratuits peuvent demander d'attendre.", 18, MUTED)
+    board.local_mode = CheckBox.new()
+    board.local_mode.text = "Sans quota en ligne : utiliser les moteurs du téléphone"
+    board.local_mode.button_pressed = true
+    story.add_child(board.local_mode)
+    text(story, "Mode local : MNN Chat pour l'analyse et Local Dream pour les dessins doivent être installés, avec leurs modèles chargés. Le moteur de calcul reste séparé de KARMA ONE. Aucun appel en ligne automatique dans ce mode.", 18, MUTED)
+    text(story, "Mode en ligne : décoche la case pour envoyer l'image et l'histoire aux services distants. Leurs quotas s'appliquent.", 18, MUTED)
     button(board, board.wizard_pages[1], "C'est parti ! Créer mes dessins", board._friendly_generate, true).name = "GenerateStory"
     button(board, board.wizard_pages[1], "Revoir mon personnage", func() -> void: board._go_step(0))
 
@@ -253,12 +258,20 @@ func build(board: Control) -> void:
     board.duration_input.max_value = 300
     board.duration_input.value = 6
     advanced.add_child(board.duration_input)
-    text(advanced, "Limite de poses clés (le nombre nécessaire vient de l’analyse)", 20)
+    text(advanced, "Limite de poses clés en ligne (sans plafond par lot en mode local)", 20)
     board.ai_drawings_count = SpinBox.new()
     board.ai_drawings_count.min_value = 2
     board.ai_drawings_count.max_value = 24
     board.ai_drawings_count.value = 24
     advanced.add_child(board.ai_drawings_count)
+    text(advanced, "Installation des moteurs locaux", 20)
+    text(advanced, "MNN Chat : charge un modèle vision et active l'API sur le port 8080. Local Dream : charge un modèle SD1.5 CPU avec prise en charge img2img ; son moteur écoute sur le port 8081. Le GPU MediaTek reste à vérifier. Les modèles se téléchargent séparément.", 18, MUTED)
+    button(board, advanced, "Télécharger MNN Chat", func() -> void: OS.shell_open("https://github.com/alibaba/MNN/releases"))
+    button(board, advanced, "Télécharger Local Dream", func() -> void: OS.shell_open("https://github.com/xororz/local-dream/releases"))
+    board.local_auth_input = LineEdit.new()
+    board.local_auth_input.secret = true
+    board.local_auth_input.placeholder_text = "Jeton de l'API locale MNN Chat, si elle en exige un"
+    advanced.add_child(board.local_auth_input)
     text(advanced, "Compte Hugging Face : jeton facultatif", 20)
     board.ai_token_input = LineEdit.new()
     board.ai_token_input.secret = true

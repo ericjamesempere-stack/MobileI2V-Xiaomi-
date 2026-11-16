@@ -1,11 +1,12 @@
 extends Node
 # Strict engine API. No UI, video encoding or procedural stand-in.
 var worker: Node
+var local_inference: bool = false
 signal stage_changed(stage: String, completed: int, total: int)
 const REVISION := "v54-registry-density-1"
 
 func _ready() -> void:
-    worker = load("res://scripts/hf_studio_generator.gd").new()
+    worker = load("res://scripts/local_studio_generator.gd" if local_inference else "res://scripts/hf_studio_generator.gd").new()
     add_child(worker)
 
 func build_boards(reference: Image, story: String, seconds: float, style: String, folder: String, maximum_keyposes: int = 24) -> Dictionary:
@@ -256,7 +257,7 @@ func _review_passed(row: Dictionary) -> bool:
     return true
 
 func _review_binding(plan: Dictionary, index: int, style: String, image_sha: String) -> String:
-    return ("fidelity-review-v1" + _binding(plan, index, style) + image_sha + str(worker.VISION_URL)).sha256_text()
+    return ("fidelity-review-v1" + _binding(plan, index, style) + image_sha + worker.vision_provider_id()).sha256_text()
 
 func review_keyposes(reference: Image, plan: Dictionary, folder: String, style: String = "original") -> Dictionary:
     if not plan.get("ok", false) or not plan.has("scene"):

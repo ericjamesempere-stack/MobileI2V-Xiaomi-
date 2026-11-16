@@ -96,6 +96,7 @@ func run() -> void:
     var board := Board.new()
     root.add_child(board)
     await board._image_chosen("res://validation/v54-poses/reference.png")
+    board.local_mode.set_pressed_no_signal(false) # Existing cloud flow regression.
     board.style_reference_path = ""
     board.custom_style_input.text = ""
     board.drawing_style.select(0)
@@ -139,7 +140,8 @@ func run() -> void:
     # The approved physical timeline is passed unchanged to the real exporter.
     var canvas: Node = load("res://scripts/export_mp4.gd").new()
     var expected_hashes: Array = []
-    for source in board.sources:
+    for path in board.paths:
+        var source: Texture2D = board._texture_for_path(path)
         var image: Image = canvas._fit_canvas(source.get_image())
         expected_hashes.append(hash(image.get_data()))
     canvas.free()
