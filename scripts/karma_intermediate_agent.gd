@@ -45,7 +45,7 @@ func schedule(plan: Dictionary) -> Dictionary:
             if used_frames.has(target_frame):
                 unfillable.append({"step_id": step_id, "reason": "duplicate_intermediate_frame", "target_frame": target_frame})
                 continue
-            used_frames[target_frame] = true
+                used_frames[target_frame] = true
             tasks.append({
                 "id": "between_%04d" % tasks.size(),
                 "step_id": step_id,
