@@ -30,6 +30,7 @@ var pose_sheet_picker: FileDialog
 var exporting_video: bool = false
 var imported_path: String = ""
 var last_ai_sequence_ok: bool = false
+var karma_auto_export: bool = true
 const SAVE: String = "user://mobilei2v_storyboard_v23.json"
 
 func _ready() -> void:
@@ -97,7 +98,12 @@ func _ready() -> void:
     contact_sheet.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     root_box.add_child(contact_sheet)
-    _button("IMPORTER UN DOSSIER DE DESSINS CHATGPT (KARMA ONE)", _choose_drawings_folder)
+    _button("KARMA ONE : IMPORTER ET PRODUIRE LE MP4", _choose_drawings_folder)
+    var auto_export_toggle := CheckBox.new()
+    auto_export_toggle.text = "Exporter automatiquement apres import (KARMA ONE)"
+    auto_export_toggle.button_pressed = true
+    auto_export_toggle.toggled.connect(func(enabled: bool) -> void: karma_auto_export = enabled)
+    root_box.add_child(auto_export_toggle)
     _button("IMPORTER 18 DESSINS DEJA CREES (V5)", _choose_pose_sheet)
     _button("PREPARER LES POSES POUR IA (SANS RESEAU)", _prepare_pose_guides)
     _button("GENERER DESSINS + MP4 (MOTEUR IA HTTPS)", _generate_and_export)
@@ -316,7 +322,13 @@ func _drawings_folder_selected(folder: String) -> void:
     _refresh()
     _build_contact_sheet()
     _save()
-    status.text = "KARMA ONE : %d dessins ChatGPT importes et sauvegardes. Pret pour MP4." % sources.size()
+    status.text = "KARMA ONE : %d dessins importes et sauvegardes." % sources.size()
+    if karma_auto_export:
+        if Engine.has_singleton("MP4Exporter"):
+            await _export_board_mp4()
+        else:
+            status.text = "KARMA ONE : images sauvegardees. Encodeur MP4 Android absent : export automatique impossible."
+
 
 func _choose_pose_sheet() -> void:
     pose_sheet_picker.popup_centered_ratio(0.9)
