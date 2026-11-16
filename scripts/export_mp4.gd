@@ -46,7 +46,7 @@ func export_rig_mp4(rig: Control, current_scene: int, start_clock: float) -> voi
         var img: Image = viewport.get_texture().get_image()
         if img == null or img.is_empty():
             continue
-        img.convert(Image.FORMAT_RGB8)
+        img.convert(Image.FORMAT_RGBA8)
         if plugin_ok and exporter != null:
             exporter.call("push_frame_rgba", img.get_data())
         else:
@@ -99,24 +99,13 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
             return
         var pair: String = "%d:%d" % [index, next_index]
         if pair != previous_pair:
-            var tex_a: Texture2D = board_images[index] as Texture2D
-            var tex_b: Texture2D = board_images[next_index] as Texture2D
-            if tex_a == null or tex_b == null:
-                _set_status("Dessin absent : export MP4 annule.")
-                encoder.call("finish")
-                exporting = false
-                return
-            image_a = tex_a.get_image()
-            image_b = tex_b.get_image()
+            image_a = _read_drawing(board_images[index])
+            image_b = image_a if index == next_index else _read_drawing(board_images[next_index])
             if image_a == null or image_a.is_empty() or image_b == null or image_b.is_empty():
                 _set_status("Dessin vide : export MP4 annule.")
                 encoder.call("finish")
                 exporting = false
                 return
-            image_a.convert(Image.FORMAT_RGB8)
-            image_b.convert(Image.FORMAT_RGB8)
-            image_a.resize(360, 480, Image.INTERPOLATE_BILINEAR)
-            image_b.resize(360, 480, Image.INTERPOLATE_BILINEAR)
             previous_pair = pair
         var progress: float = position - float(slot)
         var eased: float = progress * progress * (3.0 - 2.0 * progress)
@@ -124,7 +113,7 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
         # in-between poses. Keep each validated drawing intact until a real
         # articulated interpolation backend is available.
         var img: Image = image_a.duplicate() if hold_keyframes or index == next_index or eased < 0.5 else image_b.duplicate()
-        img.resize(WIDTH, HEIGHT, Image.INTERPOLATE_BILINEAR)
+        img = _fit_canvas(img)
         img.convert(Image.FORMAT_RGBA8)
         var frame_ok: Variant = encoder.call("push_frame_rgba", img.get_data())
         if frame_ok is bool and not frame_ok:
@@ -141,3 +130,22 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
     exporting = false
     _set_status("MP4 : " + result if not result.is_empty() and written == total else "MP4 incomplet : %d/%d images." % [written, total])
 
+
+
+func _read_drawing(value: Variant) -> Image:
+    if value is String:
+        var image := Image.new()
+        return image if image.load(str(value)) == OK else null
+    if value is Texture2D:
+        return value.get_image()
+    return null
+
+func _fit_canvas(source: Image) -> Image:
+    var image: Image = source.duplicate()
+    var ratio: float = minf(float(WIDTH) / image.get_width(), float(HEIGHT) / image.get_height())
+    image.resize(maxi(1, roundi(image.get_width() * ratio)), maxi(1, roundi(image.get_height() * ratio)), Image.INTERPOLATE_BILINEAR)
+    image.convert(Image.FORMAT_RGBA8)
+    var canvas := Image.create(WIDTH, HEIGHT, false, Image.FORMAT_RGBA8)
+    canvas.fill(Color.BLACK)
+    canvas.blend_rect(image, Rect2i(Vector2i.ZERO, image.get_size()), Vector2i((WIDTH - image.get_width()) / 2, (HEIGHT - image.get_height()) / 2))
+    return canvas

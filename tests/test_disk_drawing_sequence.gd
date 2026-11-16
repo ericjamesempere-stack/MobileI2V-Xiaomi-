@@ -1,0 +1,38 @@
+extends SceneTree
+
+func _initialize() -> void:
+    var pipeline: RefCounted = load("res://scripts/disk_drawing_sequence.gd").new()
+    var reference := Image.create(32, 32, false, Image.FORMAT_RGBA8)
+    reference.fill(Color("339966"))
+    var prepared: Dictionary = pipeline.prepare("Il marche puis court puis tombe puis se releve", reference, 4.0)
+    assert(prepared.get("ok", false))
+    assert(int(prepared["count"]) == 48)
+    var long_plan: Dictionary = pipeline.prepare("Il marche", reference, 300.0)
+    assert(int(long_plan["count"]) == 3600, "Long films must not truncate at 240 drawings")
+    assert(not pipeline.prepare("Il devient un dragon", reference, 2.0).get("ok", true))
+    assert(not pipeline.prepare("", reference, 2.0).get("ok", true))
+    var folder: String = "user://disk_sequence_demo"
+    assert(DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) == OK)
+    var digests: Dictionary = {}
+    for i in range(int(prepared["count"])):
+        var image: Image = pipeline.render_frame(prepared, i)
+        assert(image != null and image.get_size() == Vector2i(360, 640))
+        digests[image.get_data().hex_encode().sha256_text()] = true
+        assert(pipeline.save_frame(folder, i, image))
+        assert(pipeline.valid_frame(folder.path_join("frame_%04d.png" % i)))
+    assert(digests.size() >= 35, "Motion requires distinct drawings")
+    var checksum: String = FileAccess.get_sha256(folder.path_join("frame_0000.png"))
+    assert(pipeline.valid_frame(folder.path_join("frame_0000.png")))
+    assert(FileAccess.get_sha256(folder.path_join("frame_0000.png")) == checksum)
+    assert(pipeline.render_frame(prepared, 48) == null)
+    var exporter: Node = load("res://scripts/export_mp4.gd").new()
+    var square := Image.create(100, 100, false, Image.FORMAT_RGBA8)
+    square.fill(Color.RED)
+    var fitted: Image = exporter._fit_canvas(square)
+    assert(fitted.get_size() == Vector2i(720, 1280))
+    assert(fitted.get_pixel(0, 0).is_equal_approx(Color.BLACK))
+    assert(fitted.get_pixel(360, 640).is_equal_approx(Color.RED))
+    exporter.free()
+    print("DISK_DRAWING_SEQUENCE_OK unique=", digests.size(), " long_count=", long_plan["count"])
+    print("DEMO_PATH=", ProjectSettings.globalize_path(folder))
+    quit(0)

@@ -31,6 +31,7 @@ var pose_sheet_picker: FileDialog
 var exporting_video: bool = false
 var imported_path: String = ""
 var last_ai_sequence_ok: bool = false
+var disk_drawing_running: bool = false
 var karma_auto_export: bool = true
 var karma_auto_export_toggle: CheckBox
 const SAVE: String = "user://mobilei2v_storyboard_v23.json"
@@ -92,6 +93,8 @@ func _ready() -> void:
         preset.text = "%ds" % seconds
         preset.pressed.connect(func() -> void: duration_input.value = seconds)
         line.add_child(preset)
+    _button("DESSINER L HISTOIRE + MP4 (HORS LIGNE)", _draw_offline_story)
+    _label("Dessins cartoon simples, 12 poses/s. La photo guide les couleurs ; le visage n est pas reproduit. Actions : marche, course, danse, saut, chute, releve, salut.", 16)
     _button("CREER DES POSES 2D A PARTIR DE MA PHOTO", _automatic_local_movie)
     contact_caption = _label("Les poses generees apparaitront ici.", 20)
     contact_sheet = TextureRect.new()
@@ -114,6 +117,7 @@ func _ready() -> void:
     _button("GENERER DESSINS + MP4 (MOTEUR IA HTTPS)", _generate_and_export)
     _button("GENERER DE NOUVEAUX DESSINS (MOTEUR HTTPS)", _generate_image_sequence)
     _button("EXPORTER LE FILM MP4 (APRES VERIFICATION)", _export_board_mp4)
+    _button("PARTAGER LE DERNIER MP4", _share_last_mp4)
     var advanced_box := VBoxContainer.new()
     root_box.add_child(advanced_box)
     advanced_box.visible = true
@@ -1877,3 +1881,75 @@ func _validate_and_animate() -> void:
         status.text = "Erreur : aucune image transmise au studio."
         return
     queue_free()
+
+func _draw_offline_story() -> void:
+    if disk_drawing_running or ai_running or exporting_video:
+        status.text = "Une operation est deja en cours."
+        return
+    var reference: Image = null
+    if not imported_path.is_empty():
+        reference = load("res://scripts/android_image_reader.gd").read_image(imported_path)
+        if reference == null:
+            status.text = "Reference inaccessible : reimporte ta photo."
+            return
+    var pipeline: RefCounted = load("res://scripts/disk_drawing_sequence.gd").new()
+    var prepared: Dictionary = pipeline.prepare(action_input.text, reference, float(duration_input.value))
+    if not prepared.get("ok", false):
+        status.text = str(prepared.get("error", "Plan impossible."))
+        return
+    disk_drawing_running = true
+    var folder: String = "user://projects/drawings_" + str(prepared["key"]).substr(0, 20)
+    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
+        status.text = "Impossible de creer le dossier des dessins."
+        disk_drawing_running = false
+        return
+    var drawings: Array = []
+    var indices: Array = []
+    var total: int = int(prepared["count"])
+    var state: Dictionary = {"version": 1, "story": action_input.text, "duration": prepared["duration"], "count": total, "method": prepared["method"], "identity_verified": false, "complete": false}
+    for i in range(total):
+        var path: String = folder.path_join("frame_%04d.png" % i)
+        if not pipeline.valid_frame(path):
+            var image: Image = pipeline.render_frame(prepared, i)
+            if not pipeline.save_frame(folder, i, image):
+                status.text = "Echec sauvegarde dessin %d. Relance pour reprendre." % i
+                disk_drawing_running = false
+                return
+        drawings.append(path)
+        indices.append(i)
+        if i % 6 == 0 or i == total - 1:
+            var shown := Image.new()
+            shown.load(path)
+            preview.texture = ImageTexture.create_from_image(shown)
+            status.text = "Dessins cartoon : %d/%d. Relancer reprend les PNG existants." % [i + 1, total]
+            state["completed_frames"] = i + 1
+            var journal := FileAccess.open(folder.path_join("drawing_state.json"), FileAccess.WRITE)
+            if journal != null:
+                journal.store_string(JSON.stringify(state))
+                journal.close()
+            await get_tree().process_frame
+    state["complete"] = true
+    var journal := FileAccess.open(folder.path_join("drawing_state.json"), FileAccess.WRITE)
+    if journal != null:
+        journal.store_string(JSON.stringify(state))
+        journal.close()
+    if Engine.has_singleton("MP4Exporter"):
+        var exporter := Node.new()
+        exporter.set_script(load("res://scripts/export_mp4.gd"))
+        exporter.set("status_label", status)
+        exporter.set("hold_keyframes", true)
+        add_child(exporter)
+        await exporter.call("export_board_mp4", drawings, indices, float(prepared["duration"]))
+        exporter.queue_free()
+    else:
+        status.text = "%d dessins sauvegardes dans %s. MP4 necessite le plugin Android." % [total, folder]
+    disk_drawing_running = false
+
+
+func _share_last_mp4() -> void:
+    if not Engine.has_singleton("MP4Exporter"):
+        status.text = "Partage MP4 disponible sur Android."
+        return
+    var encoder: Object = Engine.get_singleton("MP4Exporter")
+    if not bool(encoder.call("share_last_export")):
+        status.text = "Exporte un MP4 dans cette session avant de le partager."

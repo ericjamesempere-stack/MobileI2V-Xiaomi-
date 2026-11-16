@@ -131,10 +131,10 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
     return {"ok": false, "error": "Gradio: requete SSE echouee", "generated": frames.size()}
    var stream_text: String = (stream_result[3] as PackedByteArray).get_string_from_utf8()
    var completed: bool = false
-   for event_block in stream_text.split("\\n\\n"):
+   for event_block in stream_text.split("\n\n"):
     if not event_block.begins_with("event: complete"):
      continue
-    for event_line in event_block.split("\\n"):
+    for event_line in event_block.split("\n"):
      if event_line.begins_with("data: "):
       var decoded: Variant = JSON.parse_string(event_line.substr(6))
       if decoded is Array and not decoded.is_empty():

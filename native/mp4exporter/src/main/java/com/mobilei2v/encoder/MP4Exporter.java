@@ -1,6 +1,13 @@
 package com.mobilei2v.encoder;
 
 import android.app.Activity;
+import android.content.ContentValues;
+import android.content.Intent;
+import android.net.Uri;
+import android.provider.MediaStore;
+import java.io.FileInputStream;
+import java.io.OutputStream;
+import android.media.Image;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
@@ -24,6 +31,7 @@ public final class MP4Exporter extends GodotPlugin {
     private File output;
     private final MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
     private String error = "";
+    private Uri lastExportUri;
 
     public MP4Exporter(Godot godot) { super(godot); }
     @NonNull @Override public String getPluginName() { return "MP4Exporter"; }
@@ -59,41 +67,48 @@ public final class MP4Exporter extends GodotPlugin {
         try {
             int slot = codec.dequeueInputBuffer(1000000);
             if (slot < 0) return false;
-            ByteBuffer input = codec.getInputBuffer(slot);
-            if (input == null || input.capacity() < width * height * 3 / 2) return false;
-            input.clear();
-            // I420 planar, accepted by flexible YUV420 encoders that support planar layout.
-            int pixels = width * height;
-            byte[] yuv = new byte[pixels * 3 / 2];
-            int uvWidth = width / 2;
-            for (int yy = 0; yy < height; yy++) {
-                for (int xx = 0; xx < width; xx++) {
-                    int i = (yy * width + xx) * 4;
-                    int r = rgba[i] & 255, g = rgba[i+1] & 255, b = rgba[i+2] & 255;
-                    int y = ((66*r + 129*g + 25*b + 128) >> 8) + 16;
-                    yuv[yy * width + xx] = (byte)Math.max(0, Math.min(255, y));
-                    if ((xx & 1) == 0 && (yy & 1) == 0) {
-                        int uv = (yy / 2) * uvWidth + xx / 2;
-                        int u = ((-38*r - 74*g + 112*b + 128) >> 8) + 128;
-                        int v = ((112*r - 94*g - 18*b + 128) >> 8) + 128;
-                        yuv[pixels + uv] = (byte)Math.max(0, Math.min(255, u));
-                        yuv[pixels + pixels / 4 + uv] = (byte)Math.max(0, Math.min(255, v));
+            // Flexible YUV is not necessarily packed I420 on MediaTek.
+            // Respect each encoder plane's actual row and pixel strides.
+            Image image = codec.getInputImage(slot);
+            if (image == null) throw new IllegalStateException("Encoder has no flexible YUV input image");
+            try {
+                Image.Plane[] planes = image.getPlanes();
+                if (planes.length != 3) throw new IllegalStateException("Expected three YUV planes");
+                for (int yy = 0; yy < height; yy++) {
+                    for (int xx = 0; xx < width; xx++) {
+                        int i = (yy * width + xx) * 4;
+                        int r = rgba[i] & 255, g = rgba[i + 1] & 255, b = rgba[i + 2] & 255;
+                        int y = ((66*r + 129*g + 25*b + 128) >> 8) + 16;
+                        putPlane(planes[0], xx, yy, y);
+                        if ((xx & 1) == 0 && (yy & 1) == 0) {
+                            int u = ((-38*r - 74*g + 112*b + 128) >> 8) + 128;
+                            int v = ((112*r - 94*g - 18*b + 128) >> 8) + 128;
+                            putPlane(planes[1], xx / 2, yy / 2, u);
+                            putPlane(planes[2], xx / 2, yy / 2, v);
+                        }
                     }
                 }
-            }
-            input.put(yuv);
-            codec.queueInputBuffer(slot, 0, yuv.length, frameIndex++ * 1000000L / fps, 0);
+            } finally { image.close(); }
+            codec.queueInputBuffer(slot, 0, width * height * 3 / 2, frameIndex++ * 1000000L / fps, 0);
             drain(false);
             return true;
         } catch (Exception e) { error = e.toString(); Log.e("MobileI2V", "Frame encoding failed", e); return false; }
+    }
+
+    private static void putPlane(Image.Plane plane, int x, int y, int value) {
+        ByteBuffer buffer = plane.getBuffer();
+        buffer.put(buffer.position() + y * plane.getRowStride() + x * plane.getPixelStride(),
+                   (byte)Math.max(0, Math.min(255, value)));
     }
 
     private void drain(boolean end) {
         if (codec == null) return;
         if (end) {
             int slot = codec.dequeueInputBuffer(1000000);
-            if (slot >= 0) codec.queueInputBuffer(slot, 0, 0, frameIndex * 1000000L / fps, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+            if (slot < 0) throw new IllegalStateException("Could not queue end of stream");
+            codec.queueInputBuffer(slot, 0, 0, frameIndex * 1000000L / fps, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
         }
+        boolean sawEnd = false;
         for (int attempts = 0; attempts < (end ? 200 : 16); attempts++) {
             int out = codec.dequeueOutputBuffer(info, end ? 100000 : 10000);
             if (out == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
@@ -108,9 +123,10 @@ public final class MP4Exporter extends GodotPlugin {
                 }
                 boolean eos = (info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
                 codec.releaseOutputBuffer(out, false);
-                if (eos) break;
+                if (eos) { sawEnd = true; break; }
             } else if (out == MediaCodec.INFO_TRY_AGAIN_LATER && !end) break;
         }
+        if (end && !sawEnd) throw new IllegalStateException("Encoder did not finish stream");
     }
 
     @UsedByGodot
@@ -118,10 +134,56 @@ public final class MP4Exporter extends GodotPlugin {
         try {
             if (codec == null || frameIndex == 0) return "";
             drain(true);
-            String result = output.getAbsolutePath();
+            if (!muxerStarted) throw new IllegalStateException("No encoded video track");
+            muxer.stop();
+            muxerStarted = false;
+            File completed = output;
             release(false);
-            return result;
+            if (Build.VERSION.SDK_INT >= 29) {
+                Activity activity = getActivity();
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.Video.Media.DISPLAY_NAME, completed.getName());
+                values.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
+                values.put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/KARMA ONE");
+                values.put(MediaStore.Video.Media.IS_PENDING, 1);
+                Uri uri = activity.getContentResolver().insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values);
+                if (uri == null) throw new IllegalStateException("Cannot create gallery video");
+                try {
+                    try (FileInputStream source = new FileInputStream(completed);
+                         OutputStream target = activity.getContentResolver().openOutputStream(uri)) {
+                        if (target == null) throw new IllegalStateException("Cannot write gallery video");
+                        byte[] bytes = new byte[65536];
+                        int length;
+                        while ((length = source.read(bytes)) != -1) target.write(bytes, 0, length);
+                    }
+                    values.clear();
+                    values.put(MediaStore.Video.Media.IS_PENDING, 0);
+                    activity.getContentResolver().update(uri, values, null, null);
+                    lastExportUri = uri;
+                    completed.delete();
+                    return "Movies/KARMA ONE/" + completed.getName();
+                } catch (Exception e) {
+                    activity.getContentResolver().delete(uri, null, null);
+                    throw e;
+                }
+            }
+            return completed.getAbsolutePath();
         } catch (Exception e) { error = e.toString(); Log.e("MobileI2V", "Finish failed", e); release(true); return ""; }
+    }
+
+    @UsedByGodot
+    public boolean share_last_export() {
+        Activity activity = getActivity();
+        if (activity == null || lastExportUri == null) return false;
+        final Uri uri = lastExportUri;
+        activity.runOnUiThread(() -> {
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("video/mp4");
+            intent.putExtra(Intent.EXTRA_STREAM, uri);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            activity.startActivity(Intent.createChooser(intent, "Partager le MP4"));
+        });
+        return true;
     }
 
     @UsedByGodot public String get_last_error() { return error; }

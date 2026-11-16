@@ -161,6 +161,13 @@ jobs:
           if grep -Ei 'SCRIPT ERROR|Parse Error|Failed to load script|INVALID SCRIPT|FAILED:|INVALID MAIN SCENE' karma-validation.log; then exit 1; fi
           echo 'KARMA ONE tests passed; continuing directly to Android APK export.' >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Test disk drawings and aspect-preserving export
+        run: |
+          set -euo pipefail
+          timeout 120s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_disk_drawing_sequence.gd 2>&1 | tee disk-drawings.log
+          grep -q 'DISK_DRAWING_SEQUENCE_OK' disk-drawings.log
+          if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error' disk-drawings.log; then exit 1; fi
+
       - name: Smoke-test KARMA ONE startup before APK export
         run: |
           set -euo pipefail
@@ -221,28 +228,22 @@ jobs:
           stat -c 'APK size: %s bytes' build/MobileI2V_V50_ARM64_FIXED.apk
           sha256sum build/MobileI2V_V50_ARM64_FIXED.apk
 
-      - name: Verify APK launch metadata and report plugin presence
+      - name: Verify native MP4 class and Android plugin registration
         run: |
           set -euo pipefail
           APK=build/MobileI2V_V50_ARM64_FIXED.apk
-          unzip -Z1 "$APK" > build/apk-files.txt
           "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$APK" | grep -E "^(package:|launchable-activity:|native-code:)" | tee build/apk-runtime-metadata.txt
-          grep -q "launchable-activity:" build/apk-runtime-metadata.txt
-          if grep -Eiq '(^|/)(MP4Exporter|mp4exporter)(/|\.|$)' build/apk-files.txt; then
-            echo "Native MP4 plugin candidate found in packaged APK." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "WARNING: MP4 plugin not detected in APK; native export remains unverified." >> "$GITHUB_STEP_SUMMARY"
-          fi
-          echo "APK launch metadata validated; physical device runtime not tested." >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Report MP4 plugin packaging status
-        run: |
-          set -euo pipefail
-          if unzip -Z1 build/MobileI2V_V50_ARM64_FIXED.apk | grep -Eiq '(^|/)(MP4Exporter|mp4exporter)(/|\\.|$)'; then
-            echo "MP4 plugin packaging candidate found; Android runtime validation still required." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "MP4Exporter plugin NOT packaged: MP4 unavailable in this APK; AVI fallback only." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml > build/apk-manifest.txt
+          grep -q 'org.godotengine.plugin.v2.MP4Exporter' build/apk-manifest.txt
+          python3 - <<'PY'
+          import zipfile
+          with zipfile.ZipFile('build/MobileI2V_V50_ARM64_FIXED.apk') as z:
+              dex = [z.read(n) for n in z.namelist() if n.endswith('.dex')]
+              assert any(b'Lcom/mobilei2v/encoder/MP4Exporter;' in data for data in dex), 'MP4 native class absent'
+              assert any(b'share_last_export' in data for data in dex), 'MP4 share method absent'
+          print('PASS: MP4Exporter DEX class and plugin registration packaged')
+          PY
+          echo "Native MP4 class and plugin registration verified. Device encoding not tested." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish verified APK checksum and build evidence
         run: |
@@ -281,6 +282,7 @@ jobs:
             karma-validation.log
             karma-startup.log
             configure.log
+            disk-drawings.log
             export.log
             signing-check.log
             apk-badging.txt

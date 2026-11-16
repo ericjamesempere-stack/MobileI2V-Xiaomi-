@@ -51,6 +51,12 @@ jobs:
           set -euo pipefail
           timeout 120s /tmp/Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/validate_karma_one.gd 2>&1 | tee /tmp/godot-validate.log
           if grep -Ei 'SCRIPT ERROR|Parse Error|Failed to load script|INVALID SCRIPT|FAILED:|INVALID MAIN SCENE' /tmp/godot-validate.log; then exit 1; fi
+      - name: Test disk drawing sequence
+        run: |
+          set -euo pipefail
+          timeout 120s /tmp/Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_disk_drawing_sequence.gd 2>&1 | tee /tmp/disk-drawings.log
+          grep -q 'DISK_DRAWING_SEQUENCE_OK' /tmp/disk-drawings.log
+          if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error' /tmp/disk-drawings.log; then exit 1; fi
       - name: Smoke-test application startup after successful validation
         run: |
           set -euo pipefail
