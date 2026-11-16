@@ -40,7 +40,9 @@ jobs:
               if "var response: Array = await " in line and ".request_completed" in line:
                   indent = line[:len(line)-len(line.lstrip())]
                   patched.append(indent + 'print("HTTP_STAGE ' + function + '", {"result": response[0], "http": response[1], "bytes": (response[3] as PackedByteArray).size()})')
-          source.write_text("\n".join(patched) + "\n")
+          content = "\n".join(patched) + "\n"
+          content = content.replace("    stream.timeout = 240.0", "    stream.accept_gzip = false\n    stream.timeout = 240.0")
+          source.write_text(content)
           PY
       - name: Attempt production image to board path once
         env:
