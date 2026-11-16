@@ -43,7 +43,18 @@ func record_user_approval(fingerprint: String) -> void:
         save(folder_path)
 
 func record_video_result(output: String) -> void:
-    state["agents"]["video"] = "encoded_native" if not output.is_empty() else "failed"
-    state["video_output"] = output
+    # A returned path is not proof that an MP4 was encoded successfully.
+    var exists: bool = not output.is_empty() and FileAccess.file_exists(output)
+    var valid_mp4: bool = exists and output.to_lower().ends_with(".mp4")
+    var size_ok: bool = false
+    if valid_mp4:
+        var file := FileAccess.open(output, FileAccess.READ)
+        if file != null:
+            size_ok = file.get_length() > 1024
+            file.close()
+    state["agents"]["video"] = "encoded_native" if size_ok else "failed"
+    state["video_output"] = output if size_ok else ""
+    if not size_ok:
+        state["video_error"] = "MP4 missing, empty, or not confirmed on disk"
     if not folder_path.is_empty():
         save(folder_path)
