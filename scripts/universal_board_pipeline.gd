@@ -22,7 +22,17 @@ func build_boards(reference: Image, story: String, seconds: float, style: String
         return {"ok": false, "stage": "generation", "plan": plan, "detail": generation, "ready_for_animation": false}
     stage_changed.emit("fidelity_review", 0, plan["keyposes"])
     var review: Dictionary = await review_and_correct(reference, plan, style, folder)
-    return {"ok": review.get("fidelity_verified", false) and plan.get("semantic_analysis", false), "stage": "fidelity_review", "plan": plan, "generation": generation, "quality": review, "human_approved": false, "ready_for_animation": false, "intermediates_generated": 0}
+    if not review.get("ok", false) or not review.get("fidelity_verified", false):
+        return {"ok": false, "stage": "fidelity_review", "plan": plan, "generation": generation, "quality": review, "human_approved": false, "ready_for_animation": false}
+    # Do not spend image-generation quota on in-betweens before keyposes pass.
+    var intermediate_agent: RefCounted = load("res://scripts/karma_intermediate_agent.gd").new()
+    stage_changed.emit("intermediate_generation", 0, int(plan.get("intermediate_drawings", 0)))
+    var intermediate_result: Dictionary = await intermediate_agent.render_pending(plan, folder, worker, style, 4)
+    if not intermediate_result.get("ok", false):
+        return {"ok": false, "stage": "intermediate_generation", "plan": plan, "generation": generation, "quality": review, "intermediates": intermediate_result, "human_approved": false, "ready_for_animation": false}
+    stage_changed.emit("intermediate_fidelity_review", 0, int(plan.get("intermediate_drawings", 0)))
+    var intermediate_review: Dictionary = await intermediate_agent.review_candidates(reference, plan, folder, worker, 4)
+    return {"ok": intermediate_review.get("ok", false), "stage": "intermediate_fidelity_review", "plan": plan, "generation": generation, "quality": review, "intermediates": intermediate_result, "intermediate_review": intermediate_review, "human_approved": false, "ready_for_animation": false, "intermediates_generated_this_pass": intermediate_result.get("generated", 0)}
 
 func _write(path: String, value: Dictionary) -> bool:
     var file := FileAccess.open(path + ".part", FileAccess.WRITE)
