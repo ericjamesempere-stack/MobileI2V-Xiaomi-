@@ -133,3 +133,66 @@ func render_pending(plan: Dictionary, folder: String, worker: Node, style: Strin
         results.append(completed)
         generated += 1
     return {"ok": true, "generated": generated, "results": results, "scheduled": scheduled["scheduled"], "human_approved": false, "ready_for_animation": false}
+
+# Dedicated visual fidelity agent: candidates are never human-approved here.
+func review_candidates(reference: Image, plan: Dictionary, folder: String, worker: Node, max_review: int = 4) -> Dictionary:
+    if worker == null or not worker.has_method("assess_keyposes"):
+        return {"ok": false, "error": "vision_reviewer_missing", "human_approved": false}
+    var schedule_result: Dictionary = schedule(plan)
+    if not schedule_result.get("ok", false):
+        return {"ok": false, "error": "invalid_intermediate_schedule", "human_approved": false}
+    var reviewed: int = 0
+    var failed: Array = []
+    var pending: Array = []
+    var cached: int = 0
+    for task in schedule_result["tasks"]:
+        var path: String = folder.path_join(str(task["id"]) + ".png")
+        var meta_path: String = folder.path_join(str(task["id"]) + ".json")
+        if not FileAccess.file_exists(path) or not FileAccess.file_exists(meta_path):
+            pending.append(task["id"])
+            continue
+        var meta: Variant = JSON.parse_string(FileAccess.get_file_as_string(meta_path))
+        if not meta is Dictionary or meta.get("image_sha", "") != FileAccess.get_sha256(path):
+            return {"ok": false, "error": "intermediate_candidate_changed", "task": task["id"], "human_approved": false}
+        var review_binding: String = ("intermediate-review-v1" + str(meta["binding"]) + str(meta["image_sha"]) + worker.vision_provider_id()).sha256_text()
+        if meta.get("review_binding", "") == review_binding and meta.get("review_origin", "") == "live_vision_model":
+            cached += 1
+            if not meta.get("fidelity_verified", false):
+                failed.append(task["id"])
+            continue
+        if reviewed >= max_review:
+            pending.append(task["id"])
+            continue
+        var image := Image.new()
+        if image.load(path) != OK:
+            return {"ok": false, "error": "intermediate_image_unreadable", "task": task["id"], "human_approved": false}
+        var expected: Dictionary = task.duplicate(true)
+        expected["pose"] = "Intermediate physical state at fraction %.3f" % float(task["fraction"])
+        var response: Dictionary = await worker.assess_keyposes(reference, [image], [expected])
+        if not response.get("ok", false):
+            return {"ok": false, "error": "intermediate_vision_review_failed", "detail": response.get("error", ""), "task": task["id"], "human_approved": false}
+        if not response.get("review") is Dictionary or not response["review"].get("frames") is Array or response["review"]["frames"].size() != 1:
+            return {"ok": false, "error": "invalid_intermediate_review", "human_approved": false}
+        var row: Dictionary = response["review"]["frames"][0]
+        var passed: bool = row.get("uncertain", true) == false and row.get("defects") is Array and row["defects"].is_empty()
+        for key in ["identity_match", "count_match", "action_match", "environment_match", "perspective_match"]:
+            passed = passed and row.get(key) == true
+        if FileAccess.get_sha256(path) != meta["image_sha"]:
+            return {"ok": false, "error": "intermediate_changed_during_review", "human_approved": false}
+        meta["review_binding"] = review_binding
+        meta["review_origin"] = "live_vision_model"
+        meta["model_review"] = row
+        meta["fidelity_verified"] = passed
+        meta["human_approved"] = false
+        var temp_path: String = meta_path + ".part"
+        var file := FileAccess.open(temp_path, FileAccess.WRITE)
+        if file == null:
+            return {"ok": false, "error": "review_metadata_write_failed", "human_approved": false}
+        file.store_string(JSON.stringify(meta))
+        file.close()
+        if DirAccess.rename_absolute(temp_path, meta_path) != OK:
+            return {"ok": false, "error": "review_metadata_rename_failed", "human_approved": false}
+        reviewed += 1
+        if not passed:
+            failed.append(task["id"])
+    return {"ok": true, "reviewed": reviewed, "cached_reviews": cached, "failed": failed, "pending": pending, "fidelity_verified": failed.is_empty() and pending.is_empty(), "human_approved": false, "ready_for_animation": false}
