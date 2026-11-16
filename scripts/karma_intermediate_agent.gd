@@ -11,6 +11,7 @@ func schedule(plan: Dictionary) -> Dictionary:
     var tasks: Array = []
     var unfillable: Array = []
     var used_frames: Dictionary = {}
+    var requested_total: int = 0
     for step in steps:
         var step_id: String = str(step.get("id", ""))
         var count: int = int(step.get("intermediate_drawings", 0))
@@ -71,7 +72,7 @@ func schedule(plan: Dictionary) -> Dictionary:
 
 # Rendering is deliberately separate from scheduling. The orchestrator calls
 # this only after keypose generation; human approval remains a later gate.
-func render_pending(plan: Dictionary, folder: String, worker: Node, style: String = "original", max_new: int = 4) -> Dictionary:
+func render_pending(plan: Dictionary, folder: String, worker: Node, style: String = "original", max_new: int = 4, original_reference: Image = null) -> Dictionary:
     var scheduled: Dictionary = schedule(plan)
     if not scheduled.get("ok", false):
         return {"ok": false, "error": "intermediate_schedule_invalid", "schedule": scheduled}
