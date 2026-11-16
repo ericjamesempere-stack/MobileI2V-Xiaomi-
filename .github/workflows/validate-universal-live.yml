@@ -1,0 +1,41 @@
+name: Validate universal board real inference
+on:
+  push:
+    branches:
+      - karma/v54-approval-safety-20261116
+    paths:
+      - "tools/test_universal_live_board.gd"
+      - ".github/workflows/validate-universal-live.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: universal-live-board
+  cancel-in-progress: false
+jobs:
+  real-inference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot
+        run: |
+          set -euo pipefail
+          curl -fL --retry 2 -o godot.zip https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.5.2-stable_linux.x86_64
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --editor --path . --import --quit
+      - name: Attempt production image to board path once
+        env:
+          KARMA_LIVE_EVIDENCE_DIR: ${{ github.workspace }}/live-evidence
+        run: |
+          set -euo pipefail
+          mkdir -p live-evidence
+          timeout --signal=TERM --kill-after=10s 420s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tools/test_universal_live_board.gd 2>&1 | tee live-evidence/run.log
+      - name: Upload actual results including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: universal-board-real-evidence
+          path: live-evidence/
+          if-no-files-found: warn
