@@ -10,6 +10,7 @@ func schedule(plan: Dictionary) -> Dictionary:
     var steps: Array = plan.get("steps", [])
     var tasks: Array = []
     var unfillable: Array = []
+    var used_frames: Dictionary = {}
     for step in steps:
         var step_id: String = str(step.get("id", ""))
         var count: int = int(step.get("intermediate_drawings", 0))
@@ -40,6 +41,11 @@ func schedule(plan: Dictionary) -> Dictionary:
             if end_frame <= start_frame + 1:
                 unfillable.append({"step_id": step_id, "reason": "no_video_frame_between_keyposes", "from_pose": str(a.get("id", "")), "to_pose": str(b.get("id", ""))})
                 continue
+            var target_frame: int = clampi(roundi(lerpf(float(start_frame), float(end_frame), alpha)), start_frame + 1, end_frame - 1)
+            if used_frames.has(target_frame):
+                unfillable.append({"step_id": step_id, "reason": "duplicate_intermediate_frame", "target_frame": target_frame})
+                continue
+            used_frames[target_frame] = true
             tasks.append({
                 "id": "between_%04d" % tasks.size(),
                 "step_id": step_id,
@@ -47,7 +53,7 @@ func schedule(plan: Dictionary) -> Dictionary:
                 "to_pose": str(b.get("id", "")),
                 "from_frame": start_frame,
                 "to_frame": end_frame,
-                "target_frame": clampi(roundi(lerpf(float(start_frame), float(end_frame), alpha)), start_frame + 1, end_frame - 1),
+                "target_frame": target_frame,
                 "fraction": alpha,
                 "actor_ids": a.get("actor_ids", []).duplicate(true),
                 "object_ids": a.get("object_ids", []).duplicate(true),
