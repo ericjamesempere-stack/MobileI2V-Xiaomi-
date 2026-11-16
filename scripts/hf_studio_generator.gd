@@ -5,7 +5,8 @@ const TEXT_URL = "https://mrfakename-z-image-turbo.hf.space"
 const EDIT_URL = "https://prithivmlmods-qwen-image-edit-2511-loras-fast.hf.space"
 const ANYPOSE_URL = "https://abidlabs-qwen-image-edit-2511-anypose.hf.space"
 const STYLES = {
-    "original": ["Anything2Real", "Keep the exact original drawing style, subject type, appearance, proportions, materials and colors. Preserve only features actually present in the reference."],
+    "original": ["Style-Transfer", "Keep the exact original drawing style, subject type, appearance, proportions, materials and colors. Preserve only features actually present in the reference."],
+    "bd_detail": ["Style-Transfer", "Detailed semi-realistic comic-book illustration, fine controlled linework, articulation appropriate to the subject, individual hair strands and fabric folds only where already present, precise existing accessories, layered painted shadows, rich materials and coherent directional lighting. Preserve recognizable identity. Avoid simplified flat-color cartoon rendering."],
     "cartoon": ["Anime-V2", "2D cartoon animation, clean expressive outlines, flat colors, consistent subject design."],
     "manga": ["Manga-Tone", "Japanese manga illustration, black and white ink, controlled screentones, consistent subject design."],
     "anime": ["Anime-V2", "Japanese anime animation, clean line art and cel shading, consistent subject design."],
@@ -15,6 +16,43 @@ const STYLES = {
 var last_error: String = ""
 var hf_token: String = ""
 var engine_status: Dictionary = {}
+var style_reference: Image = null
+const DETAIL_CACHE_VERSION := "style-guide-v1"
+
+func detailed_layout(style: String) -> bool:
+    return style == "bd_detail" or (style_reference != null and not style_reference.is_empty())
+
+func max_batch_size(style: String) -> int:
+    return 2 if detailed_layout(style) else 4
+
+func _encode_input(image: Image) -> String:
+    var copy: Image = image.duplicate()
+    var side: int = maxi(copy.get_width(), copy.get_height())
+    if side > 1024:
+        var ratio: float = 1024.0 / float(side)
+        copy.resize(maxi(1, roundi(copy.get_width() * ratio)), maxi(1, roundi(copy.get_height() * ratio)), Image.INTERPOLATE_LANCZOS)
+    return Marshalls.raw_to_base64(copy.save_png_to_buffer())
+
+func build_edit_payload(reference: Image, story: String, style: String, previous: Image = null) -> Dictionary:
+    var style_text: String = _style_instruction(style)
+    if style_reference != null and not style_reference.is_empty() and style != "bd_detail":
+        style_text = "Faithfully match the provided style guide: its linework, shading, palette, material detail and lighting. Preserve the subject identity from the main reference."
+    var instruction: String = style_text + " Image 1 is the permanent subject reference. " + story
+    var images: Array[String] = [_encode_input(reference)]
+    var adapter: String = str(STYLES[style][0]) if STYLES.has(style) else "Style-Transfer"
+    var style_image: Image = style_reference
+    if style_image == null and (style == "original" or style == "bd_detail" or not STYLES.has(style)):
+        style_image = reference
+    var previous_number: int = 2
+    if style_image != null and not style_image.is_empty():
+        images.append(_encode_input(style_image))
+        adapter = "Style-Transfer"
+        instruction += " Image 2 is a permanent visual-style guide ONLY: use its linework, shading, material detail and lighting. Do not copy its subjects, panels, captions, story or poses. Keep the identity and subject type from image 1. Convert image 1 to the style of image 2 while performing only the requested actions."
+        previous_number = 3
+    if previous != null:
+        images.append(_encode_input(previous))
+        instruction += " Image %d is temporal context only, not an additional subject or a target pose. Keep identity and background continuity, but render ONLY the new pose requested above." % previous_number
+    return {"instruction": instruction, "images": images, "adapter": adapter}
 
 func _http_failure(code: int, network: int) -> Dictionary:
     var kind: String = "quota" if code == 429 else ("authentication" if code == 401 or code == 403 else "transport")
@@ -136,19 +174,15 @@ func redraw(reference: Image, story: String, style: String, previous: Image = nu
     return {"ok": false, "error": "Aucun moteur n'a produit ce dessin. " + " | ".join(failures), "engines": engine_status.duplicate(true)}
 
 func _redraw_qwen(reference: Image, story: String, style: String, previous: Image, new_variation: bool) -> Dictionary:
-    var instruction: String = _style_instruction(style) + " Image 1 is the permanent subject reference. " + story
-    if previous != null:
-        instruction += " Image 2 is temporal context only, not an additional subject or a target pose. Keep identity and background continuity, but render ONLY the new pose requested above."
+    var payload: Dictionary = build_edit_payload(reference, story, style, previous)
+    var instruction: String = payload["instruction"]
     var safety: Dictionary = await _call_api(EDIT_URL, "check_safety", [instruction])
     if not safety.get("ok", false):
         return safety
     var check: Array = safety.get("data", [])
     if check.is_empty() or not check[0] is Dictionary or str(check[0].get("status", "")) != "ok":
         return {"ok": false, "error_kind": "safety", "error": "Directive refusee par le service d images."}
-    var images: Array[String] = [Marshalls.raw_to_base64(reference.save_png_to_buffer())]
-    if previous != null:
-        images.append(Marshalls.raw_to_base64(previous.save_png_to_buffer()))
-    var result: Dictionary = await _call_api(EDIT_URL, "edit_image", [JSON.stringify(images), instruction, str(STYLES[style][0]) if STYLES.has(style) else "Anything2Real", 1234, new_variation, 1.0, 4])
+    var result: Dictionary = await _call_api(EDIT_URL, "edit_image", [JSON.stringify(payload["images"]), instruction, payload["adapter"], 1234, new_variation, 1.0, 4])
     if not result.get("ok", false):
         return result
     var data: Array = result.get("data", [])
@@ -197,6 +231,8 @@ func _upload_anypose(images: Array[Image]) -> Dictionary:
     return {"ok": true, "files": files}
 
 func _redraw_anypose(reference: Image, story: String, style: String, previous: Image, new_variation: bool) -> Dictionary:
+    if detailed_layout(style):
+        return {"ok": false, "error_kind": "unsupported_style_guide", "error": "AnyPose ne prend pas en charge ce parcours avec reference de style. Aucun dessin simplifie n'est substitue."}
     var images: Array[Image] = [reference]
     if previous != null:
         images.append(previous)
@@ -238,30 +274,31 @@ func _redraw_anypose(reference: Image, story: String, style: String, previous: I
         return {"ok": false, "error": "Dessin AnyPose vide."}
     return {"ok": true, "image": output, "model": "Qwen-Image-Edit-2511-AnyPose", "identity_verified": false}
 
-func batch_prompt(briefs: Array) -> String:
-    var prompt: String = "Create a 2 by 2 animation storyboard grid of FOUR equal square panels, read left to right then top to bottom. Show exactly the same single subject from image 1 in every used panel. Preserve its exact silhouette, face if present, existing appendages, markings, materials, proportions, colors, drawing style, background and ground. "
+func batch_prompt(briefs: Array, rows: int = 2) -> String:
+    var layout: String = "a 2 by 2 animation storyboard grid of FOUR equal square panels, read left to right then top to bottom" if rows == 2 else "exactly TWO equal portrait animation panels side by side, read left to right, one row and two columns"
+    var prompt: String = "Create " + layout + ". Show exactly the same single subject from image 1 in every used panel. Keep the entire subject visible with comfortable margins: no cropped head, hands, feet or object extremities. Preserve its exact silhouette, face if present, existing appendages, markings, materials, proportions, colors, drawing style, background and ground. "
     for index in range(briefs.size()):
         prompt += "Panel %d: %s; %s. " % [index + 1, str(briefs[index].get("description", "")), str(briefs[index].get("pose", ""))]
-    if briefs.size() < 4:
+    if briefs.size() < rows * 2:
         prompt += "Leave the remaining panels empty. "
     return prompt + "Equal panel sizes, no gutters, no captions, no text, no extra characters, no human torso unless already present. Every used panel is a different physical pose of the same subject, not a camera change or image deformation."
 
-func split_batch(sheet: Image, count: int) -> Dictionary:
-    if sheet == null or sheet.is_empty() or count < 2 or count > 4 or sheet.get_width() < 1024 or sheet.get_height() < 1024:
+func split_batch(sheet: Image, count: int, rows: int = 2) -> Dictionary:
+    if sheet == null or sheet.is_empty() or rows not in [1, 2] or count < 2 or count > rows * 2 or sheet.get_width() < 1024 or sheet.get_height() < 1024:
         return {"ok": false, "error": "Planche IA insuffisante pour des dessins de 512 pixels minimum."}
     var frames: Array[Image] = []
     for index in range(count):
         var col: int = index % 2
         var row: int = index / 2
         var x1: int = col * sheet.get_width() / 2
-        var y1: int = row * sheet.get_height() / 2
+        var y1: int = row * sheet.get_height() / rows
         var x2: int = (col + 1) * sheet.get_width() / 2
-        var y2: int = (row + 1) * sheet.get_height() / 2
+        var y2: int = (row + 1) * sheet.get_height() / rows
         frames.append(sheet.get_region(Rect2i(x1, y1, x2 - x1, y2 - y1)))
     return {"ok": true, "images": frames, "layout_verified": false, "identity_verified": false}
 
 func redraw_batch(reference: Image, briefs: Array, style: String, previous: Image = null) -> Dictionary:
-    if reference == null or reference.is_empty() or briefs.is_empty() or briefs.size() > 4:
+    if reference == null or reference.is_empty() or briefs.is_empty() or briefs.size() > max_batch_size(style):
         return {"ok": false, "error": "Lot de dessins invalide."}
     if briefs.size() == 1:
         var single: Dictionary = await redraw(reference, str(briefs[0]["instruction"]), style, previous)
@@ -277,10 +314,11 @@ func redraw_batch(reference: Image, briefs: Array, style: String, previous: Imag
     canvas.fill(reference.get_pixel(0, 0))
     source.convert(Image.FORMAT_RGBA8)
     canvas.blit_rect(source, Rect2i(Vector2i.ZERO, source.get_size()), Vector2i((1024 - source.get_width()) / 2, (1024 - source.get_height()) / 2))
-    var result: Dictionary = await redraw(canvas, batch_prompt(briefs), style, previous)
+    var rows: int = 1 if detailed_layout(style) else 2
+    var result: Dictionary = await redraw(canvas, batch_prompt(briefs, rows), style, previous)
     if not result.get("ok", false):
         return result
-    var split: Dictionary = split_batch(result["image"], briefs.size())
+    var split: Dictionary = split_batch(result["image"], briefs.size(), rows)
     if split.get("ok", false):
         split["sheet"] = result["image"]
         split["model"] = result.get("model", "")

@@ -154,7 +154,7 @@ func build(board: Control) -> void:
     board.preview.add_child(board.reference_hint)
     text(person, "Choisis son univers", 24)
     board.drawing_style = OptionButton.new()
-    var names: Array[String] = ["Original", "Cartoon", "Manga", "Anime", "3D", "Cinéma"]
+    var names: Array[String] = ["Original", "Cartoon", "Manga", "Anime", "3D", "Cinéma", "BD détaillée"]
     for value in names:
         board.drawing_style.add_item(value)
     board.drawing_style.hide()
@@ -173,6 +173,16 @@ func build(board: Control) -> void:
     board.custom_style_input.placeholder_text = "Autre style libre : aquarelle, pâte à modeler, pixel art..."
     board.custom_style_input.custom_minimum_size.y = 58
     person.add_child(board.custom_style_input)
+    board.style_reference_hint = text(person, "Facultatif : importe une illustration ou une planche dont tu veux retrouver le style.", 18)
+    board.style_reference_preview = TextureRect.new()
+    board.style_reference_preview.custom_minimum_size = Vector2(0, 180)
+    board.style_reference_preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+    board.style_reference_preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+    board.style_reference_preview.hide()
+    person.add_child(board.style_reference_preview)
+    button(board, person, "Importer une référence de style", board._choose_style_reference).name = "ChooseStyleReference"
+    button(board, person, "Retirer la référence de style", board._remove_style_reference)
+    text(person, "BD détaillée ou référence de style : deux poses par calcul pour conserver plus de détails. La disponibilité dépend du quota du moteur.", 18)
     button(board, board.wizard_pages[0], "Continuer : mon histoire", func() -> void: board._go_step(1), true).name = "NextStory"
 
     var story: VBoxContainer = card(board.wizard_pages[1], "Que va-t-il se passer ?", "Raconte une petite aventure. Tu peux commencer par un exemple.")

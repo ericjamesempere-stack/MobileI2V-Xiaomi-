@@ -34,6 +34,10 @@ var drawings_folder_picker: FileDialog
 var pose_sheet_picker: FileDialog
 var exporting_video: bool = false
 var imported_path: String = ""
+var style_reference_path: String = ""
+var importing_style_reference: bool = false
+var style_reference_preview: TextureRect
+var style_reference_hint: Label
 var last_ai_sequence_ok: bool = false
 var photo_importing: bool = false
 var review_fingerprint: String = ""
@@ -82,6 +86,7 @@ func _ready() -> void:
     picker.use_native_dialog = true
     picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp;Images;image/png,image/jpeg,image/webp"])
     picker.file_selected.connect(_image_chosen)
+    picker.canceled.connect(_native_image_cancelled)
     add_child(picker)
     drawings_folder_picker = FileDialog.new()
     drawings_folder_picker.file_mode = FileDialog.FILE_MODE_OPEN_DIR
@@ -708,30 +713,69 @@ func _open_photo_folder(folder: String) -> void:
             picker.current_dir = folder
     picker.popup_centered_ratio(0.9)
 
-func _choose_image() -> void:
+func _choose_style_reference() -> void:
+    _choose_image(true)
+
+func _choose_image(as_style: bool = false) -> void:
     if ai_running or disk_drawing_running or exporting_video or photo_importing:
         status.text = "Attends la fin de l operation en cours."
         return
+    importing_style_reference = as_style
     if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
         if native.has_method("pick_reference_image"):
             photo_importing = bool(native.call("pick_reference_image"))
             status.text = "Choisis une image dans ta galerie." if photo_importing else "La galerie n'a pas pu s'ouvrir. Réessaie."
+            if not photo_importing:
+                importing_style_reference = false
             return
     # Native Android document/photo picker uses a user-selected URI; do not
     # request broad storage permissions merely to choose one image.
     # The selected content URI is passed to android_image_reader.gd.
+    photo_importing = true
     picker.popup_centered_ratio(0.9)
+
+func _set_style_reference(path: String) -> bool:
+    var image: Image = load("res://scripts/android_image_reader.gd").read_image(path)
+    if image == null or image.is_empty():
+        status.text = "Reference de style illisible. L'ancienne reference est conservee."
+        return false
+    var folder: String = "user://projects/style_%d" % Time.get_ticks_usec()
+    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK or image.save_png(folder.path_join("style.png")) != OK:
+        status.text = "Sauvegarde de la reference de style impossible."
+        return false
+    style_reference_path = folder.path_join("style.png")
+    _refresh_style_reference()
+    _save()
+    status.text = "Reference de style sauvegardee. Le sujet reste celui de ton image principale."
+    return true
+
+func _refresh_style_reference() -> void:
+    style_reference_preview.texture = _texture_for_path(style_reference_path) if not style_reference_path.is_empty() else null
+    style_reference_preview.visible = style_reference_preview.texture != null
+    style_reference_hint.text = "Cette reference guide les traits, les ombres et les details des planches." if style_reference_preview.texture != null else "Facultatif : importe une illustration ou une planche dont tu veux retrouver le style."
+
+func _remove_style_reference() -> void:
+    if ai_running or exporting_video or disk_drawing_running or photo_importing:
+        return
+    style_reference_path = ""
+    _refresh_style_reference()
+    _save()
 
 func _image_chosen(path: String) -> void:
     photo_importing = false
+    var as_style: bool = importing_style_reference
+    importing_style_reference = false
+    if as_style:
+        _set_style_reference(path)
+        return
     var img: Image = load("res://scripts/android_image_reader.gd").read_image(path)
     if img == null or img.is_empty():
         status.text = "ERREUR PHOTO : impossible de lire le fichier. Essaie JPG ou PNG."
         return
     var max_side: int = maxi(img.get_width(), img.get_height())
-    if max_side > 1200:
-        var factor: float = 1200.0 / float(max_side)
+    if max_side > 4096:
+        var factor: float = 4096.0 / float(max_side)
         img.resize(maxi(1, int(img.get_width() * factor)), maxi(1, int(img.get_height() * factor)), Image.INTERPOLATE_LANCZOS)
     # Keep every imported reference in a distinct local project folder.
     # Previously each new image silently overwrote the previous project's photo.
@@ -1712,7 +1756,7 @@ func _toggle_approval() -> void:
     _save()
 
 func _save() -> void:
-    if sources.is_empty(): return
+    if sources.is_empty() and imported_path.is_empty() and style_reference_path.is_empty(): return
     var flags: Array = []
     for a in accepted: flags.append(a)
     var approved_drawings: Array = []
@@ -1734,7 +1778,7 @@ func _save() -> void:
                     nearest_distance = distance
                     nearest = int(original_idx)
             approved_timeline.append(old_to_new[nearest])
-    var data := {"version": 2, "required_drawing_count": required_drawing_count, "explicit_rejections": explicit_rejections.keys(), "character_description": character_description.text, "drawing_style": drawing_style.selected, "custom_style": custom_style_input.text, "ai_drawings_count": ai_drawings_count.value, "karma_auto_export": karma_auto_export, "approved_drawings": approved_drawings, "approved_timeline": approved_timeline, "reference_path": imported_path, "description": action_input.text, "ai_endpoint": ai_endpoint.text, "duration_seconds": duration_input.value, "drawings": paths, "approved": flags, "timeline_indices": plan, "warning": "Offline photo camera motion or existing poses; no AI anatomy generation"}
+    var data := {"version": 2, "required_drawing_count": required_drawing_count, "explicit_rejections": explicit_rejections.keys(), "character_description": character_description.text, "drawing_style": drawing_style.selected, "custom_style": custom_style_input.text, "ai_drawings_count": ai_drawings_count.value, "karma_auto_export": karma_auto_export, "approved_drawings": approved_drawings, "approved_timeline": approved_timeline, "reference_path": imported_path, "style_reference_path": style_reference_path, "description": action_input.text, "ai_endpoint": ai_endpoint.text, "duration_seconds": duration_input.value, "drawings": paths, "approved": flags, "timeline_indices": plan, "warning": "Offline photo camera motion or existing poses; no AI anatomy generation"}
     var f := FileAccess.open(SAVE, FileAccess.WRITE)
     if f == null:
         status.text = "Erreur de sauvegarde"
@@ -1751,7 +1795,9 @@ func _load_saved() -> void:
     f.close()
     if not data is Dictionary: return
     character_description.text = str(data.get("character_description", ""))
-    drawing_style.select(clampi(int(data.get("drawing_style", 0)), 0, 5))
+    drawing_style.select(clampi(int(data.get("drawing_style", 0)), 0, drawing_style.item_count - 1))
+    style_reference_path = str(data.get("style_reference_path", ""))
+    _refresh_style_reference()
     custom_style_input.text = str(data.get("custom_style", ""))
     ai_drawings_count.value = int(data.get("ai_drawings_count", 6))
     action_input.text = str(data.get("description", ""))
@@ -1915,7 +1961,7 @@ func _share_last_mp4() -> void:
 func _selected_drawing_style() -> String:
     if custom_style_input != null and not custom_style_input.text.strip_edges().is_empty():
         return custom_style_input.text.strip_edges().substr(0, 160)
-    return ["original", "cartoon", "manga", "anime", "3d", "cinema"][drawing_style.selected]
+    return ["original", "cartoon", "manga", "anime", "3d", "cinema", "bd_detail"][drawing_style.selected]
 
 func _create_remote_reference() -> void:
     if ai_running or disk_drawing_running or exporting_video:
@@ -1979,6 +2025,12 @@ func _draw_remote_story() -> void:
         status.text = "Ecris l histoire avant de lancer les dessins."
         return
     var style: String = _selected_drawing_style()
+    var style_image: Image = null
+    if not style_reference_path.is_empty():
+        style_image = load("res://scripts/android_image_reader.gd").read_image(style_reference_path)
+        if style_image == null:
+            status.text = "La reference de style est manquante. Reimporte-la avant de generer."
+            return
     var duration: float = duration_input.value
     var total: int = int(ai_drawings_count.value)
     session_agent = load("res://scripts/karma_studio_session.gd").new()
@@ -2011,7 +2063,15 @@ func _draw_remote_story() -> void:
     reference_hash.start(HashingContext.HASH_SHA256)
     reference_hash.update(reference.get_data())
     var reference_digest: String = reference_hash.finish().hex_encode()
-    var cache_key: String = (reference_digest + story + style + str(total) + str(duration) + drawing_plan.REMOTE_BRIEF_VERSION).sha256_text().substr(0, 24)
+    var style_signature: String = ""
+    if style_image != null:
+        var style_hash := HashingContext.new()
+        style_hash.start(HashingContext.HASH_SHA256)
+        style_hash.update(style_image.get_data())
+        style_signature = style_hash.finish().hex_encode() + str(style_image.get_size())
+    if not style_signature.is_empty() or style in ["original", "bd_detail"]:
+        style_signature += load("res://scripts/hf_studio_generator.gd").DETAIL_CACHE_VERSION
+    var cache_key: String = (reference_digest + story + style + str(total) + str(duration) + drawing_plan.REMOTE_BRIEF_VERSION + style_signature).sha256_text().substr(0, 24)
     var folder: String = "user://projects/hf_" + cache_key
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
         status.text = "Dossier IA impossible a creer."
@@ -2020,6 +2080,7 @@ func _draw_remote_story() -> void:
     last_ai_sequence_ok = false
     var worker: Node = load("res://scripts/hf_studio_generator.gd").new()
     worker.hf_token = ai_token_input.text.strip_edges()
+    worker.style_reference = style_image
     add_child(worker)
     var drawings: Array[Texture2D] = []
     var drawing_paths: Array[String] = []
@@ -2034,7 +2095,7 @@ func _draw_remote_story() -> void:
         if not cached:
             if pending_frames.is_empty():
                 var briefs: Array = []
-                for next_index in range(index, mini(total, index + 4)):
+                for next_index in range(index, mini(total, index + worker.max_batch_size(style))):
                     if next_index > index and FileAccess.file_exists(folder.path_join("frame_%04d.png" % next_index)):
                         break
                     briefs.append(drawing_plan.remote_frame(story, duration, total, next_index))
@@ -2216,10 +2277,12 @@ func _friendly_restore() -> void:
 
 func _native_image_error(message: String) -> void:
     photo_importing = false
+    importing_style_reference = false
     status.text = message
 
 func _native_image_cancelled() -> void:
     photo_importing = false
+    importing_style_reference = false
     status.text = "Sélection annulée. Ton projet est conservé."
 
 func _drawing_fingerprint() -> String:
@@ -2368,8 +2431,15 @@ func _regenerate_reviewed_drawing() -> void:
         status.text = "Il faut l'image de référence et l'histoire pour refaire ce dessin."
         return
     var index: int = review_index
+    var style_image: Image = null
+    if not style_reference_path.is_empty():
+        style_image = load("res://scripts/android_image_reader.gd").read_image(style_reference_path)
+        if style_image == null:
+            status.text = "La reference de style est manquante. Reimporte-la avant de refaire."
+            return
     var worker: Node = load("res://scripts/hf_studio_generator.gd").new()
     worker.hf_token = ai_token_input.text.strip_edges()
+    worker.style_reference = style_image
     add_child(worker)
     ai_running = true
     review_caption.text = "Je refais le dessin %d…" % (index + 1)
