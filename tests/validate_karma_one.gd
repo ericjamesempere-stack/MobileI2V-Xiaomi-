@@ -77,5 +77,14 @@ func _test_merge_resume() -> int:
  if not bool(replacement.get("ok", false)) or not replacement.get("indices", []).has(1):
   printerr("FAILED: damaged existing frame was not replaced ", replacement)
   return 1
- print("PASS: missing frames, restore, multi-batch merge and final restoration, corrupt frame replacement")
+ var duplicate_source: String = str(second.get("paths", [])[0])
+ var original_bytes: PackedByteArray = FileAccess.get_file_as_bytes(duplicate_source)
+ var duplicate_merge: Dictionary = merger.merge(folder, prior, 240, 4)
+ if not bool(duplicate_merge.get("ok", false)) or int(duplicate_merge.get("duplicates", 0)) < 2:
+  printerr("FAILED: duplicate frame protection ", duplicate_merge)
+  return 1
+ if FileAccess.get_file_as_bytes(duplicate_source) != original_bytes:
+  printerr("FAILED: existing frame was overwritten")
+  return 1
+ print("PASS: missing frames, restore, multi-batch merge, corrupt replacement and duplicate protection")
  return 0
