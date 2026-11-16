@@ -8,6 +8,7 @@ var contact_caption: Label
 var skeleton_preview: TextureRect
 var character_description: TextEdit
 var drawing_style: OptionButton
+var custom_style_input: LineEdit
 var ai_drawings_count: SpinBox
 var ai_endpoint: LineEdit
 var ai_token_input: LineEdit
@@ -1886,6 +1887,8 @@ func _share_last_mp4() -> void:
 
 
 func _selected_drawing_style() -> String:
+    if custom_style_input != null and not custom_style_input.text.strip_edges().is_empty():
+        return custom_style_input.text.strip_edges().substr(0, 160)
     return ["original", "cartoon", "manga", "anime", "3d", "cinema"][drawing_style.selected]
 
 func _create_remote_reference() -> void:
