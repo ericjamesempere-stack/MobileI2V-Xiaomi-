@@ -443,8 +443,10 @@ func _export_board_mp4() -> void:
     for accepted_flag in accepted:
         if accepted_flag:
             selected += 1
-    if selected == 0:
-        status.text = "Valide les dessins avant l'export MP4."
+    # V54: an unapproved/rejected frame must block the entire export.
+    # Do not silently skip drawings: this would change the approved story.
+    if selected == 0 or accepted.size() != sources.size() or selected != sources.size():
+        status.text = "Export bloque : valide ou refais chaque dessin de la planche."
         return
     var exporter: Node = Node.new()
     exporter.set_script(load("res://scripts/export_mp4.gd"))
