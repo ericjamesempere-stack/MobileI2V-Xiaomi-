@@ -431,11 +431,14 @@ func _drawings_folder_selected(folder: String) -> void:
     _build_contact_sheet()
     _save()
     status.text = "KARMA ONE : %d dessins importes et sauvegardes." % sources.size()
-    if karma_auto_export:
+    var expected_frames: int = clampi(int(ceil(float(duration_input.value) * 4.0)), 2, 240)
+    if karma_auto_export and sources.size() >= expected_frames:
         if Engine.has_singleton("MP4Exporter"):
             await _export_board_mp4()
         else:
             status.text = "KARMA ONE : images sauvegardees. Encodeur MP4 Android absent : export automatique impossible."
+    elif karma_auto_export:
+        status.text = "KARMA ONE : %d/%d dessins importes. Montage conserve ; attends les dessins manquants avant le MP4." % [sources.size(), expected_frames]
 
 
 func _choose_pose_sheet() -> void:
