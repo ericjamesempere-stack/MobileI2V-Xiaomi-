@@ -63,5 +63,19 @@ func _test_merge_resume() -> int:
  if not bool(final_restore.get("ok", false)) or not bool(final_restore.get("complete", false)):
   printerr("FAILED: complete storyboard restoration ", final_restore)
   return 1
- print("PASS: missing frames, restore, multi-batch merge and final restoration")
+ var broken_folder: String = folder.path_join("damaged")
+ if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(broken_folder)) != OK:
+  return 1
+ var bad_path: String = broken_folder.path_join("frame_0001.png")
+ var broken := FileAccess.open(bad_path, FileAccess.WRITE)
+ if broken == null:
+  return 1
+ broken.store_string("not a png")
+ broken.close()
+ var broken_paths: Array[String] = [bad_path]
+ var replacement: Dictionary = merger.merge(folder, broken_paths, 240, 4)
+ if not bool(replacement.get("ok", false)) or not replacement.get("indices", []).has(1):
+  printerr("FAILED: damaged existing frame was not replaced ", replacement)
+  return 1
+ print("PASS: missing frames, restore, multi-batch merge and final restoration, corrupt frame replacement")
  return 0
