@@ -64,8 +64,13 @@ func decode_event_stream(body: String) -> Dictionary:
                 return {"ok": true, "data": value}
     return {"ok": false, "error": "Resultat IA absent. Aucune image inventee en remplacement."}
 
+func _style_instruction(style: String) -> String:
+    if STYLES.has(style):
+        return str(STYLES[style][1])
+    return "Requested visual style: " + style.strip_edges().substr(0, 160) + ". Preserve subject identity, appearance, proportions and visual consistency across frames."
+
 func create_reference(description: String, style: String) -> Dictionary:
-    if description.strip_edges().is_empty() or not STYLES.has(style):
+    if description.strip_edges().is_empty() or style.strip_edges().is_empty():
         return {"ok": false, "error": "Description ou style manquant."}
     var prompt: String = build_reference_prompt(description, style)
     var result: Dictionary = await _call_api(TEXT_URL, "generate_image", [prompt, 1024, 1024, 9, 1234, false])
@@ -97,9 +102,9 @@ func create_reference(description: String, style: String) -> Dictionary:
     return {"ok": true, "image": image, "model": "Z-Image-Turbo", "identity_verified": false}
 
 func redraw(reference: Image, story: String, style: String, previous: Image = null) -> Dictionary:
-    if reference == null or reference.is_empty() or not STYLES.has(style) or story.strip_edges().is_empty():
+    if reference == null or reference.is_empty() or style.strip_edges().is_empty() or story.strip_edges().is_empty():
         return {"ok": false, "error": "Image, directive ou style invalide."}
-    var instruction: String = str(STYLES[style][1]) + " Image 1 is the permanent subject reference. " + story
+    var instruction: String = _style_instruction(style) + " Image 1 is the permanent subject reference. " + story
     if previous != null:
         instruction += " Image 2 is the previous approved drawing; keep temporal continuity with it."
     var safety: Dictionary = await _call_api(EDIT_URL, "check_safety", [instruction])
@@ -111,7 +116,7 @@ func redraw(reference: Image, story: String, style: String, previous: Image = nu
     var images: Array[String] = [Marshalls.raw_to_base64(reference.save_png_to_buffer())]
     if previous != null:
         images.append(Marshalls.raw_to_base64(previous.save_png_to_buffer()))
-    var result: Dictionary = await _call_api(EDIT_URL, "edit_image", [JSON.stringify(images), instruction, str(STYLES[style][0]), 1234, false, 1.0, 4])
+    var result: Dictionary = await _call_api(EDIT_URL, "edit_image", [JSON.stringify(images), instruction, str(STYLES[style][0]) if STYLES.has(style) else "Anything2Real", 1234, false, 1.0, 4])
     if not result.get("ok", false):
         return result
     var data: Array = result.get("data", [])
@@ -147,9 +152,9 @@ func _headers(values: Array) -> PackedStringArray:
 
 
 func build_reference_prompt(description: String, style: String) -> String:
-    if not STYLES.has(style):
+    if style.strip_edges().is_empty():
         return ""
-    var style_text: String = str(STYLES[style][1])
+    var style_text: String = _style_instruction(style)
     if style == "original":
         style_text = "Faithfully depict the subject described by the user."
     # Subject type belongs to the user. A fruit/object must not become a human
