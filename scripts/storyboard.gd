@@ -32,6 +32,7 @@ var exporting_video: bool = false
 var imported_path: String = ""
 var last_ai_sequence_ok: bool = false
 var karma_auto_export: bool = true
+var karma_auto_export_toggle: CheckBox
 const SAVE: String = "user://mobilei2v_storyboard_v23.json"
 
 func _ready() -> void:
@@ -102,11 +103,11 @@ func _ready() -> void:
     _button("KARMA ONE : IMPORTER ET PRODUIRE LE MP4", _choose_drawings_folder)
     _button("KARMA ONE : PREPARER UN RELAIS VERS UNE AUTRE IA", _prepare_karma_relay)
     _button("KARMA ONE : FUSIONNER LES DESSINS DES AUTRES IA", _choose_merge_folder)
-    var auto_export_toggle := CheckBox.new()
-    auto_export_toggle.text = "Exporter automatiquement apres import (KARMA ONE)"
-    auto_export_toggle.button_pressed = true
-    auto_export_toggle.toggled.connect(func(enabled: bool) -> void: karma_auto_export = enabled)
-    root_box.add_child(auto_export_toggle)
+    karma_auto_export_toggle = CheckBox.new()
+    karma_auto_export_toggle.text = "Exporter automatiquement apres import (KARMA ONE)"
+    karma_auto_export_toggle.button_pressed = true
+    karma_auto_export_toggle.toggled.connect(func(enabled: bool) -> void: karma_auto_export = enabled)
+    root_box.add_child(karma_auto_export_toggle)
     _button("IMPORTER 18 DESSINS DEJA CREES (V5)", _choose_pose_sheet)
     _button("PREPARER LES POSES POUR IA (SANS RESEAU)", _prepare_pose_guides)
     _button("GENERER DESSINS + MP4 (MOTEUR IA HTTPS)", _generate_and_export)
@@ -1733,6 +1734,8 @@ func _load_saved() -> void:
     ai_endpoint.text = str(data.get("ai_endpoint", ""))
     duration_input.value = float(data.get("duration_seconds", 6))
     karma_auto_export = bool(data.get("karma_auto_export", true))
+    if karma_auto_export_toggle != null:
+        karma_auto_export_toggle.set_pressed_no_signal(karma_auto_export)
     imported_path = str(data.get("reference_path", ""))
     detected_landmarks.clear()
     sources.clear()
