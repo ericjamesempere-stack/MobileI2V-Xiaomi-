@@ -16,6 +16,6 @@ func estimate(story: String, duration: float, budget: int) -> Dictionary:
         if normalized.contains(word):
             interactions += 1
     # At least a beginning and ending pose; more action beats need more poses.
-    var recommended: int = clampi(maxi(2, int(ceil(duration * 1.5)), 2 + actions * 2 + interactions), 2, 240)
+    var recommended: int = clampi(maxi(maxi(2, int(ceil(duration * 1.5))), 2 + actions * 2 + interactions), 2, 240)
     var selected: int = mini(recommended, budget)
     return {"ok": true, "recommended": recommended, "selected": selected, "budget": budget, "actions_detected": actions, "interactions_detected": interactions, "limited_by_budget": selected < recommended, "method": "keyword_heuristic_not_semantic"}
