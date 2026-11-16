@@ -60,4 +60,9 @@ func merge(folder: String, existing: Array[String], limit: int = 240, expected_f
  var ordered: Array[String] = []
  for idx in indices:
   ordered.append(str(frame_paths[idx]))
+ var ledger := FileAccess.open(output.path_join("merge_state.json"), FileAccess.WRITE)
+ if ledger != null:
+  var state := {"version": 1, "expected_frames": expected_frames, "indices": indices, "paths": ordered, "missing": missing, "complete": missing.is_empty() and (expected_frames <= 0 or indices.size() >= expected_frames)}
+  ledger.store_string(JSON.stringify(state, "  "))
+  ledger.close()
  return {"ok": true, "paths": ordered, "indices": indices, "missing": missing, "added": added, "duplicates": duplicates, "rejected": rejected, "folder": output, "complete": missing.is_empty() and (expected_frames <= 0 or indices.size() >= expected_frames)}
