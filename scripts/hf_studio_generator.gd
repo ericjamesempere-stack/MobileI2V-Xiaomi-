@@ -4,7 +4,7 @@ signal progress(index: int, total: int)
 const TEXT_URL = "https://mrfakename-z-image-turbo.hf.space"
 const EDIT_URL = "https://prithivmlmods-qwen-image-edit-2511-loras-fast.hf.space"
 const STYLES = {
-    "original": ["Anything2Real", "Keep the exact original drawing style, subject appearance, face, hair, outfit and colors."],
+    "original": ["Anything2Real", "Keep the exact original drawing style, subject type, appearance, proportions, materials and colors. Preserve only features actually present in the reference."],
     "cartoon": ["Anime-V2", "2D cartoon animation, clean expressive outlines, flat colors, consistent subject design."],
     "manga": ["Manga-Tone", "Japanese manga illustration, black and white ink, controlled screentones, consistent subject design."],
     "anime": ["Anime-V2", "Japanese anime animation, clean line art and cel shading, consistent subject design."],
@@ -101,12 +101,12 @@ func create_reference(description: String, style: String) -> Dictionary:
             return {"ok": false, "error": "Dessin IA illisible."}
     return {"ok": true, "image": image, "model": "Z-Image-Turbo", "identity_verified": false}
 
-func redraw(reference: Image, story: String, style: String, previous: Image = null) -> Dictionary:
+func redraw(reference: Image, story: String, style: String, previous: Image = null, new_variation: bool = false) -> Dictionary:
     if reference == null or reference.is_empty() or style.strip_edges().is_empty() or story.strip_edges().is_empty():
         return {"ok": false, "error": "Image, directive ou style invalide."}
     var instruction: String = _style_instruction(style) + " Image 1 is the permanent subject reference. " + story
     if previous != null:
-        instruction += " Image 2 is the previous approved drawing; keep temporal continuity with it."
+        instruction += " Image 2 is temporal context only, not an additional subject or a target pose. Keep identity and background continuity, but render ONLY the new pose requested above."
     var safety: Dictionary = await _call_api(EDIT_URL, "check_safety", [instruction])
     if not safety.get("ok", false):
         return safety
@@ -116,7 +116,7 @@ func redraw(reference: Image, story: String, style: String, previous: Image = nu
     var images: Array[String] = [Marshalls.raw_to_base64(reference.save_png_to_buffer())]
     if previous != null:
         images.append(Marshalls.raw_to_base64(previous.save_png_to_buffer()))
-    var result: Dictionary = await _call_api(EDIT_URL, "edit_image", [JSON.stringify(images), instruction, str(STYLES[style][0]) if STYLES.has(style) else "Anything2Real", 1234, false, 1.0, 4])
+    var result: Dictionary = await _call_api(EDIT_URL, "edit_image", [JSON.stringify(images), instruction, str(STYLES[style][0]) if STYLES.has(style) else "Anything2Real", 1234, new_variation, 1.0, 4])
     if not result.get("ok", false):
         return result
     var data: Array = result.get("data", [])

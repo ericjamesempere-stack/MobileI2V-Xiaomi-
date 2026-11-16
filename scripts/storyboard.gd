@@ -1986,7 +1986,11 @@ func _draw_remote_story() -> void:
     if not preparation.get("ok", false):
         status.text = str(preparation.get("error", "Scénario impossible."))
         return
-    var motion: Dictionary = preparation["motion"]
+    var drawing_plan: RefCounted = load("res://scripts/board_generation_plan.gd").new()
+    var first_brief: Dictionary = drawing_plan.remote_frame(story, duration, total, 0)
+    if not first_brief.get("ok", false):
+        status.text = str(first_brief.get("error", "Plan impossible."))
+        return
     # Ground every drawing in the actual selected image, not just the text story.
     # This is a measurable reference profile, NOT a semantic vision-model result.
     var visual_analyzer: RefCounted = load("res://scripts/reference_visual_analysis.gd").new()
@@ -2008,7 +2012,7 @@ func _draw_remote_story() -> void:
     reference_hash.start(HashingContext.HASH_SHA256)
     reference_hash.update(reference.get_data())
     var reference_digest: String = reference_hash.finish().hex_encode()
-    var cache_key: String = (reference_digest + story + style + str(total) + str(duration)).sha256_text().substr(0, 24)
+    var cache_key: String = (reference_digest + story + style + str(total) + str(duration) + drawing_plan.REMOTE_BRIEF_VERSION).sha256_text().substr(0, 24)
     var folder: String = "user://projects/hf_" + cache_key
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
         status.text = "Dossier IA impossible a creer."
@@ -2027,19 +2031,9 @@ func _draw_remote_story() -> void:
         var frame := Image.new()
         var cached: bool = FileAccess.file_exists(path) and frame.load(path) == OK and not frame.is_empty()
         if not cached:
-            var seconds: float = float(index) / float(maxi(1, total - 1)) * duration
-            var directive: String = story
-            var action_name: String = "inconnu"
-            var phase: float = 0.0
-            for step in motion.get("steps", []):
-                if seconds < float(step["end"]) or step == motion["steps"].back():
-                    directive = str(step["description"])
-                    action_name = str(step.get("action", "inconnu"))
-                    phase = clampf((seconds - float(step["start"])) / maxf(0.001, float(step["end"]) - float(step["start"])), 0.0, 1.0)
-                    break
+            var brief: Dictionary = drawing_plan.remote_frame(story, duration, total, index)
             status.text = "Dessin %d sur %d · Création en cours…" % [index + 1, total]
-            var phase_guide: String = load("res://scripts/board_generation_plan.gd").new().phase_at(action_name, phase)
-            var instruction: String = visual_guidance + " Draw exactly ONE NEW full-frame keyframe image, no grid, no panels, no text. Full story: " + story + ". Current action: " + directive + ". Pose or event phase: " + phase_guide + ". Action progression: %d percent. Make a visibly different physical pose, spatial position or scene state from the previous frame. Preserve the subject identity, material, silhouette, colors, chosen style and consistent background. A subject can be a fruit, animal, object, vehicle, person or landscape: never add a human body unless the story asks for one." % roundi(phase * 100.0)
+            var instruction: String = visual_guidance + " " + str(brief["instruction"])
             var result: Dictionary = await worker.redraw(reference, instruction, style, previous)
             if not result.get("ok", false):
                 failure = str(result.get("error", "Erreur distante."))
@@ -2365,8 +2359,16 @@ func _regenerate_reviewed_drawing() -> void:
     ai_running = true
     review_caption.text = "Je refais le dessin %d…" % (index + 1)
     var previous: Image = sources[index - 1].get_image() if index > 0 else null
-    var instruction: String = "One single drawing, no panels, no text. Story: " + action_input.text + ". Redraw drawing %d of %d, story progression %d percent. Preserve the exact subject type, shape, materials, proportions and requested style. The subject may be a person, animal, object, vehicle, landscape or imaginary creature; do not invent human anatomy. Show the requested action or visual transformation with coherent geometry and continuity." % [index + 1, sources.size(), roundi(100.0 * index / maxi(1, sources.size() - 1))]
-    var result: Dictionary = await worker.redraw(reference, instruction, _selected_drawing_style(), previous)
+    var total: int = maxi(required_drawing_count, sources.size())
+    var brief: Dictionary = load("res://scripts/board_generation_plan.gd").new().remote_frame(action_input.text, duration_input.value, total, index)
+    if not brief.get("ok", false):
+        worker.queue_free()
+        ai_running = false
+        status.text = str(brief.get("error", "Plan impossible."))
+        _refresh_review_dialog()
+        return
+    var instruction: String = str(brief["instruction"])
+    var result: Dictionary = await worker.redraw(reference, instruction, _selected_drawing_style(), previous, true)
     worker.queue_free()
     ai_running = false
     if not result.get("ok", false):

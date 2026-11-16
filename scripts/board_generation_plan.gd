@@ -2,6 +2,50 @@ extends RefCounted
 # Image-first storyboard production contract for KARMA ONE.
 # Generates precise drawing briefs; does not falsely claim to generate AI images.
 const MAX_BOARDS := 240
+const REMOTE_BRIEF_VERSION := "v54-pose-2"
+# Physical states, restricted to the current action. Sending the entire story
+# to every edit encouraged multiple simultaneous poses and duplicate subjects.
+const REMOTE_POSES := {
+    "course": ["forward lean, left support contacting ground, right limb trailing", "push off the ground, rear limb extended", "airborne stride, supports separated", "right support contacting ground, left limb trailing"],
+    "trebuche": ["leading support catches on the ground while momentum continues forward", "support blocked, body pitching forward, existing limbs spread to recover balance", "balance lost, body tipping farther forward, no stable support"],
+    "chute": ["balance lost, body tilting forward above the ground", "body halfway down, descending toward ground", "body nearly horizontal, just above ground", "impact with ground, body horizontal", "lying still on the ground after the fall, no standing pose"]
+}
+
+func remote_frame(story: String, seconds: float, count: int, index: int) -> Dictionary:
+    var motion: Dictionary = load("res://scripts/story_motion_planner.gd").new().plan(story, seconds)
+    var steps: Array = motion.get("steps", [])
+    if not motion.get("ok", false) or count < 2 or index < 0 or index >= count:
+        return {"ok": false, "error": "Plan de dessins invalide."}
+    if count < steps.size():
+        return {"ok": false, "error": "Choisis au moins %d dessins pour couvrir les %d actions." % [steps.size(), steps.size()]}
+    # Reserve a drawing for every action, even for a brief stumble between
+    # longer actions. Remaining drawings follow their relative durations.
+    var allocation: Array[int] = []
+    for step in steps:
+        allocation.append(1)
+    for unused in range(count - steps.size()):
+        var best: int = 0
+        var score: float = -1.0
+        for s in range(steps.size()):
+            var weight: float = (float(steps[s]["end"]) - float(steps[s]["start"])) / float(allocation[s])
+            if weight > score:
+                score = weight
+                best = s
+        allocation[best] += 1
+    var offset: int = 0
+    for s in range(steps.size()):
+        if index >= offset + allocation[s]:
+            offset += allocation[s]
+            continue
+        var action: String = str(steps[s]["action"])
+        var phase: float = float(index - offset) / float(allocation[s] - 1) if allocation[s] > 1 else 0.5
+        var pose: String = phase_at(action, phase)
+        if REMOTE_POSES.has(action):
+            var poses: Array = REMOTE_POSES[action]
+            pose = str(poses[mini(poses.size() - 1, int(floor(phase * poses.size())))])
+        var instruction: String = "Create exactly one new full-frame drawing of the single subject from image 1. Current action only: %s. Required physical state: %s. Use only the subject's existing anatomy and appendages. Preserve its exact proportions, materials, markings, colors and background. Do not add a human torso or change its species or object type. Change the actual articulated pose, not just the camera, zoom or translation. No duplicate subject, motion trail, collage, grid, text or extra panels." % [str(steps[s]["description"]), pose]
+        return {"ok": true, "action": action, "phase": phase, "instruction": instruction}
+    return {"ok": false, "error": "Action du dessin introuvable."}
 const ACTION_PHASES := {
     "course": ["contact gauche", "propulsion", "suspension", "contact droit"],
     "marche": ["appui gauche", "passage", "appui droit", "passage"],

@@ -1,5 +1,18 @@
 extends SceneTree
+class FakeEditor extends "res://scripts/hf_studio_generator.gd":
+    var edit_calls: Array = []
+    func _call_api(_base: String, api: String, data: Array) -> Dictionary:
+        if api == "check_safety":
+            return {"ok": true, "data": [{"status": "ok"}]}
+        edit_calls.append(data)
+        var image := Image.create(8, 8, false, Image.FORMAT_RGB8)
+        image.fill(Color.YELLOW)
+        return {"ok": true, "data": [{"status": "success", "image": Marshalls.raw_to_base64(image.save_png_to_buffer())}]}
+
 func _initialize() -> void:
+    call_deferred("run")
+
+func run() -> void:
     var client: Node = load("res://scripts/hf_studio_generator.gd").new()
     var result: Dictionary = client.decode_event_stream("event: heartbeat\n\nevent: complete\ndata: [{\"status\":\"success\",\"image\":\"abc\"}]\n\n")
     assert(result.get("ok", false))
@@ -8,5 +21,19 @@ func _initialize() -> void:
     assert(not client.decode_event_stream("event: error\ndata: \"quota exceeded\"\n\n")["ok"])
     assert(not client.decode_event_stream("event: complete\ndata: null\n\n")["ok"])
     client.free()
+    var editor := FakeEditor.new()
+    root.add_child(editor)
+    var reference := Image.create(8, 8, false, Image.FORMAT_RGB8)
+    reference.fill(Color.RED)
+    var previous := Image.create(8, 8, false, Image.FORMAT_RGB8)
+    previous.fill(Color.BLUE)
+    assert((await editor.redraw(reference, "lying on ground", "cartoon", previous))["ok"])
+    assert((await editor.redraw(reference, "lying on ground", "cartoon", previous, true))["ok"])
+    assert(not editor.edit_calls[0][4])
+    assert(editor.edit_calls[1][4])
+    assert(editor.edit_calls[0][0] == editor.edit_calls[1][0])
+    assert(editor.edit_calls[1][1].contains("not an additional subject or a target pose"))
+    assert(not editor.edit_calls[1][1].contains("previous approved"))
+    editor.free()
     print("HF_STUDIO_PROTOCOL_TESTS_OK")
     quit(0)
