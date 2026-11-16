@@ -27,6 +27,10 @@ func restore(folder: String) -> Dictionary:
   var index: int = int(saved_indices[i])
   if index < 0 or index >= 240 or seen.has(index):
    return {"ok": false, "error": "Indices invalides ou dupliques dans le journal"}
+  # Never trust a journal whose frame index disagrees with the image filename.
+  var basename: String = p.get_file().get_basename()
+  if not basename.begins_with("frame_") or not basename.substr(6).is_valid_int() or int(basename.substr(6)) != index:
+   return {"ok": false, "error": "Indice et nom du dessin incompatibles : " + p.get_file()}
   seen[index] = true
   paths.append(p)
   indices.append(index)
