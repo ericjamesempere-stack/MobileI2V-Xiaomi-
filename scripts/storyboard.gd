@@ -2032,7 +2032,13 @@ func _draw_remote_story() -> void:
             status.text = "La reference de style est manquante. Reimporte-la avant de generer."
             return
     var duration: float = duration_input.value
-    var total: int = int(ai_drawings_count.value)
+    # Adaptive pose count is bounded by the user's existing GPU drawing budget.
+    # This heuristic is not a semantic visual analysis or a quality guarantee.
+    var pose_budget: Dictionary = load("res://scripts/board_pose_budget.gd").new().estimate(story, duration, int(ai_drawings_count.value))
+    if not pose_budget.get("ok", false):
+        status.text = str(pose_budget.get("error", "Calcul des poses impossible."))
+        return
+    var total: int = int(pose_budget["selected"])
     session_agent = load("res://scripts/karma_studio_session.gd").new()
     var preparation: Dictionary = session_agent.begin(story, duration, total)
     if not preparation.get("ok", false):
