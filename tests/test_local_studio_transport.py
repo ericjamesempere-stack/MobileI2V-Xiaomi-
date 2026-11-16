@@ -79,7 +79,7 @@ def main():
         server.shutdown()
         print(result.stdout)
         assert result.returncode == 0 and "LOCAL_STUDIO_TRANSPORT_OK" in result.stdout and "SCRIPT ERROR" not in result.stderr, result.stdout + result.stderr
-        assert counts == {"models": 1, "analysis": 1, "review": 9, "generate": 10}, counts
+        # V54 now generates four additional intermediate candidates and runs\n        # two visual checks for each (original-reference + three-pose motion).\n        # Review counts are per image, not per HTTP request: +4 + 12.\n        assert counts == {"models": 1, "analysis": 1, "review": 25, "generate": 14}, counts
         print("LOCAL_HTTP_NO_CLOUD_COUNTS_OK", counts)
 if __name__ == "__main__":
     main()
