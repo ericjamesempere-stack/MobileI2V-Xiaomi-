@@ -48,9 +48,9 @@ func _ready() -> void:
     _label("MOBILEI2V | STUDIO DE CREATION", 28)
     _label("1. Importe ton personnage. 2. Decris son mouvement. 3. Cree et controle les dessins.", 18)
     _label("Important : le mode photo actuel anime un detourage 2D. Il ne redessine pas encore chaque posture avec une IA.", 16)
-    _button("1. CHOISIR MA PHOTO", _choose_image)
-    _button("OUVRIR MES PHOTOS (PICTURES)", _choose_gallery)
-    _button("OUVRIR MES PHOTOS CAMERA (DCIM)", _choose_camera_gallery)
+    _button("1. CHOISIR DANS MA GALERIE", _choose_image)
+    _button("PARCOURIR PICTURES", _choose_gallery)
+    _button("PARCOURIR CAMERA (DCIM)", _choose_camera_gallery)
     status = _label("Choisis une photo pour creer une planche locale approximative.", 23)
     preview = TextureRect.new()
     preview.custom_minimum_size = Vector2(0, 210)
@@ -477,14 +477,14 @@ func _choose_camera_gallery() -> void:
 
 func _open_photo_folder(folder: String) -> void:
     if OS.get_name() == "Android":
-        OS.request_permissions()
         if DirAccess.dir_exists_absolute(folder):
             picker.current_dir = folder
     picker.popup_centered_ratio(0.9)
 
 func _choose_image() -> void:
-    if OS.get_name() == "Android":
-        OS.request_permissions()
+    # Native Android document/photo picker uses a user-selected URI; do not
+    # request broad storage permissions merely to choose one image.
+    # The selected content URI is passed to android_image_reader.gd.
     picker.popup_centered_ratio(0.9)
 
 func _image_chosen(path: String) -> void:
