@@ -2039,6 +2039,17 @@ func _draw_remote_story() -> void:
         status.text = str(pose_budget.get("error", "Calcul des poses impossible."))
         return
     var total: int = int(pose_budget["selected"])
+    # Every distinct planned action needs at least one drawing. Do not silently
+    # omit actions when the user-selected generation budget is too small.
+    var motion_preview: Dictionary = load("res://scripts/story_motion_planner.gd").new().plan(story, duration)
+    if not motion_preview.get("ok", false):
+        status.text = str(motion_preview.get("error", "Impossible de decomposer les actions."))
+        return
+    var action_count: int = motion_preview.get("steps", []).size()
+    if action_count > int(ai_drawings_count.value):
+        status.text = "Histoire : %d actions, mais seulement %d dessins autorises. Augmente la limite de dessins pour couvrir toutes les actions." % [action_count, int(ai_drawings_count.value)]
+        return
+    total = maxi(total, action_count)
     session_agent = load("res://scripts/karma_studio_session.gd").new()
     var preparation: Dictionary = session_agent.begin(story, duration, total)
     if not preparation.get("ok", false):
