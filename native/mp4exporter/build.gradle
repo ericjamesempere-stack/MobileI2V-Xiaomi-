@@ -5,7 +5,14 @@ android {
     namespace 'com.mobilei2v.encoder'
     compileSdk 35
     defaultConfig { minSdk 24 }
-    testOptions { unitTests.includeAndroidResources = true }
+    testOptions {
+        unitTests.includeAndroidResources = true
+        unitTests.all {
+            // Robolectric's Android FileDescriptor bridge on Java 17.
+            jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
+            testLogging { exceptionFormat = 'full' }
+        }
+    }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17

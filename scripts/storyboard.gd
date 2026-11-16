@@ -37,7 +37,7 @@ var last_ai_sequence_ok: bool = false
 var photo_importing: bool = false
 var review_fingerprint: String = ""
 var explicit_rejections: Dictionary = {}
-var review_dialog: PopupPanel
+var review_dialog: PanelContainer
 var review_image: TextureRect
 var review_caption: Label
 var review_index: int = 0
@@ -2132,6 +2132,8 @@ func _friendly_generate() -> void:
 
 func _friendly_export() -> void:
     if not _has_current_review():
+        review_check.set_pressed_no_signal(false)
+        review_fingerprint = ""
         status.text = "Regarde tes dessins, puis coche la case pour les valider."
         return
     _approve_all()
@@ -2197,7 +2199,14 @@ func _show_drawing_review(index: int = 0) -> void:
     review_index = clampi(index, 0, sources.size() - 1)
     if is_instance_valid(review_dialog):
         review_dialog.queue_free()
-    review_dialog = PopupPanel.new()
+    drawing_preview_playing = false
+    review_dialog = PanelContainer.new()
+    review_dialog.z_index = 50
+    review_dialog.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    review_dialog.offset_left = 20
+    review_dialog.offset_top = 20
+    review_dialog.offset_right = -20
+    review_dialog.offset_bottom = -20
     var style := StyleBoxFlat.new()
     style.bg_color = Color("f3f4fb")
     style.set_corner_radius_all(18)
@@ -2215,7 +2224,7 @@ func _show_drawing_review(index: int = 0) -> void:
     review_caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     content.add_child(review_caption)
     review_image = TextureRect.new()
-    review_image.custom_minimum_size = Vector2(560, 620)
+    review_image.custom_minimum_size = Vector2(0, 200)
     review_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     review_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     review_image.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -2232,7 +2241,7 @@ func _show_drawing_review(index: int = 0) -> void:
     _review_button(content, "Revenir à la planche", review_dialog.hide)
     add_child(review_dialog)
     _refresh_review_dialog()
-    review_dialog.popup_centered(Vector2i(640, 980))
+    review_dialog.show()
 
 func _review_button(parent: Node, text: String, action: Callable) -> void:
     var button := Button.new()

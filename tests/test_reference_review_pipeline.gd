@@ -2,6 +2,7 @@ extends SceneTree
 func _initialize() -> void:
     call_deferred("run")
 func run() -> void:
+    root.size = Vector2i(720, 1280)
     var save_path: String = "user://mobilei2v_storyboard_v23.json"
     var existed: bool = FileAccess.file_exists(save_path)
     var backup: PackedByteArray = FileAccess.get_file_as_bytes(save_path) if existed else PackedByteArray()
@@ -32,6 +33,14 @@ func run() -> void:
     board.accepted.assign([true, true])
     board.plan.assign([0, 1])
     board._sync_friendly_ui()
+    board._show_drawing_review(0)
+    for tick in range(3):
+        await process_frame
+    assert(board.review_image.texture.get_image().get_width() == 512)
+    var content: Control = board.review_dialog.get_child(0)
+    var close_button: Control = content.get_child(content.get_child_count() - 1)
+    assert(close_button.get_global_rect().end.y <= 1280, "Review controls must stay on screen")
+    board.review_dialog.hide()
     await board._export_board_mp4()
     assert(board.status.text.contains("ton accord"), "Even imported/auto-accepted frames need explicit human confirmation")
     board.review_check.set_pressed(true)
