@@ -141,6 +141,11 @@ func review_candidates(reference: Image, plan: Dictionary, folder: String, worke
     var schedule_result: Dictionary = schedule(plan)
     if not schedule_result.get("ok", false):
         return {"ok": false, "error": "invalid_intermediate_schedule", "human_approved": false}
+    if reference.is_empty():
+        return {"ok": false, "error": "original_reference_missing", "human_approved": false}
+    # Bind every review to the ORIGINAL reference pixels, not just neighbor
+    # keyposes. A changed original must invalidate all previous fidelity checks.
+    var original_hash: String = reference.save_png_to_buffer().hex_encode().sha256_text()
     var reviewed: int = 0
     var failed: Array = []
     var pending: Array = []
@@ -165,8 +170,8 @@ func review_candidates(reference: Image, plan: Dictionary, folder: String, worke
         var to_path: String = folder.path_join("pose_%04d.png" % int(to_board.get("index", -1)))
         if not FileAccess.file_exists(from_path) or not FileAccess.file_exists(to_path):
             return {"ok": false, "error": "missing_neighbor_image", "human_approved": false}
-        var review_binding: String = ("intermediate-review-v2-original-and-motion" + str(meta["binding"]) + str(meta["image_sha"]) + FileAccess.get_sha256(from_path) + FileAccess.get_sha256(to_path) + worker.vision_provider_id()).sha256_text()
-        if meta.get("review_binding", "") == review_binding and meta.get("review_origin", "") == "live_vision_model" and meta.get("motion_review") is Dictionary and meta.get("model_review") is Dictionary:
+        var review_binding: String = ("intermediate-review-v3-reference-locked" + original_hash + str(meta["binding"]) + str(meta["image_sha"]) + FileAccess.get_sha256(from_path) + FileAccess.get_sha256(to_path) + worker.vision_provider_id()).sha256_text()
+        if meta.get("review_binding", "") == review_binding and meta.get("original_reference_hash", "") == original_hash and meta.get("review_origin", "") == "live_vision_model" and meta.get("motion_review") is Dictionary and meta.get("model_review") is Dictionary:
             cached += 1
             if not meta.get("fidelity_verified", false):
                 failed.append(task["id"])
@@ -218,6 +223,7 @@ func review_candidates(reference: Image, plan: Dictionary, folder: String, worke
         passed = passed and motion_passed
         if FileAccess.get_sha256(path) != meta["image_sha"]:
             return {"ok": false, "error": "intermediate_changed_during_review", "human_approved": false}
+        meta["original_reference_hash"] = original_hash
         meta["review_binding"] = review_binding
         meta["review_origin"] = "live_vision_model"
         meta["model_review"] = row
