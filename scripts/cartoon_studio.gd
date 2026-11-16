@@ -84,7 +84,7 @@ func _ready() -> void:
     sheet_button.pressed.connect(_show_sheet)
     panel.add_child(sheet_button)
     approve_button = Button.new()
-    approve_button.text = "Valider les dessins (optionnel)"
+    approve_button.text = "Valider les dessins avant export MP4"
     approve_button.pressed.connect(_approve_sequence)
     panel.add_child(approve_button)
     var duration_row := HBoxContainer.new()
@@ -107,7 +107,7 @@ func _ready() -> void:
     endpoint.placeholder_text = "https://.../generate"
     panel.add_child(endpoint)
     free_ai_mode = CheckBox.new()
-    free_ai_mode.text = "Essai IA gratuite ControlNet (2 poses, personnage non garanti)"
+    free_ai_mode.text = "Test IA ControlNet : 2 images cles, pas une animation fluide"
     free_ai_mode.button_pressed = false
     panel.add_child(free_ai_mode)
     upload_consent = CheckBox.new()
@@ -253,7 +253,7 @@ func _restore_saved_frames() -> void:
     _build_sheet()
     preview.texture = frames[0]
     step = 1
-    action.text = "Exporter MP4"
+    action.text = "Valider les dessins avant export"
     status.text = "%d dessins retrouves. Verifie la planche et valide avant export MP4." % frames.size()
 
 func _progress(index: int, total: int) -> void:
@@ -284,7 +284,7 @@ func _advance() -> void:
     var free_mode: bool = free_ai_mode.button_pressed
     var online_mode: bool = endpoint.text.begins_with("https://") and not free_mode
     if (online_mode or free_mode) and not upload_consent.button_pressed:
-        status.text = "Autorise l'envoi de la photo au moteur HTTPS ou vide son adresse pour le mode local."
+        status.text = "Autorise l'envoi de ton histoire au service IA gratuit ou de ta photo au moteur HTTPS selectionne."
         return
     _save()
     busy = true
@@ -338,11 +338,11 @@ func _advance() -> void:
             manifest.save(project_dir + "/frames.cfg")
             preview.texture = frames[0]
             step = 1
-            action.text = "Exporter MP4"
+            action.text = "Valider les dessins avant export"
             _build_sheet()
             status.text = "%d dessins sauvegardes (%s). Creation du MP4..." % [frames.size(), "IA gratuite avec poses (visage non garanti)" if free_mode else ("IA externe" if online_mode else "animation locale stylisee, visage non reproduit")]
             if free_mode:
-                status.text = "Deux images IA de storyboard sauvegardees. Controle la coherence avant export MP4 : ce ne sont pas des mouvements animes fluides."
+                status.text = "Deux images cles IA sauvegardees. Ce ne sont pas des mouvements fluides. Controle les dessins avant de valider et exporter."
             elif online_mode:
                 status.text = "Dessins IA externe sauvegardes. Verifie la planche et valide avant export MP4."
             else:
