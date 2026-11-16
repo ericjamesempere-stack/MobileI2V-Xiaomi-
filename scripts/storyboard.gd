@@ -1968,6 +1968,15 @@ func _draw_remote_story() -> void:
         status.text = "Analyse de l image sélectionnée impossible : " + str(reference_profile.get("error", "image invalide"))
         return
     var visual_guidance: String = visual_analyzer.drawing_guidance(reference_profile)
+    # Keep the image measurements with the generated storyboard for audits and resume.
+    session_agent.state["reference_analysis"] = {
+        "width": int(reference_profile["width"]),
+        "height": int(reference_profile["height"]),
+        "aspect_ratio": float(reference_profile["aspect_ratio"]),
+        "visible_fraction": float(reference_profile["visible_fraction"]),
+        "palette_hex": reference_profile["palette_hex"],
+        "semantic_analysis": false
+    }
     var reference_hash := HashingContext.new()
     reference_hash.start(HashingContext.HASH_SHA256)
     reference_hash.update(reference.get_data())
