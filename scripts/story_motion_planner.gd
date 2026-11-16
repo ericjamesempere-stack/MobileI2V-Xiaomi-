@@ -12,7 +12,12 @@ const KEYWORDS: Dictionary = {
     "salut": ["salue", "saluer", "salut", "wave"],
     "saut": ["saute", "sauter", "jump"],
     "releve": ["releve", "relève", "relever", "gets up", "stand up"],
-    "repos": ["arrete", "arrête", "stop", "immobile", "attend"]
+    "repos": ["arrete", "arrête", "stop", "immobile", "attend"],
+    "vol": ["vole", "voler", "s envole", "flying", "fly", "take off"],
+    "roule": ["roule", "rouler", "conduit", "drives", "driving", "rolling"],
+    "nage": ["nage", "nager", "swim", "swimming"],
+    "rotation": ["tourne", "tourner", "pivote", "rotate", "spins"],
+    "apparition": ["apparait", "apparaît", "disparait", "disparaît", "appears", "disappears"]
 }
 const TRANSITIONS: Array[String] = ["et puis", "et apres", "et ensuite", "tout a coup", "d'un coup", "puis", "ensuite", "apres", "soudain", "then", "suddenly"]
 
@@ -26,7 +31,7 @@ func _normalize(value: String) -> String:
 
 func _action_for(fragment: String) -> String:
     # Explicit priorities avoid "tombe" being treated as an unrelated movement.
-    for action in ["transformation", "metro", "football", "trebuche", "chute", "releve", "saut", "course", "marche", "danse", "salut", "repos"]:
+    for action in ["transformation", "apparition", "metro", "football", "trebuche", "chute", "releve", "saut", "vol", "roule", "nage", "rotation", "course", "marche", "danse", "salut", "repos"]:
         for keyword in KEYWORDS[action]:
             if fragment.contains(_normalize(keyword)):
                 return action
