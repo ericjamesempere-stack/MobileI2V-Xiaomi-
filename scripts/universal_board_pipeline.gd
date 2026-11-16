@@ -27,7 +27,7 @@ func build_boards(reference: Image, story: String, seconds: float, style: String
     # Do not spend image-generation quota on in-betweens before keyposes pass.
     var intermediate_agent: RefCounted = load("res://scripts/karma_intermediate_agent.gd").new()
     stage_changed.emit("intermediate_generation", 0, int(plan.get("intermediate_drawings", 0)))
-    var intermediate_result: Dictionary = await intermediate_agent.render_pending(plan, folder, worker, style, 4)
+    var intermediate_result: Dictionary = await intermediate_agent.render_pending(plan, folder, worker, style, 4, reference)
     if not intermediate_result.get("ok", false):
         return {"ok": false, "stage": "intermediate_generation", "plan": plan, "generation": generation, "quality": review, "intermediates": intermediate_result, "human_approved": false, "ready_for_animation": false}
     stage_changed.emit("intermediate_fidelity_review", 0, int(plan.get("intermediate_drawings", 0)))
