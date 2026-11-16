@@ -404,6 +404,17 @@ func _drawings_folder_selected(folder: String) -> void:
     if names.is_empty():
         status.text = "KARMA ONE : aucune image PNG/JPG/WEBP dans ce dossier."
         return
+    var numbered: int = 0
+    for name in names:
+        var stem: String = name.get_basename()
+        if stem.begins_with("frame_") and stem.substr(6).is_valid_int():
+            numbered += 1
+    if numbered > 0:
+        if numbered != names.size():
+            status.text = "KARMA ONE : melange de noms numerotes et libres. Separe les fichiers pour eviter de perdre les indices."
+            return
+        await _merge_folder_selected(folder)
+        return
     var folder_out: String = "user://projects/chatgpt_import_%d" % Time.get_ticks_usec()
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder_out)) != OK:
         status.text = "KARMA ONE : sauvegarde impossible."
