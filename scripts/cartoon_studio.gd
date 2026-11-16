@@ -59,6 +59,11 @@ func _ready() -> void:
     import_button.custom_minimum_size.y = 80
     import_button.pressed.connect(_choose_image)
     panel.add_child(import_button)
+    var paste_button := Button.new()
+    paste_button.text = "Coller une image copiee"
+    paste_button.custom_minimum_size.y = 88
+    paste_button.pressed.connect(_paste_image)
+    panel.add_child(paste_button)
     var alternate_import := Button.new()
     alternate_import.text = "Parcourir les fichiers"
     alternate_import.custom_minimum_size.y = 72
@@ -191,6 +196,23 @@ func _apply_mobile_theme() -> void:
     theme.set_font_size("font_size", "Label", 20)
     theme.set_color("font_color", "Label", Color("#EDF3FF"))
     self.theme = theme
+
+func _paste_image() -> void:
+    if busy:
+        return
+    if not Engine.has_singleton("MP4Exporter"):
+        status.text = "Le collage d'image exige le module Android. Installe la nouvelle version APK."
+        return
+    var native: Object = Engine.get_singleton("MP4Exporter")
+    if not native.has_method("paste_image_from_clipboard"):
+        status.text = "Module de collage absent de cet APK. Installe la nouvelle version."
+        return
+    var path: String = str(native.call("paste_image_from_clipboard"))
+    if path.is_empty():
+        var reason: String = str(native.call("get_last_error")) if native.has_method("get_last_error") else "Image non disponible"
+        status.text = reason
+        return
+    _image_selected(path)
 
 func _choose_image() -> void:
     if busy:
