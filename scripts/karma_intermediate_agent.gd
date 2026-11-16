@@ -14,6 +14,7 @@ func schedule(plan: Dictionary) -> Dictionary:
     for step in steps:
         var step_id: String = str(step.get("id", ""))
         var count: int = int(step.get("intermediate_drawings", 0))
+        requested_total += maxi(0, count)
         if count <= 0:
             continue
         var poses: Array = []
@@ -64,6 +65,8 @@ func schedule(plan: Dictionary) -> Dictionary:
                 "human_approved": false
             })
     tasks.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["target_frame"]) < int(b["target_frame"]))
+    if requested_total != int(plan.get("intermediate_drawings", 0)):
+        unfillable.append({"reason": "intermediate_count_mismatch", "steps_requested": requested_total, "plan_requested": int(plan.get("intermediate_drawings", 0))})
     return {"ok": unfillable.is_empty(), "revision": REVISION, "tasks": tasks, "unfillable": unfillable, "requested": int(plan.get("intermediate_drawings", 0)), "scheduled": tasks.size(), "generated": 0, "verified": false, "ready_for_animation": false}
 
 # Rendering is deliberately separate from scheduling. The orchestrator calls
