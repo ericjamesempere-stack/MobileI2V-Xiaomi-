@@ -3,7 +3,7 @@ extends SceneTree
 class FakeDrawer:
     extends Node
     var calls: int = 0
-    func redraw(source: Image, _prompt: String, _style: String) -> Dictionary:
+    func redraw(source: Image, _prompt: String, _style: String, _previous: Image = null) -> Dictionary:
         calls += 1
         return {"ok": true, "image": source.duplicate()}
 
