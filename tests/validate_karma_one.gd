@@ -59,5 +59,9 @@ func _test_merge_resume() -> int:
  if not bool(second.get("ok", false)) or not bool(second.get("complete", false)) or second.get("indices", []) != [0, 1, 2, 3]:
   printerr("FAILED: multi-batch merge ", second)
   return 1
- print("PASS: missing frames, restore, multi-batch merge")
+ var final_restore: Dictionary = merger.restore(str(second.get("folder", "")))
+ if not bool(final_restore.get("ok", false)) or not bool(final_restore.get("complete", false)):
+  printerr("FAILED: complete storyboard restoration ", final_restore)
+  return 1
+ print("PASS: missing frames, restore, multi-batch merge and final restoration")
  return 0
