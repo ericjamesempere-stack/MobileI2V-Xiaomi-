@@ -7,6 +7,7 @@ var contact_sheet: TextureRect
 var contact_caption: Label
 var skeleton_preview: TextureRect
 var ai_endpoint: LineEdit
+var ai_token_input: LineEdit
 var ai_http: HTTPRequest
 var ai_running: bool = false
 var pose_http: HTTPRequest
@@ -113,6 +114,13 @@ func _ready() -> void:
     ai_endpoint = LineEdit.new()
     ai_endpoint.placeholder_text = "https://ton-serveur/generate/storyboard"
     advanced_box.add_child(ai_endpoint)
+    var token_label := Label.new()
+    token_label.text = "Jeton du serveur IA (facultatif, jamais dans GitHub)"
+    advanced_box.add_child(token_label)
+    ai_token_input = LineEdit.new()
+    ai_token_input.secret = true
+    ai_token_input.placeholder_text = "Jeton prive du moteur IA"
+    advanced_box.add_child(ai_token_input)
     _button("Detecter le squelette (serveur externe)", _request_pose, advanced_box)
     _button("Poses avec articulations detectees", _generate_detected_board, advanced_box)
     _button("IA externe (secours facultatif)", _request_ai_board, advanced_box)
@@ -745,7 +753,7 @@ func _generate_image_sequence() -> void:
         status.text = "Moteur IA non configure. Indique son adresse HTTPS dans Options avancees. Aucun modele generatif integre a cette APK."
         generator.queue_free()
         return
-    var result: Dictionary = await generator.call("generate", original, action_input.text, endpoint, count, false, "", float(duration_input.value))
+    var result: Dictionary = await generator.call("generate", original, action_input.text, endpoint, count, false, ai_token_input.text.strip_edges(), float(duration_input.value))
     ai_running = false
     generator.queue_free()
     if not bool(result.get("ok", false)):
