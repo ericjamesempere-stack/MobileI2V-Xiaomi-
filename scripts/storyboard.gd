@@ -51,6 +51,7 @@ func _ready() -> void:
     _button("1. CHOISIR DANS MA GALERIE", _choose_image)
     _button("PARCOURIR PICTURES", _choose_gallery)
     _button("PARCOURIR CAMERA (DCIM)", _choose_camera_gallery)
+    _button("MES IMAGES ENREGISTREES", _show_saved_images)
     status = _label("Choisis une photo pour creer une planche locale approximative.", 23)
     preview = TextureRect.new()
     preview.custom_minimum_size = Vector2(0, 210)
@@ -468,6 +469,52 @@ func _export_video(destination: String) -> void:
     DirAccess.remove_absolute(ProjectSettings.globalize_path(temp_path))
     exporting_video = false
     status.text = "Video AVI exportee : %d images, %d fps. Pas encore MP4." % [written, fps]
+
+func _show_saved_images() -> void:
+    # Only private, already-imported project images are shown here.
+    var gallery := AcceptDialog.new()
+    gallery.title = "Mes images MobileI2V"
+    gallery.size = Vector2i(620, 800)
+    var scroll := ScrollContainer.new()
+    scroll.custom_minimum_size = Vector2(560, 610)
+    gallery.add_child(scroll)
+    var grid := GridContainer.new()
+    grid.columns = 2
+    scroll.add_child(grid)
+    var root := DirAccess.open("user://projects")
+    var count: int = 0
+    if root != null:
+        root.list_dir_begin()
+        var name: String = root.get_next()
+        while not name.is_empty():
+            if root.current_is_dir() and not name.begins_with("."):
+                var reference: String = "user://projects/" + name + "/reference.png"
+                if FileAccess.file_exists(reference):
+                    var picture := Image.new()
+                    if picture.load(reference) == OK:
+                        var thumbnail := picture.duplicate()
+                        thumbnail.resize(210, maxi(1, int(210.0 * float(picture.get_height()) / float(maxi(1, picture.get_width())))), Image.INTERPOLATE_LANCZOS)
+                        var choice := Button.new()
+                        choice.icon = ImageTexture.create_from_image(thumbnail)
+                        choice.expand_icon = true
+                        choice.custom_minimum_size = Vector2(250, 230)
+                        choice.tooltip_text = name
+                        choice.pressed.connect(func() -> void:
+                            gallery.hide()
+                            _image_chosen(reference)
+                        )
+                        grid.add_child(choice)
+                        count += 1
+            name = root.get_next()
+        root.list_dir_end()
+    if count == 0:
+        var empty := Label.new()
+        empty.text = "Aucune image enregistree. Importe d'abord une photo."
+        grid.add_child(empty)
+    add_child(gallery)
+    gallery.confirmed.connect(gallery.queue_free)
+    gallery.close_requested.connect(gallery.queue_free)
+    gallery.popup_centered()
 
 func _choose_gallery() -> void:
     _open_photo_folder("/storage/emulated/0/Pictures")
