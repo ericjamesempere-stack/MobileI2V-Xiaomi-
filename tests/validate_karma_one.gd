@@ -92,5 +92,28 @@ func _test_merge_resume() -> int:
  if FileAccess.get_file_as_bytes(duplicate_source) != original_bytes:
   printerr("FAILED: existing frame was overwritten")
   return 1
- print("PASS: missing frames, restore, multi-batch merge, corrupt replacement and duplicate protection")
+ var tampered_folder: String = str(second.get("folder", ""))
+ var ledger_path: String = tampered_folder.path_join("merge_state.json")
+ var original_ledger: String = FileAccess.get_file_as_string(ledger_path)
+ var tampered_data: Variant = JSON.parse_string(original_ledger)
+ if not tampered_data is Dictionary:
+  return 1
+ var altered_indices: Array = tampered_data.get("indices", []).duplicate()
+ altered_indices[0] = 99
+ tampered_data["indices"] = altered_indices
+ var tampered_file := FileAccess.open(ledger_path, FileAccess.WRITE)
+ if tampered_file == null:
+  return 1
+ tampered_file.store_string(JSON.stringify(tampered_data))
+ tampered_file.close()
+ var rejected_restore: Dictionary = merger.restore(tampered_folder)
+ var original_file := FileAccess.open(ledger_path, FileAccess.WRITE)
+ if original_file == null:
+  return 1
+ original_file.store_string(original_ledger)
+ original_file.close()
+ if bool(rejected_restore.get("ok", false)):
+  printerr("FAILED: tampered frame indices were accepted")
+  return 1
+ print("PASS: missing frames, restore, multi-batch merge, corrupt replacement and duplicate protection and tampered journal rejection")
  return 0
