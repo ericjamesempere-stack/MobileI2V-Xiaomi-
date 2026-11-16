@@ -260,6 +260,11 @@ func _restore_karma_merge() -> void:
             return
         restored_sources.append(tex)
         restored_paths.append(str(p))
+    _clear_universal_state()
+    session_agent = null
+    review_fingerprint = ""
+    review_check.set_pressed_no_signal(false)
+    explicit_rejections.clear()
     required_drawing_count = 0
     sources = restored_sources
     paths = restored_paths
@@ -297,6 +302,11 @@ func _merge_folder_selected(folder: String) -> void:
     if next_sources.is_empty():
         status.text = "KARMA ONE : aucune image exploitable."
         return
+    _clear_universal_state()
+    session_agent = null
+    review_fingerprint = ""
+    review_check.set_pressed_no_signal(false)
+    explicit_rejections.clear()
     required_drawing_count = 0
     sources = next_sources
     paths = next_paths
@@ -378,6 +388,11 @@ func _drawings_folder_selected(folder: String) -> void:
     if imported_textures.is_empty():
         status.text = "KARMA ONE : aucune image lisible ou enregistrable."
         return
+    _clear_universal_state()
+    session_agent = null
+    review_fingerprint = ""
+    review_check.set_pressed_no_signal(false)
+    explicit_rejections.clear()
     required_drawing_count = 0
     sources = imported_textures
     paths = imported_paths
@@ -431,6 +446,11 @@ func _pose_sheet_selected(path: String) -> void:
             var part: Image = sheet.get_region(Rect2i(x1, y1, x2 - x1, y2 - y1))
             part.resize(540, 960, Image.INTERPOLATE_LANCZOS)
             imported.append(ImageTexture.create_from_image(part))
+    _clear_universal_state()
+    session_agent = null
+    review_fingerprint = ""
+    review_check.set_pressed_no_signal(false)
+    explicit_rejections.clear()
     required_drawing_count = 0
     sources = imported
     v5_sheet_loaded = true
@@ -2030,11 +2050,12 @@ func _create_remote_reference() -> void:
 func _reuse_reference_drawing() -> void:
     if ai_running or disk_drawing_running or exporting_video:
         return
-    _clear_universal_state()
     var texture: Texture2D = _texture_for_path(imported_path)
     if texture == null:
         status.text = "Importe ou cree une image de depart."
         return
+    _clear_universal_state()
+    session_agent = null
     required_drawing_count = 0
     sources.assign([texture])
     paths.assign([imported_path])

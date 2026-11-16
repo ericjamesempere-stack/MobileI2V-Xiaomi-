@@ -214,6 +214,17 @@ func run() -> void:
     unverified.review_check.set_pressed(true)
     await unverified._friendly_export()
     assert(not unverified._has_current_review() and unverified.encoder_calls == 0)
+    # Explicitly importing another board must not inherit the strict registry
+    # of a previous project, nor its approval or session journal.
+    var import_folder: String = "user://legacy_board_%d" % Time.get_ticks_usec()
+    assert(DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(import_folder)) == OK)
+    var drawing: Image = unverified.sources[0].get_image()
+    assert(drawing.save_png(import_folder.path_join("a.png")) == OK)
+    assert(drawing.save_png(import_folder.path_join("b.png")) == OK)
+    await unverified._drawings_folder_selected(import_folder)
+    assert(unverified.universal_folder.is_empty() and unverified.universal_plan.is_empty())
+    assert(unverified.sources.size() == 2 and unverified.session_agent == null)
+    assert(not unverified._has_current_review())
     unverified.free()
     board.free()
     if existed:

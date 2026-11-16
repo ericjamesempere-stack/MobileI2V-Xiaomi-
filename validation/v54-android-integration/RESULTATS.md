@@ -35,3 +35,7 @@ Le premier essai a été interrompu par le contrôle automatique d'autorisation.
 La chaîne logicielle est donc raccordée et testée avec substituts ; la disponibilité du fournisseur et la qualité universelle des images restent non confirmées en conditions réelles.
 
 Sur Xiaomi 14T Pro restent à vérifier : mise à jour de l'APK, ouverture, sélection et affichage de photo via le sélecteur natif, accès réseau au fournisseur, fidélité visuelle, consommation mémoire, Garder/Refuser/Refaire sur écran tactile, encodage matériel MediaCodec et partage du MP4. Les tests Robolectric et Godot de CI ne remplacent pas ces essais.
+
+## Correctif de compatibilité après intégration
+
+L'import explicite d'une autre planche, la fusion ou la reprise d'un ancien montage libèrent le registre universel du projet précédent et son accord. Sans cette remise à zéro, ces fonctions V53/V54 pouvaient rester bloquées par le registre de l'ancienne planche. La reprise d'une référence illisible ne libère plus ce registre avant d'avoir vérifié l'image. Le test d'intégration couvre désormais l'import d'une planche externe après un projet universel non validé, sans héritage de son accord ou de son journal.
