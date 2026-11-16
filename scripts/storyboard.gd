@@ -6,6 +6,9 @@ var preview: TextureRect
 var contact_sheet: TextureRect
 var contact_caption: Label
 var skeleton_preview: TextureRect
+var character_description: TextEdit
+var drawing_style: OptionButton
+var ai_drawings_count: SpinBox
 var ai_endpoint: LineEdit
 var ai_token_input: LineEdit
 var ai_http: HTTPRequest
@@ -54,7 +57,7 @@ func _ready() -> void:
     sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
     _label("MOBILEI2V | STUDIO DE CREATION", 28)
     _label("1. Importe ton personnage. 2. Decris son mouvement. 3. Cree et controle les dessins.", 18)
-    _label("Important : le mode photo actuel anime un detourage 2D. Il ne redessine pas encore chaque posture avec une IA.", 16)
+    _label("Le generateur IA distant cree de nouveaux dessins. Les outils hors ligne proposent aussi des poses cartoon ou un detourage 2D.", 16)
     _button("1. CHOISIR DANS MA GALERIE", _choose_image)
     _button("PARCOURIR PICTURES", _choose_gallery)
     _button("PARCOURIR CAMERA (DCIM)", _choose_camera_gallery)
@@ -93,6 +96,24 @@ func _ready() -> void:
         preset.text = "%ds" % seconds
         preset.pressed.connect(func() -> void: duration_input.value = seconds)
         line.add_child(preset)
+    _label("GENERATEUR IA : PERSONNAGE ET PLANCHES", 24)
+    character_description = TextEdit.new()
+    character_description.custom_minimum_size = Vector2(0, 90)
+    character_description.placeholder_text = "Personnage a creer si tu n importes pas d image : apparence, vetements, decor..."
+    root_box.add_child(character_description)
+    drawing_style = OptionButton.new()
+    for label in ["Conserver le style original", "Dessin anime 2D", "Manga noir et blanc", "Anime couleur", "Image de synthese 3D", "Cinematique realiste"]:
+        drawing_style.add_item(label)
+    root_box.add_child(drawing_style)
+    _button("CREER L IMAGE DE DEPART PAR IA (TEXTE)", _create_remote_reference)
+    _button("REPRENDRE L IMAGE DE DEPART A L IDENTIQUE", _reuse_reference_drawing)
+    ai_drawings_count = SpinBox.new()
+    ai_drawings_count.min_value = 2
+    ai_drawings_count.max_value = 24
+    ai_drawings_count.value = 6
+    root_box.add_child(ai_drawings_count)
+    _label("Nombre de dessins IA ci-dessus. Les images sont envoyees aux moteurs Hugging Face. Quotas gratuits et attente possibles. La coherence doit etre controlee.", 16)
+    _button("DESSINER L HISTOIRE PAR IA (NOUVELLES POSES)", _draw_remote_story)
     _button("DESSINER L HISTOIRE + MP4 (HORS LIGNE)", _draw_offline_story)
     _label("Dessins cartoon simples, 12 poses/s. La photo guide les couleurs ; le visage n est pas reproduit. Actions : marche, course, danse, saut, chute, releve, salut.", 16)
     _button("CREER DES POSES 2D A PARTIR DE MA PHOTO", _automatic_local_movie)
@@ -132,7 +153,7 @@ func _ready() -> void:
     ai_endpoint.placeholder_text = "Moteurs HTTPS separes par ; (KARMA ONE)"
     advanced_box.add_child(ai_endpoint)
     var token_label := Label.new()
-    token_label.text = "Jeton du serveur IA (facultatif, jamais dans GitHub)"
+    token_label.text = "Jeton Hugging Face / serveur IA (facultatif, saisi uniquement dans l application)"
     advanced_box.add_child(token_label)
     ai_token_input = LineEdit.new()
     ai_token_input.secret = true
@@ -769,6 +790,9 @@ func _open_photo_folder(folder: String) -> void:
     picker.popup_centered_ratio(0.9)
 
 func _choose_image() -> void:
+    if ai_running or disk_drawing_running or exporting_video:
+        status.text = "Attends la fin de l operation en cours."
+        return
     # Native Android document/photo picker uses a user-selected URI; do not
     # request broad storage permissions merely to choose one image.
     # The selected content URI is passed to android_image_reader.gd.
@@ -808,7 +832,7 @@ func _image_chosen(path: String) -> void:
     preview.texture = ImageTexture.create_from_image(img)
     status.text = "PHOTO CHARGEE (%d x %d) : preparation..." % [img.get_width(), img.get_height()]
     await get_tree().process_frame
-    status.text = "Photo importee. Decris une action. Le mode 2D conserve des morceaux de la photo; pas de redessin IA."
+    status.text = "Photo importee. Ecris ton histoire puis choisis le generateur IA et le style souhaites."
 
 func _texture_for_path(path: String) -> Texture2D:
     if path.begins_with("user://") or path.begins_with("/"):
@@ -1790,7 +1814,7 @@ func _save() -> void:
                     nearest_distance = distance
                     nearest = int(original_idx)
             approved_timeline.append(old_to_new[nearest])
-    var data := {"version": 2, "karma_auto_export": karma_auto_export, "approved_drawings": approved_drawings, "approved_timeline": approved_timeline, "reference_path": imported_path, "description": action_input.text, "ai_endpoint": ai_endpoint.text, "duration_seconds": duration_input.value, "drawings": paths, "approved": flags, "timeline_indices": plan, "warning": "Offline photo camera motion or existing poses; no AI anatomy generation"}
+    var data := {"version": 2, "character_description": character_description.text, "drawing_style": drawing_style.selected, "ai_drawings_count": ai_drawings_count.value, "karma_auto_export": karma_auto_export, "approved_drawings": approved_drawings, "approved_timeline": approved_timeline, "reference_path": imported_path, "description": action_input.text, "ai_endpoint": ai_endpoint.text, "duration_seconds": duration_input.value, "drawings": paths, "approved": flags, "timeline_indices": plan, "warning": "Offline photo camera motion or existing poses; no AI anatomy generation"}
     var f := FileAccess.open(SAVE, FileAccess.WRITE)
     if f == null:
         status.text = "Erreur de sauvegarde"
@@ -1806,6 +1830,9 @@ func _load_saved() -> void:
     var data = JSON.parse_string(f.get_as_text())
     f.close()
     if not data is Dictionary: return
+    character_description.text = str(data.get("character_description", ""))
+    drawing_style.select(clampi(int(data.get("drawing_style", 0)), 0, 5))
+    ai_drawings_count.value = int(data.get("ai_drawings_count", 6))
     action_input.text = str(data.get("description", ""))
     ai_endpoint.text = str(data.get("ai_endpoint", ""))
     duration_input.value = float(data.get("duration_seconds", 6))
@@ -1958,3 +1985,139 @@ func _share_last_mp4() -> void:
     var encoder: Object = Engine.get_singleton("MP4Exporter")
     if not bool(encoder.call("share_last_export")):
         status.text = "Exporte un MP4 dans cette session avant de le partager."
+
+
+func _selected_drawing_style() -> String:
+    return ["original", "cartoon", "manga", "anime", "3d", "cinema"][drawing_style.selected]
+
+func _create_remote_reference() -> void:
+    if ai_running or disk_drawing_running or exporting_video:
+        status.text = "Une operation est deja en cours."
+        return
+    var description: String = character_description.text.strip_edges()
+    if description.is_empty():
+        status.text = "Decris le personnage a creer dans le champ Personnage."
+        return
+    ai_running = true
+    status.text = "Creation IA de la reference. Attente GPU possible..."
+    var worker: Node = load("res://scripts/hf_studio_generator.gd").new()
+    worker.hf_token = ai_token_input.text.strip_edges()
+    add_child(worker)
+    var result: Dictionary = await worker.create_reference(description, _selected_drawing_style())
+    worker.queue_free()
+    ai_running = false
+    if not result.get("ok", false):
+        status.text = str(result.get("error", "Generation echouee."))
+        return
+    var folder: String = "user://projects/reference_ai_%d" % Time.get_ticks_usec()
+    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
+        status.text = "Sauvegarde impossible."
+        return
+    var path: String = folder.path_join("original.png")
+    if (result["image"] as Image).save_png(path) != OK:
+        status.text = "Sauvegarde impossible."
+        return
+    await _image_chosen(path)
+    _reuse_reference_drawing()
+    status.text = "Reference creee par Z-Image-Turbo et sauvegardee. Saisis l histoire puis lance les nouveaux dessins IA."
+
+func _reuse_reference_drawing() -> void:
+    if ai_running or disk_drawing_running or exporting_video:
+        return
+    var texture: Texture2D = _texture_for_path(imported_path)
+    if texture == null:
+        status.text = "Importe ou cree une image de depart."
+        return
+    sources.assign([texture])
+    paths.assign([imported_path])
+    accepted.assign([false])
+    plan.assign([0])
+    frame_index = 0
+    _refresh()
+    _build_contact_sheet()
+    _save()
+    status.text = "Image de depart reprise a l identique : aucune regeneration."
+
+func _draw_remote_story() -> void:
+    if ai_running or disk_drawing_running or exporting_video:
+        status.text = "Une operation est deja en cours."
+        return
+    var reference: Image = load("res://scripts/android_image_reader.gd").read_image(imported_path)
+    if reference == null:
+        status.text = "Importe une photo ou cree d abord ton personnage par IA."
+        return
+    var story: String = action_input.text.strip_edges()
+    if story.is_empty():
+        status.text = "Ecris l histoire avant de lancer les dessins."
+        return
+    var style: String = _selected_drawing_style()
+    var duration: float = duration_input.value
+    var total: int = int(ai_drawings_count.value)
+    var motion: Dictionary = load("res://scripts/story_motion_planner.gd").new().plan(story, duration)
+    var cache_key: String = (imported_path + story + style + str(total) + str(duration)).sha256_text().substr(0, 24)
+    var folder: String = "user://projects/hf_" + cache_key
+    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
+        status.text = "Dossier IA impossible a creer."
+        return
+    ai_running = true
+    last_ai_sequence_ok = false
+    var worker: Node = load("res://scripts/hf_studio_generator.gd").new()
+    worker.hf_token = ai_token_input.text.strip_edges()
+    add_child(worker)
+    var drawings: Array[Texture2D] = []
+    var drawing_paths: Array[String] = []
+    var previous: Image = null
+    var failure: String = ""
+    for index in range(total):
+        var path: String = folder.path_join("frame_%04d.png" % index)
+        var frame := Image.new()
+        var cached: bool = FileAccess.file_exists(path) and frame.load(path) == OK and not frame.is_empty()
+        if not cached:
+            var seconds: float = float(index) / float(maxi(1, total - 1)) * duration
+            var directive: String = story
+            var phase: float = 0.0
+            for step in motion.get("steps", []):
+                if seconds < float(step["end"]) or step == motion["steps"].back():
+                    directive = str(step["description"])
+                    phase = clampf((seconds - float(step["start"])) / maxf(0.001, float(step["end"]) - float(step["start"])), 0.0, 1.0)
+                    break
+            status.text = "Dessin IA %d/%d : attente GPU. Les PNG termines sont conserves." % [index + 1, total]
+            var instruction: String = "Draw exactly ONE full-frame drawing, no grid, no panels, no text. Full story: " + story + ". Current action: " + directive + ". Action progression: %d percent. Preserve the same background and character proportions." % roundi(phase * 100.0)
+            var result: Dictionary = await worker.redraw(reference, instruction, style, previous)
+            if not result.get("ok", false):
+                failure = str(result.get("error", "Erreur distante."))
+                break
+            frame = result["image"]
+            if previous != null and frame.get_size() == previous.get_size() and frame.get_data() == previous.get_data():
+                failure = "Le moteur a retourne deux dessins identiques. Verifie les directives avant de reprendre."
+                break
+            var temp: String = path + ".part"
+            if frame.save_png(temp) != OK or DirAccess.rename_absolute(temp, path) != OK:
+                failure = "Echec sauvegarde du dessin."
+                break
+        drawings.append(ImageTexture.create_from_image(frame))
+        drawing_paths.append(path)
+        previous = frame
+        preview.texture = drawings.back()
+        await get_tree().process_frame
+    worker.queue_free()
+    ai_running = false
+    if not drawings.is_empty():
+        sources = drawings
+        paths = drawing_paths
+        accepted.clear()
+        plan.clear()
+        for index in range(paths.size()):
+            accepted.append(false)
+            plan.append(index)
+        frame_index = 0
+        duration_input.value = duration
+        v5_sheet_loaded = true
+        _refresh()
+        _build_contact_sheet()
+        _save()
+    if not failure.is_empty():
+        status.text = "%d/%d dessins conserves. Relance avec les memes parametres pour reprendre. %s" % [drawing_paths.size(), total, failure]
+        return
+    last_ai_sequence_ok = true
+    status.text = "%d nouveaux dessins IA sauvegardes. Controle l identite et les poses, puis valide les images avant MP4. La coherence des visages et des poses doit etre controlee." % total
