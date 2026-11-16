@@ -37,147 +37,32 @@ var last_ai_sequence_ok: bool = false
 var disk_drawing_running: bool = false
 var karma_auto_export: bool = true
 var karma_auto_export_toggle: CheckBox
+var wizard_pages: Array[Control] = []
+var wizard_buttons: Array[Button] = []
+var wizard_tabs: Array[Button] = []
+var style_tiles: Array[Button] = []
+var wizard_scroll: ScrollContainer
+var advanced_panel: Control
+var invent_box: VBoxContainer
+var reference_hint: Label
+var movie_preview: TextureRect
+var review_check: CheckBox
+var preview_toggle: Button
+var friendly_export: Button
+var choice_summary: Label
+var busy_bar: ProgressBar
+var wizard_step: int = 0
+var drawing_preview_playing: bool = false
+var drawing_preview_clock: float = 0.0
+var drawing_preview_index: int = 0
+var reviewed_paths: String = ""
+var friendly_ui_clock: float = 0.0
 const SAVE: String = "user://mobilei2v_storyboard_v23.json"
 
 func _ready() -> void:
     set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     mouse_filter = Control.MOUSE_FILTER_STOP
-    var backdrop := ColorRect.new()
-    backdrop.color = Color("101923")
-    backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-    add_child(backdrop)
-    var sc := ScrollContainer.new()
-    sc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-    add_child(sc)
-    root_box = VBoxContainer.new()
-    root_box.custom_minimum_size = Vector2(0, 0)
-    root_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    root_box.add_theme_constant_override("separation", 12)
-    sc.add_child(root_box)
-    sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-    _label("MOBILEI2V | STUDIO DE CREATION", 28)
-    _label("1. Importe ton personnage. 2. Decris son mouvement. 3. Cree et controle les dessins.", 18)
-    _label("Le generateur IA distant cree de nouveaux dessins. Les outils hors ligne proposent aussi des poses cartoon ou un detourage 2D.", 16)
-    _button("1. CHOISIR DANS MA GALERIE", _choose_image)
-    _button("PARCOURIR PICTURES", _choose_gallery)
-    _button("PARCOURIR CAMERA (DCIM)", _choose_camera_gallery)
-    _button("MES IMAGES ENREGISTREES", _show_saved_images)
-    status = _label("Choisis une photo pour creer une planche locale approximative.", 23)
-    preview = TextureRect.new()
-    preview.custom_minimum_size = Vector2(0, 210)
-    preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-    preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-    root_box.add_child(preview)
-    skeleton_preview = TextureRect.new()
-    skeleton_preview.custom_minimum_size = Vector2(0, 360)
-    skeleton_preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    skeleton_preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-    skeleton_preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-    skeleton_preview.visible = false
-    root_box.add_child(skeleton_preview)
-    action_input = TextEdit.new()
-    action_input.custom_minimum_size = Vector2(0, 125)
-    action_input.placeholder_text = "Exemple : Le personnage danse, saute puis tombe et se releve."
-    root_box.add_child(action_input)
-    var line := HBoxContainer.new()
-    root_box.add_child(line)
-    var lbl := Label.new()
-    lbl.text = "Duree (secondes) : "
-    line.add_child(lbl)
-    duration_input = SpinBox.new()
-    duration_input.min_value = 1
-    duration_input.max_value = 300
-    duration_input.step = 1
-    duration_input.value = 6
-    line.add_child(duration_input)
-    for seconds in [2, 3, 5, 10, 20]:
-        var preset := Button.new()
-        preset.text = "%ds" % seconds
-        preset.pressed.connect(func() -> void: duration_input.value = seconds)
-        line.add_child(preset)
-    _label("GENERATEUR IA : PERSONNAGE ET PLANCHES", 24)
-    character_description = TextEdit.new()
-    character_description.custom_minimum_size = Vector2(0, 90)
-    character_description.placeholder_text = "Personnage a creer si tu n importes pas d image : apparence, vetements, decor..."
-    root_box.add_child(character_description)
-    drawing_style = OptionButton.new()
-    for label in ["Conserver le style original", "Dessin anime 2D", "Manga noir et blanc", "Anime couleur", "Image de synthese 3D", "Cinematique realiste"]:
-        drawing_style.add_item(label)
-    root_box.add_child(drawing_style)
-    _button("CREER L IMAGE DE DEPART PAR IA (TEXTE)", _create_remote_reference)
-    _button("REPRENDRE L IMAGE DE DEPART A L IDENTIQUE", _reuse_reference_drawing)
-    ai_drawings_count = SpinBox.new()
-    ai_drawings_count.min_value = 2
-    ai_drawings_count.max_value = 24
-    ai_drawings_count.value = 6
-    root_box.add_child(ai_drawings_count)
-    _label("Nombre de dessins IA ci-dessus. Les images sont envoyees aux moteurs Hugging Face. Quotas gratuits et attente possibles. La coherence doit etre controlee.", 16)
-    _button("DESSINER L HISTOIRE PAR IA (NOUVELLES POSES)", _draw_remote_story)
-    _button("DESSINER L HISTOIRE + MP4 (HORS LIGNE)", _draw_offline_story)
-    _label("Dessins cartoon simples, 12 poses/s. La photo guide les couleurs ; le visage n est pas reproduit. Actions : marche, course, danse, saut, chute, releve, salut.", 16)
-    _button("CREER DES POSES 2D A PARTIR DE MA PHOTO", _automatic_local_movie)
-    contact_caption = _label("Les poses generees apparaitront ici.", 20)
-    contact_sheet = TextureRect.new()
-    contact_sheet.custom_minimum_size = Vector2(0, 220)
-    contact_sheet.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    contact_sheet.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-    contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-    root_box.add_child(contact_sheet)
-    _button("KARMA ONE : IMPORTER ET PRODUIRE LE MP4", _choose_drawings_folder)
-    _button("KARMA ONE : PREPARER UN RELAIS VERS UNE AUTRE IA", _prepare_karma_relay)
-    _button("KARMA ONE : FUSIONNER LES DESSINS DES AUTRES IA", _choose_merge_folder)
-    _button("KARMA ONE : REPRENDRE LE DERNIER MONTAGE", _restore_karma_merge)
-    karma_auto_export_toggle = CheckBox.new()
-    karma_auto_export_toggle.text = "Exporter automatiquement apres import (KARMA ONE)"
-    karma_auto_export_toggle.button_pressed = true
-    karma_auto_export_toggle.toggled.connect(func(enabled: bool) -> void: karma_auto_export = enabled)
-    root_box.add_child(karma_auto_export_toggle)
-    _button("IMPORTER 18 DESSINS DEJA CREES (V5)", _choose_pose_sheet)
-    _button("PREPARER LES POSES POUR IA (SANS RESEAU)", _prepare_pose_guides)
-    _button("GENERER DESSINS + MP4 (MOTEUR IA HTTPS)", _generate_and_export)
-    _button("GENERER DE NOUVEAUX DESSINS (MOTEUR HTTPS)", _generate_image_sequence)
-    _button("EXPORTER LE FILM MP4 (APRES VERIFICATION)", _export_board_mp4)
-    _button("PARTAGER LE DERNIER MP4", _share_last_mp4)
-    var advanced_box := VBoxContainer.new()
-    root_box.add_child(advanced_box)
-    advanced_box.visible = true
-    _button("OPTIONS AVANCEES : AFFICHER / MASQUER", func() -> void: advanced_box.visible = not advanced_box.visible)
-    var advanced_title := Label.new()
-    advanced_title.text = "OPTIONS AVANCEES (facultatives)"
-    advanced_box.add_child(advanced_title)
-    var endpoint_label := Label.new()
-    endpoint_label.text = "Serveur IA externe (facultatif)"
-    advanced_box.add_child(endpoint_label)
-    ai_endpoint = LineEdit.new()
-    ai_endpoint.placeholder_text = "Moteurs HTTPS separes par ; (KARMA ONE)"
-    advanced_box.add_child(ai_endpoint)
-    var token_label := Label.new()
-    token_label.text = "Jeton Hugging Face / serveur IA (facultatif, saisi uniquement dans l application)"
-    advanced_box.add_child(token_label)
-    ai_token_input = LineEdit.new()
-    ai_token_input.secret = true
-    ai_token_input.placeholder_text = "Jeton prive du moteur IA"
-    advanced_box.add_child(ai_token_input)
-    _button("Detecter le squelette (serveur externe)", _request_pose, advanced_box)
-    _button("Poses avec articulations detectees", _generate_detected_board, advanced_box)
-    _button("IA externe (secours facultatif)", _request_ai_board, advanced_box)
-    _label("Generation IA : un moteur HTTPS image-vers-image doit etre configure. Sans moteur, aucune nouvelle pose IA ne peut etre produite.", 16)
-    _button("Mouvement de camera sur photo (sans IA)", _generate_from_photo, advanced_box)
-    _button("Dessiner un personnage generique (sans photo)", _generate_text_cartoon, advanced_box)
-    _button("DEMO : planches personnage articule", _generate_layered_demo, advanced_box)
-    _button("Animation articulee approximative", _generate_articulated_board, advanced_box)
-    _button("Exporter AVI (secours)", _export_video_direct, advanced_box)
-    _button("Planche de demonstration", _prepare, advanced_box)
-    _button("Exporter les images PNG", _export_png_sequence, advanced_box)
-    _button("Tout valider", _approve_all, advanced_box)
-    _button("Tout retirer", _reject_all, advanced_box)
-    _button("Pose precedente", _previous, advanced_box)
-    _button("Valider ou retirer la pose", _toggle_approval, advanced_box)
-    _button("Pose suivante", _next, advanced_box)
-    _button("Enregistrer la planche", _save, advanced_box)
-    _button("Recharger la planche", _load_saved, advanced_box)
-    _button("FERMER LE STUDIO (ANCIEN LECTEUR)", _close)
+    load("res://scripts/studio_friendly_ui.gd").new().build(self)
     picker = FileDialog.new()
     picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
     picker.access = FileDialog.ACCESS_FILESYSTEM
@@ -832,7 +717,7 @@ func _image_chosen(path: String) -> void:
     preview.texture = ImageTexture.create_from_image(img)
     status.text = "PHOTO CHARGEE (%d x %d) : preparation..." % [img.get_width(), img.get_height()]
     await get_tree().process_frame
-    status.text = "Photo importee. Ecris ton histoire puis choisis le generateur IA et le style souhaites."
+    status.text = "Ton personnage est prêt ! Choisis son univers, puis continue."
 
 func _texture_for_path(path: String) -> Texture2D:
     if path.begins_with("user://") or path.begins_with("/"):
@@ -1287,12 +1172,12 @@ func _prepare_pose_guides() -> void:
             await get_tree().process_frame
     # Pose guides are NOT output frames: keep the previous film and its
     # validation/export state intact. Show the guide atlas separately.
-    var thumb_w: int = 96
-    var thumb_h: int = 128
+    var thumb_w: int = 128
+    var thumb_h: int = 160
     var cols: int = 4
     var rows: int = ceili(float(new_sources.size()) / float(cols))
     var board := Image.create(thumb_w * cols, thumb_h * rows, false, Image.FORMAT_RGBA8)
-    board.fill(Color("1a2530"))
+    board.fill(Color("eff1fb"))
     for slot in range(new_sources.size()):
         var thumb: Image = new_sources[slot].get_image()
         thumb.resize(thumb_w - 8, thumb_h - 8, Image.INTERPOLATE_BILINEAR)
@@ -1645,14 +1530,15 @@ func _build_contact_sheet() -> void:
         contact_caption.text = "Aucune image disponible."
         return
     # Preview a representative subset, not every full-resolution pose.
-    # Keeps the atlas below 384 x 1536 on Android even for long sequences.
-    var thumb_w: int = 96
-    var thumb_h: int = 128
+    # Bounded contact sheet for Android, using at most 48 thumbnails.
+    var thumb_w: int = 128
+    var thumb_h: int = 160
     var cols: int = 4
     var shown: int = mini(sources.size(), 48)
+    cols = mini(cols, shown)
     var rows: int = ceili(float(shown) / float(cols))
     var board := Image.create(thumb_w * cols, thumb_h * rows, false, Image.FORMAT_RGBA8)
-    board.fill(Color("1a2530"))
+    board.fill(Color("eff1fb"))
     for slot in range(shown):
         var source_index: int = roundi(float(slot) * float(sources.size() - 1) / float(maxi(shown - 1, 1)))
         var img: Image = sources[source_index].get_image()
@@ -1783,11 +1669,15 @@ func _approve_all() -> void:
     status.text = "%d dessins VALIDES et sauvegardes. Appuie sur VALIDER ET ANIMER." % accepted.size()
 
 func _reject_all() -> void:
+    if review_check != null:
+        review_check.set_pressed_no_signal(false)
     for i in range(accepted.size()):
         accepted[i] = false
     _refresh()
 
 func _toggle_approval() -> void:
+    if review_check != null:
+        review_check.set_pressed_no_signal(false)
     if accepted.is_empty(): return
     accepted[frame_index] = not accepted[frame_index]
     _refresh()
@@ -2001,7 +1891,7 @@ func _create_remote_reference() -> void:
         status.text = "Decris le personnage a creer dans le champ Personnage."
         return
     ai_running = true
-    status.text = "Creation IA de la reference. Attente GPU possible..."
+    status.text = "Création de ton personnage… Cela peut prendre un petit moment."
     var worker: Node = load("res://scripts/hf_studio_generator.gd").new()
     worker.hf_token = ai_token_input.text.strip_edges()
     add_child(worker)
@@ -2021,7 +1911,7 @@ func _create_remote_reference() -> void:
         return
     await _image_chosen(path)
     _reuse_reference_drawing()
-    status.text = "Reference creee par Z-Image-Turbo et sauvegardee. Saisis l histoire puis lance les nouveaux dessins IA."
+    status.text = "Ton personnage est prêt et sauvegardé ! Passe à ton histoire."
 
 func _reuse_reference_drawing() -> void:
     if ai_running or disk_drawing_running or exporting_video:
@@ -2083,7 +1973,7 @@ func _draw_remote_story() -> void:
                     directive = str(step["description"])
                     phase = clampf((seconds - float(step["start"])) / maxf(0.001, float(step["end"]) - float(step["start"])), 0.0, 1.0)
                     break
-            status.text = "Dessin IA %d/%d : attente GPU. Les PNG termines sont conserves." % [index + 1, total]
+            status.text = "Dessin %d sur %d · Création en cours…" % [index + 1, total]
             var instruction: String = "Draw exactly ONE full-frame drawing, no grid, no panels, no text. Full story: " + story + ". Current action: " + directive + ". Action progression: %d percent. Preserve the same background and character proportions." % roundi(phase * 100.0)
             var result: Dictionary = await worker.redraw(reference, instruction, style, previous)
             if not result.get("ok", false):
@@ -2122,4 +2012,110 @@ func _draw_remote_story() -> void:
         status.text = "%d/%d dessins conserves. Relance avec les memes parametres pour reprendre. %s" % [drawing_paths.size(), total, failure]
         return
     last_ai_sequence_ok = true
-    status.text = "%d nouveaux dessins IA sauvegardes. Controle l identite et les poses, puis valide les images avant MP4. La coherence des visages et des poses doit etre controlee." % total
+    status.text = "Tes %d dessins sont prêts ! Regarde les visages et les poses avant de créer ton film." % total
+
+
+func _go_step(index: int) -> void:
+    if ai_running or disk_drawing_running or exporting_video:
+        return
+    get_viewport().gui_release_focus()
+    wizard_step = clampi(index, 0, 2)
+    if wizard_step != 2:
+        drawing_preview_playing = false
+    for item in range(wizard_pages.size()):
+        wizard_pages[item].visible = item == wizard_step
+    wizard_scroll.scroll_vertical = 0
+    _sync_friendly_ui()
+
+func _process(delta: float) -> void:
+    friendly_ui_clock += delta
+    if friendly_ui_clock >= 0.12:
+        friendly_ui_clock = 0.0
+        _sync_friendly_ui()
+    if drawing_preview_playing and not sources.is_empty():
+        drawing_preview_clock += delta
+        var interval: float = maxf(0.08, float(duration_input.value) / float(sources.size()))
+        if drawing_preview_clock >= interval:
+            drawing_preview_clock = 0.0
+            drawing_preview_index = (drawing_preview_index + 1) % sources.size()
+        movie_preview.texture = sources[drawing_preview_index % sources.size()]
+    elif not sources.is_empty():
+        movie_preview.texture = sources[clampi(frame_index, 0, sources.size() - 1)]
+    else:
+        movie_preview.texture = null
+
+func _sync_friendly_ui() -> void:
+    if friendly_export == null:
+        return
+    reference_hint.visible = preview.texture == null
+    var busy: bool = ai_running or disk_drawing_running or exporting_video
+    for item in wizard_buttons:
+        item.disabled = busy
+    for index in range(style_tiles.size()):
+        style_tiles[index].set_pressed_no_signal(index == drawing_style.selected)
+        style_tiles[index].add_theme_color_override("font_color", Color("6955da") if index == drawing_style.selected else Color("26314b"))
+    for index in range(wizard_tabs.size()):
+        wizard_tabs[index].add_theme_color_override("font_color", Color("6955da") if index == wizard_step else Color("717b92"))
+    var signature: String = "|".join(paths)
+    if signature != reviewed_paths:
+        reviewed_paths = signature
+        review_check.set_pressed_no_signal(false)
+        drawing_preview_index = 0
+        drawing_preview_playing = false
+    preview_toggle.text = "Mettre l aperçu en pause" if drawing_preview_playing else "Voir défiler mes dessins"
+    review_check.disabled = busy or sources.size() < 2
+    friendly_export.disabled = busy or sources.size() < 2 or not review_check.button_pressed
+    action_input.editable = not busy
+    character_description.editable = not busy
+    ai_token_input.editable = not busy
+    ai_endpoint.editable = not busy
+    duration_input.editable = not busy
+    ai_drawings_count.editable = not busy
+    busy_bar.visible = busy
+    if busy:
+        busy_bar.value = 20.0 + 60.0 * (0.5 + 0.5 * sin(float(Time.get_ticks_msec()) / 800.0))
+    choice_summary.text = "%d secondes · %d dessins · %s" % [int(duration_input.value), int(ai_drawings_count.value), drawing_style.get_item_text(drawing_style.selected)]
+
+func _friendly_generate() -> void:
+    if ai_running or disk_drawing_running or exporting_video:
+        return
+    if action_input.text.strip_edges().is_empty():
+        status.text = "Raconte ton histoire, ou choisis un exemple juste en dessous."
+        return
+    if imported_path.is_empty():
+        if character_description.text.strip_edges().is_empty():
+            _go_step(0)
+            status.text = "Il nous faut un héros : choisis une photo ou invente ton personnage."
+            return
+        await _create_remote_reference()
+        if imported_path.is_empty():
+            return
+    var previous_paths: Array[String] = paths.duplicate()
+    await _draw_remote_story()
+    if last_ai_sequence_ok or paths != previous_paths:
+        _go_step(2)
+
+func _friendly_export() -> void:
+    if not review_check.button_pressed or sources.size() < 2:
+        status.text = "Regarde tes dessins, puis coche la case pour les valider."
+        return
+    _approve_all()
+    await _export_board_mp4()
+
+func _toggle_drawing_preview() -> void:
+    if sources.is_empty():
+        status.text = "Tes dessins apparaîtront ici après la création."
+        return
+    drawing_preview_playing = not drawing_preview_playing
+    if drawing_preview_playing:
+        drawing_preview_index = clampi(frame_index, 0, sources.size() - 1)
+    else:
+        frame_index = drawing_preview_index
+        _refresh()
+    drawing_preview_clock = 0.0
+
+func _friendly_restore() -> void:
+    _load_saved()
+    _go_step(2 if sources.size() > 1 else 0)
+    if sources.is_empty() and imported_path.is_empty():
+        status.text = "Aucun projet enregistré pour le moment. Créons ton premier personnage !"

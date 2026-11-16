@@ -21,7 +21,7 @@ func run() -> void:
     assert(board.paths[0] == board.imported_path)
     assert(FileAccess.get_sha256(board.paths[0]) == original_hash)
     var atlas: Image = board.contact_sheet.texture.get_image()
-    assert(atlas != null and atlas.get_pixel(48, 64).is_equal_approx(Color.RED))
+    assert(atlas != null and atlas.get_pixel(64, 80).is_equal_approx(Color.RED))
     var data: String = FileAccess.get_file_as_string(save_path)
     assert(not data.contains("never-store-this-test-token"))
     board.character_description.text = ""
