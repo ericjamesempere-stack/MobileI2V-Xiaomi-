@@ -1,0 +1,35 @@
+name: Validate KARMA ONE Godot scripts
+
+on:
+  push:
+    branches:
+      - karma/storyboard-story-sequence-20261113
+    paths:
+      - 'scripts/**'
+      - 'scenes/**'
+      - 'project.godot'
+      - '.github/workflows/karma-one-validate.yml'
+  workflow_dispatch:
+
+jobs:
+  validate-godot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Godot 4.5.1 headless-compatible binary
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o /tmp/godot.zip https://github.com/godotengine/godot/releases/download/4.5.1-stable/Godot_v4.5.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp
+          chmod +x /tmp/Godot_v4.5.1-stable_linux.x86_64
+      - name: Import Godot project
+        run: |
+          set -euo pipefail
+          /tmp/Godot_v4.5.1-stable_linux.x86_64 --headless --path . --editor --import --quit 2>&1 | tee /tmp/godot-import.log
+          if grep -Ei 'SCRIPT ERROR|Parse Error|Failed to load script' /tmp/godot-import.log; then exit 1; fi
+      - name: Parse and load project scripts
+        run: |
+          set -euo pipefail
+          /tmp/Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/validate_karma_one.gd 2>&1 | tee /tmp/godot-validate.log
+          if grep -Ei 'SCRIPT ERROR|Parse Error|Failed to load script' /tmp/godot-validate.log; then exit 1; fi
