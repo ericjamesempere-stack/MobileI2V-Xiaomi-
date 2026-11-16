@@ -237,7 +237,13 @@ func calculate_density(scene: Dictionary, seconds: float, fps: int = 30, fluidit
         boards[i]["sequence_index"] = i
         boards[i]["sequence_count"] = boards.size()
         boards[i]["instruction"] += " Sequence drawing %d of %d, at %.3f seconds. Render only this physical state, not a restart of the action." % [i + 1, boards.size(), float(boards[i]["time_seconds"])]
-    return {"ok": true, "schema_version": 1, "reference_sha": scene["reference_sha"], "analysis_origin": validation["analysis_origin"], "semantic_analysis": validation["semantic_analysis"], "entities": scene["entities"], "relations": scene.get("relations", []), "steps": summary, "boards": boards, "duration_seconds": seconds, "fps": fps, "keyposes": boards.size(), "intermediate_drawings": intermediate_count, "total_unique_drawings": boards.size() + intermediate_count, "video_frames": video_count, "count_method": "physical_phase_minimum + duration_and_motion_risk; fluidity_scaled_by_motion_risk", "estimates_not_measurements": true, "intermediates_generated": 0, "interpolation_verified": false, "identity_verified": false, "human_approved": false, "ready_for_animation": false}
+    var result: Dictionary = {"ok": true, "schema_version": 1, "reference_sha": scene["reference_sha"], "analysis_origin": validation["analysis_origin"], "semantic_analysis": validation["semantic_analysis"], "entities": scene["entities"], "relations": scene.get("relations", []), "steps": summary, "boards": boards, "duration_seconds": seconds, "fps": fps, "keyposes": boards.size(), "intermediate_drawings": intermediate_count, "total_unique_drawings": boards.size() + intermediate_count, "video_frames": video_count, "count_method": "physical_phase_minimum + duration_and_motion_risk; fluidity_scaled_by_motion_risk", "estimates_not_measurements": true, "intermediates_generated": 0, "interpolation_verified": false, "identity_verified": false, "human_approved": false, "ready_for_animation": false}
+    # KARMA ONE assigns the between-pose work to its own dedicated agent.
+    # Scheduling is not rendering: all tasks remain pending and unapproved.
+    var intermediate_schedule: Dictionary = load("res://scripts/karma_intermediate_agent.gd").new().schedule(result)
+    result["intermediate_schedule"] = intermediate_schedule
+    result["intermediate_tasks_pending"] = intermediate_schedule.get("scheduled", 0)
+    return result
 
 func _physical_state(phases: Array, count: int, index: int) -> Dictionary:
     if phases.size() == 1 or index == count - 1:
