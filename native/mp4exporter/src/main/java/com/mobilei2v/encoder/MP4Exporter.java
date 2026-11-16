@@ -1,6 +1,9 @@
 package com.mobilei2v.encoder;
 
 import android.app.Activity;
+import android.content.ClipboardManager;
+import android.content.ClipData;
+import android.content.Context;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.graphics.Bitmap;
@@ -248,6 +251,61 @@ public final class MP4Exporter extends GodotPlugin {
             error = e.toString();
             Log.e("MobileI2V", "Publishing MP4 failed", e);
             if (uri != null) resolver.delete(uri, null, null);
+            return "";
+        }
+    }
+
+
+    // Paste a real image from Android's clipboard (URI or image data URI).
+    // Do not silently use clipboard text as an image.
+    @UsedByGodot
+    public String paste_image_from_clipboard() {
+        Activity activity = getActivity();
+        if (activity == null) { error = "Activite Android indisponible"; return ""; }
+        try {
+            ClipboardManager clipboard = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard == null || !clipboard.hasPrimaryClip()) {
+                error = "Presse-papiers vide : copie d'abord une image";
+                return "";
+            }
+            ClipData clip = clipboard.getPrimaryClip();
+            if (clip == null || clip.getItemCount() == 0) {
+                error = "Aucune image dans le presse-papiers";
+                return "";
+            }
+            ClipData.Item item = clip.getItemAt(0);
+            Uri uri = item.getUri();
+            Bitmap bitmap = null;
+            if (uri != null) {
+                try (InputStream input = activity.getContentResolver().openInputStream(uri)) {
+                    if (input != null) bitmap = BitmapFactory.decodeStream(input);
+                }
+            }
+            if (bitmap == null && item.getText() != null) {
+                String value = item.getText().toString().trim();
+                if (value.startsWith("data:image/") && value.contains(";base64,")) {
+                    String encoded = value.substring(value.indexOf(";base64,") + 8);
+                    if (encoded.length() > 16_000_000) throw new IllegalArgumentException("Image copiee trop volumineuse");
+                    byte[] bytes = android.util.Base64.decode(encoded, android.util.Base64.DEFAULT);
+                    bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                }
+            }
+            if (bitmap == null) {
+                error = "Le presse-papiers ne contient pas de photo accessible. Utilise Partager ou Copier l'image dans la galerie.";
+                return "";
+            }
+            File cache = new File(activity.getCacheDir(), "cartoon_clipboard_" + System.currentTimeMillis() + ".png");
+            try (FileOutputStream stream = new FileOutputStream(cache)) {
+                if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream))
+                    throw new IllegalStateException("Echec enregistrement image");
+            } finally {
+                bitmap.recycle();
+            }
+            error = "";
+            return cache.getAbsolutePath();
+        } catch (Exception e) {
+            error = "Collage impossible : " + e.getMessage();
+            Log.e("MobileI2V", "Clipboard image import failed", e);
             return "";
         }
     }
