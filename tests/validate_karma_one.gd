@@ -19,6 +19,12 @@ func _initialize() -> void:
    errors += 1
   else:
    print("VALID SCRIPT: ", path)
+ var main_scene: Resource = load("res://scenes/main.tscn")
+ if not main_scene is PackedScene:
+  printerr("INVALID MAIN SCENE")
+  errors += 1
+ else:
+  print("VALID MAIN SCENE")
  errors += _test_merge_resume()
  if errors > 0:
   quit(1)
