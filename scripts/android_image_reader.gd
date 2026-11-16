@@ -1,6 +1,14 @@
 extends RefCounted
 # Supports Android SAF content:// URIs as well as ordinary file paths.
 static func read_image(path: String) -> Image:
+    if path.begins_with("content://") and Engine.has_singleton("MP4Exporter"):
+        var native: Object = Engine.get_singleton("MP4Exporter")
+        if native.has_method("import_reference_uri"):
+            var local_path: String = str(native.call("import_reference_uri", path))
+            if not local_path.is_empty():
+                var decoded := Image.new()
+                if decoded.load(local_path) == OK:
+                    return decoded
     var result := Image.new()
     if not path.begins_with("content://"):
         if result.load(path) == OK:

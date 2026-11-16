@@ -91,7 +91,7 @@ func build(board: Control) -> void:
     shell.add_theme_constant_override("separation", 12)
     margin.add_child(shell)
     text(shell, "KARMA ONE", 36, PURPLE)
-    text(shell, "Imagine. Dessine. Anime.", 21, MUTED)
+    text(shell, "Imagine. Dessine. Anime. · V53", 21, MUTED)
     var tabs := HBoxContainer.new()
     tabs.add_theme_constant_override("separation", 8)
     shell.add_child(tabs)
@@ -209,6 +209,7 @@ func build(board: Control) -> void:
     board.contact_sheet.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     board.contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     film.add_child(board.contact_sheet)
+    button(board, film, "Agrandir et vérifier les dessins", board._show_drawing_review)
     board.preview_toggle = button(board, film, "Voir défiler mes dessins", board._toggle_drawing_preview)
     board.preview_toggle.name = "PreviewDrawings"
     board.review_check = CheckBox.new()
@@ -254,8 +255,9 @@ func build(board: Control) -> void:
     board.ai_endpoint.placeholder_text = "https://…"
     advanced.add_child(board.ai_endpoint)
     board.karma_auto_export_toggle = CheckBox.new()
-    board.karma_auto_export_toggle.text = "Exporter après un import de dessins"
-    board.karma_auto_export_toggle.button_pressed = true
+    board.karma_auto_export_toggle.text = "Vidéo après validation de la planche"
+    board.karma_auto_export_toggle.disabled = true
+    board.karma_auto_export_toggle.button_pressed = false
     board.karma_auto_export_toggle.toggled.connect(func(enabled: bool) -> void: board.karma_auto_export = enabled)
     advanced.add_child(board.karma_auto_export_toggle)
     var tools: Array = [
@@ -277,7 +279,10 @@ func build(board: Control) -> void:
         ["Pose précédente", board._previous], ["Valider / retirer cette pose", board._toggle_approval],
         ["Pose suivante", board._next], ["Tout retirer", board._reject_all], ["Ancien lecteur", board._close]
     ]
+    var demo_actions: Array[Callable] = [board._draw_offline_story, board._automatic_local_movie, board._generate_text_cartoon, board._generate_layered_demo, board._generate_articulated_board, board._generate_from_photo, board._close]
     for tool in tools:
+        if tool[1] in demo_actions:
+            continue
         button(board, advanced, str(tool[0]), tool[1])
     board.skeleton_preview = TextureRect.new()
     board.skeleton_preview.custom_minimum_size.y = 260

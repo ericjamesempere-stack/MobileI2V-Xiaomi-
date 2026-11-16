@@ -4,12 +4,12 @@ signal progress(index: int, total: int)
 const TEXT_URL = "https://mrfakename-z-image-turbo.hf.space"
 const EDIT_URL = "https://prithivmlmods-qwen-image-edit-2511-loras-fast.hf.space"
 const STYLES = {
-    "original": ["Anything2Real", "Keep the exact original drawing style, character appearance, face, hair, outfit and colors."],
-    "cartoon": ["Anime-V2", "2D cartoon animation, clean expressive outlines, flat colors, consistent character design."],
-    "manga": ["Manga-Tone", "Japanese manga illustration, black and white ink, controlled screentones, consistent character design."],
-    "anime": ["Anime-V2", "Japanese anime animation, clean line art and cel shading, consistent character design."],
-    "3d": ["Pixar-Inspired-3D", "Stylized 3D rendered animation, coherent materials, soft studio lighting, consistent character design."],
-    "cinema": ["Anything2Real", "Cinematic realistic image, coherent lighting, physically plausible materials, consistent character identity."]
+    "original": ["Anything2Real", "Keep the exact original drawing style, subject appearance, face, hair, outfit and colors."],
+    "cartoon": ["Anime-V2", "2D cartoon animation, clean expressive outlines, flat colors, consistent subject design."],
+    "manga": ["Manga-Tone", "Japanese manga illustration, black and white ink, controlled screentones, consistent subject design."],
+    "anime": ["Anime-V2", "Japanese anime animation, clean line art and cel shading, consistent subject design."],
+    "3d": ["Pixar-Inspired-3D", "Stylized 3D rendered animation, coherent materials, soft studio lighting, consistent subject design."],
+    "cinema": ["Anything2Real", "Cinematic realistic image, coherent lighting, physically plausible materials, consistent subject identity."]
 }
 var last_error: String = ""
 var hf_token: String = ""
@@ -56,7 +56,7 @@ func decode_event_stream(body: String) -> Dictionary:
                 payload += line.substr(6)
         if event == "error":
             if payload.to_lower().contains("quota") or payload.to_lower().contains("runs limit"):
-                return {"ok": false, "error": "Quota GPU gratuit atteint. Attends son renouvellement ou utilise ton compte Hugging Face gratuit via le champ Jeton dans Options avancees."}
+                return {"ok": false, "error": "Quota GPU gratuit atteint. Attends son renouvellement ou utilise ton compte Hugging Face gratuit via le champ de jeton dans Réglages et outils."}
             return {"ok": false, "error": "Le service IA a refuse ou interrompu le calcul. Les dessins termines sont conserves."}
         if event == "complete":
             var value: Variant = JSON.parse_string(payload)
@@ -67,8 +67,8 @@ func decode_event_stream(body: String) -> Dictionary:
 func create_reference(description: String, style: String) -> Dictionary:
     if description.strip_edges().is_empty() or not STYLES.has(style):
         return {"ok": false, "error": "Description ou style manquant."}
-    var prompt: String = description + ". " + str(STYLES[style][1]) + " Single full body character, neutral standing pose, no text, no panels."
-    var result: Dictionary = await _call_api(TEXT_URL, "generate_image", [prompt, 512, 512, 9, 1234, false])
+    var prompt: String = build_reference_prompt(description, style)
+    var result: Dictionary = await _call_api(TEXT_URL, "generate_image", [prompt, 1024, 1024, 9, 1234, false])
     if not result.get("ok", false):
         return result
     var data: Array = result.get("data", [])
@@ -99,7 +99,7 @@ func create_reference(description: String, style: String) -> Dictionary:
 func redraw(reference: Image, story: String, style: String, previous: Image = null) -> Dictionary:
     if reference == null or reference.is_empty() or not STYLES.has(style) or story.strip_edges().is_empty():
         return {"ok": false, "error": "Image, directive ou style invalide."}
-    var instruction: String = str(STYLES[style][1]) + " Image 1 is the permanent character reference. " + story
+    var instruction: String = str(STYLES[style][1]) + " Image 1 is the permanent subject reference. " + story
     if previous != null:
         instruction += " Image 2 is the previous approved drawing; keep temporal continuity with it."
     var safety: Dictionary = await _call_api(EDIT_URL, "check_safety", [instruction])
@@ -144,3 +144,14 @@ func _headers(values: Array) -> PackedStringArray:
     if not hf_token.strip_edges().is_empty():
         headers.append("Authorization: Bearer " + hf_token.strip_edges())
     return headers
+
+
+func build_reference_prompt(description: String, style: String) -> String:
+    if not STYLES.has(style):
+        return ""
+    var style_text: String = str(STYLES[style][1])
+    if style == "original":
+        style_text = "Faithfully depict the subject described by the user."
+    # Subject type belongs to the user. A fruit/object must not become a human
+    # wearing that object, unless the user explicitly requests that transformation.
+    return "User subject description (preserve its meaning exactly): " + description.strip_edges() + ". " + style_text + " Create one image of that subject itself, do not replace it with a person holding, wearing, or displaying it unless explicitly requested. Do not invent a human body or human features unless requested in the description. Show the whole subject within the frame. No text, no watermark, no panels."

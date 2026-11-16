@@ -2,6 +2,7 @@ extends Node
 # V50 : export MP4 H.264 via plugin Android natif. Repli PNG explicite sinon.
 var status_label: Label = null
 var exporting: bool = false
+var last_output: String = ""
 var hold_keyframes: bool = false
 
 const FPS: int = 30
@@ -65,6 +66,7 @@ func export_rig_mp4(rig: Control, current_scene: int, start_clock: float) -> voi
     viewport.queue_free()
     exporting = false
 func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> void:
+    last_output = ""
     if exporting:
         return
     if board_images.is_empty() or timeline.is_empty():
@@ -128,6 +130,8 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
             await get_tree().process_frame
     var result: String = str(encoder.call("finish"))
     exporting = false
+    if not result.is_empty() and written == total:
+        last_output = result
     _set_status("MP4 : " + result if not result.is_empty() and written == total else "MP4 incomplet : %d/%d images." % [written, total])
 
 

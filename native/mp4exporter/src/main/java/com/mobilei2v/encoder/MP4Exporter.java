@@ -18,6 +18,10 @@ import androidx.annotation.NonNull;
 import org.godotengine.godot.Godot;
 import org.godotengine.godot.plugin.GodotPlugin;
 import org.godotengine.godot.plugin.UsedByGodot;
+import org.godotengine.godot.plugin.SignalInfo;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Arrays;
 import java.io.File;
 import java.nio.ByteBuffer;
 
@@ -35,6 +39,59 @@ public final class MP4Exporter extends GodotPlugin {
 
     public MP4Exporter(Godot godot) { super(godot); }
     @NonNull @Override public String getPluginName() { return "MP4Exporter"; }
+
+    private static final int PHOTO_REQUEST = 24071;
+    private volatile boolean pickingPhoto = false;
+
+    @NonNull @Override public Set<SignalInfo> getPluginSignals() {
+        return new HashSet<>(Arrays.asList(
+            new SignalInfo("reference_image_selected", String.class),
+            new SignalInfo("reference_image_error", String.class),
+            new SignalInfo("reference_image_cancelled")));
+    }
+
+    @UsedByGodot public boolean pick_reference_image() {
+        Activity activity = getActivity();
+        if (activity == null || pickingPhoto) return false;
+        pickingPhoto = true;
+        activity.runOnUiThread(() -> {
+            try {
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("image/*");
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                activity.startActivityForResult(intent, PHOTO_REQUEST);
+            } catch (Exception e) {
+                pickingPhoto = false;
+                emitSignal("reference_image_error", "Impossible d'ouvrir la galerie Android.");
+            }
+        });
+        return true;
+    }
+
+    @Override public void onMainActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode != PHOTO_REQUEST) return;
+        if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) {
+            pickingPhoto = false;
+            emitSignal("reference_image_cancelled");
+            return;
+        }
+        final Uri uri = data.getData();
+        new Thread(() -> {
+            try {
+                String localPath = ReferenceImageImporter.importImage(getActivity(), uri);
+                emitSignal("reference_image_selected", localPath);
+            } catch (Exception e) {
+                Log.w("MobileI2V", "Reference import failed: " + e.getClass().getSimpleName());
+                emitSignal("reference_image_error", "Cette image n'a pas pu être importée. Essaie une autre image.");
+            } finally { pickingPhoto = false; }
+        }, "KarmaPhotoImport").start();
+    }
+
+    @UsedByGodot public String import_reference_uri(String uri) {
+        try { return ReferenceImageImporter.importImage(getActivity(), Uri.parse(uri)); }
+        catch (Exception e) { error = "Import photo impossible : " + e.getClass().getSimpleName(); return ""; }
+    }
 
     @UsedByGodot
     public boolean begin(String requestedPath, int w, int h, int frameRate) {

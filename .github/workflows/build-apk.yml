@@ -49,7 +49,7 @@ jobs:
       - name: Build Android H264 MediaCodec plugin
         run: |
           set -euo pipefail
-          gradle -p native/mp4exporter assembleDebug --no-daemon
+          gradle -p native/mp4exporter assembleDebug testDebugUnitTest --no-daemon
           mkdir -p addons/mp4exporter
           find native/mp4exporter/build/outputs/aar -name '*-debug.aar' -print -quit | xargs -r -I '{}' cp '{}' addons/mp4exporter/mp4exporter.aar
           test -s addons/mp4exporter/mp4exporter.aar
@@ -185,6 +185,9 @@ jobs:
           grep -q 'HF_STUDIO_UI_EXACT_REFERENCE_PERSISTENCE_OK' hf-studio-ui.log
           timeout 30s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_friendly_studio.gd 2>&1 | tee friendly-studio.log
           grep -q 'FRIENDLY_STUDIO_NAVIGATION_AND_GUARDS_OK' friendly-studio.log
+          timeout 30s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_reference_review_pipeline.gd 2>&1 | tee reference-review.log
+          grep -q 'REFERENCE_IMPORT_SUBJECT_PROMPT_AND_REVIEW_GATE_OK' reference-review.log
+          if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' reference-review.log; then exit 1; fi
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' friendly-studio.log; then exit 1; fi
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' hf-studio-ui.log; then exit 1; fi
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error' hf-studio-protocol.log; then exit 1; fi
@@ -262,6 +265,8 @@ jobs:
               dex = [z.read(n) for n in z.namelist() if n.endswith('.dex')]
               assert any(b'Lcom/mobilei2v/encoder/MP4Exporter;' in data for data in dex), 'MP4 native class absent'
               assert any(b'share_last_export' in data for data in dex), 'MP4 share method absent'
+              assert any(b'Lcom/mobilei2v/encoder/ReferenceImageImporter;' in data for data in dex), 'Native reference importer absent'
+              assert any(b'pick_reference_image' in data for data in dex), 'Native photo picker absent'
           print('PASS: MP4Exporter DEX class and plugin registration packaged')
           PY
           echo "Native MP4 class and plugin registration verified. Device encoding not tested." >> "$GITHUB_STEP_SUMMARY"
@@ -299,6 +304,8 @@ jobs:
         with:
           name: mobilei2v-build-logs
           path: |
+            native/mp4exporter/build/reports/tests/
+            native/mp4exporter/build/test-results/
             import.log
             karma-validation.log
             karma-startup.log

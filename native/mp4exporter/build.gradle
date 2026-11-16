@@ -5,6 +5,7 @@ android {
     namespace 'com.mobilei2v.encoder'
     compileSdk 35
     defaultConfig { minSdk 24 }
+    testOptions { unitTests.includeAndroidResources = true }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -13,4 +14,6 @@ android {
 dependencies {
     compileOnly 'org.godotengine:godot:4.5.2.stable'
     compileOnly 'androidx.annotation:annotation:1.9.1'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
 }
