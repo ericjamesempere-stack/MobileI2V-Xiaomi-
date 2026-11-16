@@ -71,6 +71,39 @@ jobs:
             if not ok:sys.exit(f"Frame {idx} generation failed")
           print("TWO REAL FRAMES GENERATED AND DOWNLOADED",flush=True)
           PY
+      - name: Create visual review contact sheet and measurable diagnostics
+        if: always()
+        run: |
+          python -m pip -q install pillow
+          python - <<'PY'
+          from PIL import Image,ImageDraw,ImageOps,ImageStat
+          import os,json
+          os.makedirs("frames",exist_ok=True)
+          paths=["frames/pose_00.png","frames/frame_00.webp","frames/pose_01.png","frames/frame_01.webp"]
+          if not all(os.path.isfile(p) for p in paths):
+            print("Not all images present; skip visual comparison")
+            raise SystemExit(0)
+          sheet=Image.new("RGB",(768,824),"white")
+          draw=ImageDraw.Draw(sheet)
+          metrics={}
+          for i,path in enumerate(paths):
+            im=Image.open(path).convert("RGB")
+            im.thumbnail((374,374))
+            x=(i%2)*384+(384-im.width)//2
+            y=(i//2)*412+30
+            sheet.paste(im,(x,y))
+            draw.text(((i%2)*384+12,(i//2)*412+7),["Guide pose A","Generated A","Guide pose B","Generated B"][i],fill="black")
+            metrics[os.path.basename(path)]={"size":list(im.size),"rgb_mean":[round(v,2) for v in ImageStat.Stat(im).mean]}
+          a=Image.open(paths[1]).convert("RGB").resize((128,128))
+          b=Image.open(paths[3]).convert("RGB").resize((128,128))
+          from PIL import ImageChops
+          diff=ImageChops.difference(a,b)
+          metrics["frame_pair_mean_absolute_rgb_difference"]=round(sum(ImageStat.Stat(diff).mean)/3,2)
+          metrics["warning"]="Difference is not proof of pose fidelity or character identity. Requires human visual review."
+          sheet.save("frames/review_contact_sheet.png")
+          with open("frames/review_metrics.json","w") as output:json.dump(metrics,output,indent=2)
+          print("Review sheet and diagnostics saved",metrics)
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
