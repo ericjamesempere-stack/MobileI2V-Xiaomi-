@@ -6,6 +6,7 @@ on:
       - karma/storyboard-story-sequence-20261113
     paths:
       - 'scripts/**'
+      - 'tests/**'
       - 'scenes/**'
       - 'project.godot'
       - '.github/workflows/karma-one-validate.yml'
