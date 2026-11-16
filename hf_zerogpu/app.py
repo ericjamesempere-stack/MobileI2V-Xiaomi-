@@ -1,40 +1,50 @@
-"""Experimental ZeroGPU ControlNet image-to-image endpoint for MobileI2V."""
+"""Experimental Gradio ZeroGPU pose-conditioned image redraw service."""
 import base64
 import io
-import os
-from PIL import Image
+from functools import lru_cache
+
 import gradio as gr
 import spaces
 import torch
+from PIL import Image
 from diffusers import StableDiffusionControlNetImg2ImgPipeline, ControlNetModel
 
 MAX_BYTES = 5_000_000
-BASE = "runwayml/stable-diffusion-v1-5"
+BASE = "stable-diffusion-v1-5/stable-diffusion-v1-5"
 CONTROL = "lllyasviel/control_v11p_sd15_openpose"
 
-controlnet = ControlNetModel.from_pretrained(CONTROL, torch_dtype=torch.float16)
-pipe = StableDiffusionControlNetImg2ImgPipeline.from_pretrained(
-    BASE, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
-)
-pipe.to("cuda")
-pipe.enable_attention_slicing()
+@lru_cache(maxsize=1)
+def get_pipeline():
+    # Never call .to("cuda") at import time: ZeroGPU assigns a GPU only
+    # inside a @spaces.GPU function invocation.
+    controlnet = ControlNetModel.from_pretrained(CONTROL, torch_dtype=torch.float16)
+    pipe = StableDiffusionControlNetImg2ImgPipeline.from_pretrained(
+        BASE, controlnet=controlnet, torch_dtype=torch.float16
+    )
+    pipe.enable_attention_slicing()
+    return pipe
 
 def decode_png(encoded):
-    raw = base64.b64decode(encoded, validate=True)
-    if len(raw) > MAX_BYTES:
-        raise gr.Error("Image trop volumineuse")
-    image = Image.open(io.BytesIO(raw))
-    image.load()
-    if max(image.size) > 1536:
-        raise gr.Error("Image trop grande")
-    return image.convert("RGB").resize((384, 512))
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+        if len(raw) > MAX_BYTES:
+            raise ValueError("Image trop volumineuse")
+        image = Image.open(io.BytesIO(raw))
+        image.load()
+        if max(image.size) > 1536:
+            raise ValueError("Image trop grande")
+        return image.convert("RGB").resize((384, 512))
+    except (ValueError, OSError) as exc:
+        raise gr.Error("Image invalide: " + str(exc)) from exc
 
-@spaces.GPU(duration=60)
+@spaces.GPU(duration=120)
 def redraw(reference_base64, pose_base64, instruction):
-    if not instruction.strip():
+    if not instruction or not instruction.strip():
         raise gr.Error("Mouvement manquant")
     source = decode_png(reference_base64)
     pose = decode_png(pose_base64)
+    pipe = get_pipeline()
+    pipe.to("cuda")
     prompt = ("Same character identity, same hairstyle, same outfit, "
               "consistent character design, full body, " + instruction[:450])
     with torch.inference_mode():
