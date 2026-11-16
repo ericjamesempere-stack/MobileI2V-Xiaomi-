@@ -110,7 +110,10 @@ func generate(source: Image, prompt: String, endpoint: String, count: int = 12, 
   var data: Variant = JSON.parse_string((response[3] as PackedByteArray).get_string_from_utf8())
   if not data is Dictionary or not data.has("image_base64"):
    return {"ok": false, "error": "Reponse invalide : image_base64 manquant", "generated": frames.size()}
-  var raw: PackedByteArray = Marshalls.base64_to_raw(str(data["image_base64"]))
+  var encoded_image: String = str(data["image_base64"])
+  if encoded_image.length() > 12000000:
+   return {"ok": false, "error": "Image IA trop volumineuse", "generated": frames.size()}
+  var raw: PackedByteArray = Marshalls.base64_to_raw(encoded_image)
   var img := Image.new()
   if img.load_png_from_buffer(raw) != OK or img.is_empty():
    return {"ok": false, "error": "PNG invalide", "generated": frames.size()}
