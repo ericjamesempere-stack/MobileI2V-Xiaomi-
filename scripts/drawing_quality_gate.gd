@@ -31,8 +31,11 @@ func inspect(image: Image, previous: Image = null) -> Dictionary:
     var issues: Array[String] = []
     if variance < 0.0005 or max_l - min_l < 0.05:
         issues.append("flat_or_blank_frame")
+    var average_change: float = -1.0
     if previous != null and not previous.is_empty():
-        var average_change: float = difference / maxi(1, samples)
+        average_change = difference / maxi(1, samples)
+        if average_change < 0.002:
+            issues.append("near_duplicate_keyframe")
         if average_change > 0.55:
             issues.append("possible_scene_jump")
-    return {"ok": issues.is_empty(), "issues": issues, "brightness": mean, "variance": variance}
+    return {"ok": issues.is_empty(), "issues": issues, "brightness": mean, "variance": variance, "average_change": average_change}
