@@ -36,7 +36,9 @@ jobs:
             {'neck':(190,105),'hip':(192,205),'left_elbow':(145,165),'left_hand':(110,205),'right_elbow':(245,100),'right_hand':(280,70),'left_knee':(160,260),'left_foot':(115,325),'right_knee':(245,245),'right_foot':(295,280)}
           ]
           for idx,joints in enumerate(poses):
-            joints=dict(joints)\n            joints.update({'nose':(190,62),'left_shoulder':(164,111),'right_shoulder':(218,111),'left_hip':(177,205),'right_hip':(207,205)})\n            png=pose_png(joints)
+            joints=dict(joints)
+            joints.update({'nose':(190,62),'left_shoulder':(164,111),'right_shoulder':(218,111),'left_hip':(177,205),'right_hip':(207,205)})
+            png=pose_png(joints)
             open(f"frames/pose_{idx:02d}.png","wb").write(png)
             encoded="data:image/png;base64,"+base64.b64encode(png).decode()
             args=["The exact same small friendly blue robot character, single full body, round head, two antennae, orange chest emblem, clean 2D cartoon animation keyframe, flat colors, white background",{"url":encoded,"meta":{"_type":"gradio.FileData"},"orig_name":f"pose_{idx:02d}.png"},"Pre-processed",1.65,10,20261116,False,None,0.0]
