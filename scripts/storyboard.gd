@@ -1899,16 +1899,6 @@ func _create_remote_reference() -> void:
     if description.is_empty():
         status.text = "Decris le personnage a creer dans le champ Personnage."
         return
-    imported_path = ""
-    sources.clear()
-    paths.clear()
-    accepted.clear()
-    plan.clear()
-    explicit_rejections.clear()
-    review_fingerprint = ""
-    review_check.set_pressed_no_signal(false)
-    preview.texture = null
-    contact_sheet.texture = null
     ai_running = true
     status.text = "Création de ton personnage… Cela peut prendre un petit moment."
     var worker: Node = load("res://scripts/hf_studio_generator.gd").new()
@@ -1918,7 +1908,7 @@ func _create_remote_reference() -> void:
     worker.queue_free()
     ai_running = false
     if not result.get("ok", false):
-        status.text = str(result.get("error", "Generation echouee."))
+        status.text = str(result.get("error", "Generation echouee.")) + " Ta photo et tes dessins existants sont conserves."
         return
     var folder: String = "user://projects/reference_ai_%d" % Time.get_ticks_usec()
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
