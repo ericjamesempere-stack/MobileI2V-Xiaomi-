@@ -112,6 +112,39 @@ func run() -> void:
     var ledger: Variant = JSON.parse_string(FileAccess.get_file_as_string(folder.path_join("karma_agents.json")))
     assert(ledger["agents"]["video"] == "waiting_for_user")
     assert(not ledger["frames"]["0"]["human_approved"])
+    # A lost Android signal must not trap the wizard in its disabled state.
+    board.photo_importing = true
+    board.importing_style_reference = false
+    board._sync_friendly_ui()
+    assert(not board.find_child("ChoosePhoto", true, false).disabled)
+    assert(board.find_child("ChoosePhoto", true, false).text == "Annuler le chargement")
+    board._consume_photo_result(JSON.stringify({"state": "selected", "value": input_path}))
+    assert(not board.photo_importing and board.preview.texture != null)
+    var preserved: String = board.imported_path
+    board._consume_photo_result(JSON.stringify({"state": "selected", "value": input_path}))
+    assert(board.imported_path == preserved, "Ignore stale results after completion")
+    board.photo_importing = true
+    board.importing_style_reference = true
+    board._consume_photo_result(JSON.stringify({"state": "cancelled", "value": ""}))
+    assert(not board.photo_importing and not board.importing_style_reference)
+    assert(board.imported_path == preserved)
+    board.photo_importing = true
+    board._consume_photo_result(JSON.stringify({"state": "error", "value": "Photo indisponible"}))
+    assert(not board.photo_importing and board.status.text == "Photo indisponible")
+    board.photo_importing = true
+    board._choose_image()
+    assert(not board.photo_importing and board.imported_path == preserved)
+    board.photo_importing = true
+    board.photo_import_clock = 0.0
+    board.photo_app_focused = false
+    board._poll_photo_import(board.PHOTO_IMPORT_TIMEOUT + 1.0)
+    assert(board.photo_importing, "Do not time out while choosing a photo in Android")
+    board.photo_app_focused = true
+    board._poll_photo_import(board.PHOTO_IMPORT_TIMEOUT + 1.0)
+    board._sync_friendly_ui()
+    assert(not board.photo_importing and board.status.text.contains("ne répond pas"))
+    assert(not board.find_child("ChoosePhoto", true, false).disabled)
+    assert(board.imported_path == preserved)
     board.free()
     if existed:
         var file := FileAccess.open(save_path, FileAccess.WRITE)

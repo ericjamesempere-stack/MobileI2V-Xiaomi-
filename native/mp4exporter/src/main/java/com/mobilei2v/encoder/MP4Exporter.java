@@ -14,6 +14,7 @@ import android.media.MediaFormat;
 import android.media.MediaMuxer;
 import android.os.Build;
 import android.util.Log;
+import org.json.JSONObject;
 import androidx.annotation.NonNull;
 import org.godotengine.godot.Godot;
 import org.godotengine.godot.plugin.GodotPlugin;
@@ -42,6 +43,31 @@ public final class MP4Exporter extends GodotPlugin {
 
     private static final int PHOTO_REQUEST = 24071;
     private volatile boolean pickingPhoto = false;
+    private volatile String photoResult = "";
+    private volatile int photoGeneration = 0;
+    private volatile int photoRequestCode = PHOTO_REQUEST;
+
+    // The Godot render loop consumes this result; no scene updates on Android UI threads.
+    @UsedByGodot public synchronized String consume_reference_image_result() {
+        String result = photoResult;
+        photoResult = "";
+        return result;
+    }
+
+    @UsedByGodot public synchronized void cancel_reference_image_import() {
+        photoGeneration++;
+        pickingPhoto = false;
+        photoResult = "";
+    }
+
+    private synchronized void completePhoto(int generation, String state, String value) {
+        if (generation != photoGeneration) return;
+        JSONObject result = new JSONObject();
+        try { result.put("state", state); result.put("value", value); }
+        catch (Exception ignored) { return; }
+        photoResult = result.toString();
+        pickingPhoto = false;
+    }
 
     @NonNull @Override public Set<SignalInfo> getPluginSignals() {
         return new HashSet<>(Arrays.asList(
@@ -54,48 +80,46 @@ public final class MP4Exporter extends GodotPlugin {
         Activity activity = getActivity();
         if (activity == null || pickingPhoto) return false;
         pickingPhoto = true;
+        photoResult = "";
+        final int generation = ++photoGeneration;
+        final int requestCode = PHOTO_REQUEST + generation % 1000;
+        photoRequestCode = requestCode;
         activity.runOnUiThread(() -> {
+            if (generation != photoGeneration) return;
             try {
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
                 intent.setType("image/*");
                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                activity.startActivityForResult(intent, PHOTO_REQUEST);
+                activity.startActivityForResult(intent, requestCode);
             } catch (Exception e) {
-                pickingPhoto = false;
-                emitSignal("reference_image_error", "Impossible d'ouvrir la galerie Android.");
+                completePhoto(generation, "error", "Impossible d'ouvrir la galerie Android.");
             }
         });
         return true;
     }
 
     @Override public void onMainActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode != PHOTO_REQUEST) return;
+        if (requestCode != photoRequestCode || !pickingPhoto) return;
+        final int generation = photoGeneration;
         if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) {
-            pickingPhoto = false;
-            Activity cancelActivity = getActivity();
-            if (cancelActivity != null) cancelActivity.runOnUiThread(() -> emitSignal("reference_image_cancelled"));
+            completePhoto(generation, "cancelled", "");
             return;
         }
         final Uri uri = data.getData();
+        final Activity activity = getActivity();
+        if (activity == null) {
+            completePhoto(generation, "error", "L application Android est indisponible. Réessaie.");
+            return;
+        }
         new Thread(() -> {
             try {
-                String localPath = ReferenceImageImporter.importImage(getActivity(), uri);
-                // Deliver Godot callbacks on the Android UI thread, not the import worker.
-                // A worker-thread callback can race with scene updates and image previews.
-                Activity currentActivity = getActivity();
-                if (currentActivity != null) {
-                    currentActivity.runOnUiThread(() -> emitSignal("reference_image_selected", localPath));
-                } else {
-                    emitSignal("reference_image_error", "Import termine, mais l application Android est indisponible.");
-                }
+                String localPath = ReferenceImageImporter.importImage(activity.getApplicationContext(), uri);
+                completePhoto(generation, "selected", localPath);
             } catch (Exception e) {
                 Log.w("MobileI2V", "Reference import failed: " + e.getClass().getSimpleName());
-                Activity errorActivity = getActivity();
-                if (errorActivity != null) {
-                    errorActivity.runOnUiThread(() -> emitSignal("reference_image_error", "Cette image n'a pas pu être importée. Essaie une autre image."));
-                }
-            } finally { pickingPhoto = false; }
+                completePhoto(generation, "error", "Cette image n'a pas pu être importée. Essaie une autre image.");
+            }
         }, "KarmaPhotoImport").start();
     }
 

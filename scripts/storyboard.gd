@@ -40,6 +40,9 @@ var style_reference_preview: TextureRect
 var style_reference_hint: Label
 var last_ai_sequence_ok: bool = false
 var photo_importing: bool = false
+var photo_import_clock: float = 0.0
+var photo_app_focused: bool = true
+const PHOTO_IMPORT_TIMEOUT: float = 45.0
 var review_fingerprint: String = ""
 var required_drawing_count: int = 0
 var explicit_rejections: Dictionary = {}
@@ -124,10 +127,10 @@ func _ready() -> void:
     pose_http.request_completed.connect(_pose_completed)
     if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_signal("reference_image_selected"):
-            native.connect("reference_image_selected", Callable(self, "_image_chosen"))
-            native.connect("reference_image_error", Callable(self, "_native_image_error"))
-            native.connect("reference_image_cancelled", Callable(self, "_native_image_cancelled"))
+        if not native.has_method("consume_reference_image_result") and native.has_signal("reference_image_selected"):
+            native.connect("reference_image_selected", Callable(self, "_image_chosen"), CONNECT_DEFERRED)
+            native.connect("reference_image_error", Callable(self, "_native_image_error"), CONNECT_DEFERRED)
+            native.connect("reference_image_cancelled", Callable(self, "_native_image_cancelled"), CONNECT_DEFERRED)
     review_check.toggled.connect(_review_confirmation_changed)
     _load_saved()
     if not sources.is_empty():
@@ -717,13 +720,19 @@ func _choose_style_reference() -> void:
     _choose_image(true)
 
 func _choose_image(as_style: bool = false) -> void:
+    if photo_importing and not (ai_running or disk_drawing_running or exporting_video):
+        _cancel_photo_import()
+        return
     if ai_running or disk_drawing_running or exporting_video or photo_importing:
         status.text = "Attends la fin de l operation en cours."
         return
     importing_style_reference = as_style
+    photo_import_clock = 0.0
     if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
         if native.has_method("pick_reference_image"):
+            photo_importing = true
+            status.text = "Ouverture de la galerie…"
             photo_importing = bool(native.call("pick_reference_image"))
             status.text = "Choisis une image dans ta galerie." if photo_importing else "La galerie n'a pas pu s'ouvrir. Réessaie."
             if not photo_importing:
@@ -2196,6 +2205,7 @@ func _go_step(index: int) -> void:
     _sync_friendly_ui()
 
 func _process(delta: float) -> void:
+    _poll_photo_import(delta)
     friendly_ui_clock += delta
     if friendly_ui_clock >= 0.12:
         friendly_ui_clock = 0.0
@@ -2219,6 +2229,9 @@ func _sync_friendly_ui() -> void:
     var busy: bool = ai_running or disk_drawing_running or exporting_video or photo_importing
     for item in wizard_buttons:
         item.disabled = busy
+        if item.name == "ChoosePhoto":
+            item.text = "Annuler le chargement" if photo_importing else "Choisir une photo"
+            item.disabled = ai_running or disk_drawing_running or exporting_video
     for index in range(style_tiles.size()):
         style_tiles[index].set_pressed_no_signal(index == drawing_style.selected)
         style_tiles[index].add_theme_color_override("font_color", Color("6955da") if index == drawing_style.selected else Color("26314b"))
@@ -2291,6 +2304,52 @@ func _friendly_restore() -> void:
     if sources.is_empty() and imported_path.is_empty():
         status.text = "Aucun projet enregistré pour le moment. Créons ton premier personnage !"
 
+
+func _cancel_photo_import() -> void:
+    if Engine.has_singleton("MP4Exporter"):
+        var native: Object = Engine.get_singleton("MP4Exporter")
+        if native.has_method("cancel_reference_image_import"):
+            native.call("cancel_reference_image_import")
+    if picker != null:
+        picker.hide()
+    _native_image_cancelled()
+    _sync_friendly_ui()
+
+func _consume_photo_result(encoded: String) -> void:
+    if not photo_importing or encoded.is_empty():
+        return
+    var result: Variant = JSON.parse_string(encoded)
+    if not result is Dictionary:
+        _native_image_error("Réponse de la galerie illisible. Réessaie.")
+        return
+    match str(result.get("state", "")):
+        "selected": _image_chosen(str(result.get("value", "")))
+        "cancelled": _native_image_cancelled()
+        "error": _native_image_error(str(result.get("value", "Import impossible. Réessaie.")))
+        _: _native_image_error("Réponse de la galerie inconnue. Réessaie.")
+
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+        photo_app_focused = false
+    elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
+        photo_app_focused = true
+        photo_import_clock = 0.0
+
+func _poll_photo_import(delta: float) -> void:
+    if not photo_importing:
+        return
+    if Engine.has_singleton("MP4Exporter"):
+        var native: Object = Engine.get_singleton("MP4Exporter")
+        if native.has_method("consume_reference_image_result"):
+            _consume_photo_result(str(native.call("consume_reference_image_result")))
+    if not photo_importing:
+        return
+    if not photo_app_focused:
+        return
+    photo_import_clock += delta
+    if photo_import_clock >= PHOTO_IMPORT_TIMEOUT:
+        _cancel_photo_import()
+        status.text = "Le chargement ne répond pas. Réessaie avec une image JPG ou PNG enregistrée sur l'appareil."
 
 func _native_image_error(message: String) -> void:
     photo_importing = false
