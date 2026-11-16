@@ -16,6 +16,7 @@ func restore(folder: String) -> Dictionary:
   return {"ok": false, "error": "Journal incomplet"}
  var paths: Array[String] = []
  var indices: Array[int] = []
+ var seen: Dictionary = {}
  for i in range(saved_paths.size()):
   var p: String = str(saved_paths[i])
   if not FileAccess.file_exists(p):
@@ -23,14 +24,18 @@ func restore(folder: String) -> Dictionary:
   var image := Image.new()
   if image.load(p) != OK or image.is_empty():
    return {"ok": false, "error": "Dessin illisible : " + p.get_file()}
+  var index: int = int(saved_indices[i])
+  if index < 0 or index >= 240 or seen.has(index):
+   return {"ok": false, "error": "Indices invalides ou dupliques dans le journal"}
+  seen[index] = true
   paths.append(p)
-  indices.append(int(saved_indices[i]))
- var expected: int = int(data.get("expected_frames", 0))
+  indices.append(index)
+ var expected: int = clampi(int(data.get("expected_frames", 0)), 0, 240)
  var present: Dictionary = {}
  for idx in indices:
   present[idx] = true
  var missing: Array[int] = []
- for idx in range(maxi(expected, indices[-1] + 1)):
+ for idx in range(maxi(expected, indices.max() + 1)):
   if not present.has(idx):
    missing.append(idx)
  return {"ok": true, "paths": paths, "indices": indices, "missing": missing, "complete": missing.is_empty() and (expected <= 0 or indices.size() >= expected)}
@@ -51,7 +56,7 @@ func merge(folder: String, existing: Array[String], limit: int = 240, expected_f
  var rejected: int = 0
  var names: PackedStringArray = dir.get_files()
  names.sort()
- var output: String = ROOT.path_join("merge_%d" % Time.get_ticks_usec())
+ var output: String = ROOT.path_join("merge_%d" % Time.get_unix_time_from_system())
  if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(output)) != OK:
   return {"ok": false, "error": "Impossible de creer le dossier de travail"}
  for name in names:
@@ -96,5 +101,6 @@ func merge(folder: String, existing: Array[String], limit: int = 240, expected_f
  if ledger != null:
   var state := {"version": 1, "expected_frames": expected_frames, "indices": indices, "paths": ordered, "missing": missing, "complete": missing.is_empty() and (expected_frames <= 0 or indices.size() >= expected_frames)}
   ledger.store_string(JSON.stringify(state, "  "))
+  ledger.flush()
   ledger.close()
  return {"ok": true, "paths": ordered, "indices": indices, "missing": missing, "added": added, "duplicates": duplicates, "rejected": rejected, "folder": output, "complete": missing.is_empty() and (expected_frames <= 0 or indices.size() >= expected_frames)}
