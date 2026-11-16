@@ -10,12 +10,22 @@ func _initialize() -> void:
     var result: Dictionary = agent.schedule(plan)
     assert(result["ok"] and result["scheduled"] == 3)
     assert(result["generated"] == 0 and not result["ready_for_animation"])
+    var frames: Dictionary = {}
     for task in result["tasks"]:
+        assert(int(task["target_frame"]) > int(task["from_frame"]))
+        assert(int(task["target_frame"]) < int(task["to_frame"]))
+        assert(not frames.has(task["target_frame"]))
+        frames[task["target_frame"]] = true
         assert(task["status"] == "pending_generation")
         assert(not task["identity_verified"] and not task["human_approved"])
         assert(task["actor_ids"] == ["banana"])
         assert(task["from_pose"] != task["to_pose"])
     var blocked: Dictionary = agent.schedule({"ok": true, "intermediate_drawings": 2, "steps": [{"id": "step_a", "intermediate_drawings": 2}], "boards": [plan["boards"][0]]})
     assert(not blocked["ok"] and blocked["unfillable"].size() == 1)
+    var impossible: Dictionary = agent.schedule({"ok": true, "intermediate_drawings": 3, "steps": [{"id": "step_a", "intermediate_drawings": 3}], "boards": [
+        {"id": "p0", "step_id": "step_a", "video_frame": 0},
+        {"id": "p1", "step_id": "step_a", "video_frame": 2}
+    ]})
+    assert(not impossible["ok"] and impossible["scheduled"] < impossible["requested"])
     print("V54_INTERMEDIATE_AGENT_CONTRACT_OK")
     quit(0)
