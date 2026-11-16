@@ -249,11 +249,12 @@ func _restore_saved_frames() -> void:
             return
         loaded.append(ImageTexture.create_from_image(image))
     frames = loaded
+    approved = false
     _build_sheet()
     preview.texture = frames[0]
     step = 1
     action.text = "Exporter MP4"
-    status.text = "%d dessins retrouves. Export MP4 disponible." % frames.size()
+    status.text = "%d dessins retrouves. Verifie la planche et valide avant export MP4." % frames.size()
 
 func _progress(index: int, total: int) -> void:
     status.text = "Dessin %d / %d" % [index, total]
@@ -262,6 +263,9 @@ func _advance() -> void:
     if busy:
         return
     if step == 1:
+        if not approved:
+            status.text = "Controle les dessins sur la planche puis appuie sur Valider les dessins avant export MP4."
+            return
         if frames.is_empty():
             status.text = "Aucun dessin valide : assemblage interdit."
             return
@@ -339,7 +343,10 @@ func _advance() -> void:
             status.text = "%d dessins sauvegardes (%s). Creation du MP4..." % [frames.size(), "IA gratuite texte (visage non garanti)" if free_mode else ("IA externe" if online_mode else "animation locale stylisee, visage non reproduit")]
             if free_mode:
                 status.text = "Deux images IA de storyboard sauvegardees. Controle la coherence avant export MP4 : ce ne sont pas des mouvements animes fluides."
+            elif online_mode:
+                status.text = "Dessins IA externe sauvegardes. Verifie la planche et valide avant export MP4."
             else:
+                approved = true
                 await _export_generated_mp4()
     busy = false
     action.disabled = false
@@ -352,7 +359,7 @@ func _refresh_review_buttons() -> void:
     sheet_button.disabled = sheet_path.is_empty() or busy
     approve_button.disabled = frames.is_empty() or busy
     if action != null:
-        action.text = "Exporter MP4" if step == 1 else "Generer les dessins"
+        action.text = ("Exporter MP4" if approved else "Valider les dessins avant export") if step == 1 else "Generer les dessins"
 
 func _build_sheet() -> void:
     sheet_path = ""
@@ -415,7 +422,8 @@ func _approve_sequence() -> void:
         return
     playing = false
     approved = true
-    status.text = "%d dessins valides. Export MP4 disponible." % frames.size()
+    _refresh_review_buttons()
+    status.text = "%d dessins valides. Appuie sur Exporter MP4." % frames.size()
 
 func _export_generated_mp4() -> void:
     if frames.is_empty():
