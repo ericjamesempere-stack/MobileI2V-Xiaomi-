@@ -58,7 +58,8 @@ func merge(folder: String, existing: Array[String], limit: int = 240, expected_f
  var rejected: int = 0
  var names: PackedStringArray = dir.get_files()
  names.sort()
- var output: String = ROOT.path_join("merge_%d_%d" % [int(Time.get_unix_time_from_system()), Time.get_ticks_usec() % 1000000])
+ # A monotonic suffix avoids overwriting merges made during the same second.
+ var output: String = ROOT.path_join("merge_%d_%d" % [int(Time.get_unix_time_from_system()), Time.get_ticks_usec()])
  if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(output)) != OK:
   return {"ok": false, "error": "Impossible de creer le dossier de travail"}
  for name in names:
