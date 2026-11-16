@@ -65,13 +65,9 @@ func _ready() -> void:
     paste_button.pressed.connect(_paste_image)
     panel.add_child(paste_button)
     var alternate_import := Button.new()
-    alternate_import.text = "Parcourir les fichiers"
+    alternate_import.text = "Ouvrir les photos Android"
     alternate_import.custom_minimum_size.y = 72
-    alternate_import.pressed.connect(func():
-        native_picker_pending = false
-        status.text = "Selectionne une image via le selecteur de fichiers alternatif."
-        picker.popup_centered_ratio(0.95)
-    )
+    alternate_import.pressed.connect(_choose_image)
     panel.add_child(alternate_import)
     prompt = TextEdit.new()
     prompt.placeholder_text = "Que doit faire ton personnage ? Exemple : il se leve, marche, puis salue."
@@ -132,7 +128,7 @@ func _ready() -> void:
     picker.access = FileDialog.ACCESS_FILESYSTEM
     picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
     picker.use_native_dialog = false
-    picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp ; Images"])
+    picker.filters = PackedStringArray(["*.png ; PNG", "*.jpg,*.jpeg ; JPEG", "*.webp ; WebP"])
     picker.file_selected.connect(_image_selected)
     picker.canceled.connect(func(): status.text = "Selection annulee. Choisis une photo dans Images ou Telechargements.")
     add_child(picker)
@@ -465,7 +461,7 @@ func _process(delta: float) -> void:
         native_picker_wait_seconds += delta
         if native_picker_wait_seconds > 15.0:
             native_picker_pending = false
-            status.text = "Le selecteur Android ne renvoie pas la photo. Utilise Autre methode : parcourir les fichiers."
+            status.text = "La galerie Android ne renvoie pas de photo. Essaie Coller une image copiee."
             return
         var native: Object = Engine.get_singleton("MP4Exporter")
         var path: String = str(native.call("take_selected_image_path"))
