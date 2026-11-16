@@ -31,7 +31,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Godot 4.3 and export templates
+      - name: Install Godot 4.5.2 and export templates
         run: |
           set -euo pipefail
           wget -q https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
@@ -168,7 +168,7 @@ jobs:
           if grep -Ei 'SCRIPT ERROR|Parse Error|Failed to load script|ERROR:|FATAL:' karma-startup.log; then exit 1; fi
           echo 'PASS: Godot application startup completed.' >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Write explicit Godot 4.3 Android export preset values
+      - name: Write explicit Godot 4.5.2 Android export preset values
         run: |
           set -euo pipefail
           python3 - <<'PY'

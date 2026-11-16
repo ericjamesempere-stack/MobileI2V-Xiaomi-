@@ -14,7 +14,7 @@ func _initialize() -> void:
  var errors: int = 0
  for path in scripts:
   var resource: Resource = load(path)
-  if not resource is GDScript or not (resource as GDScript).is_valid():
+  if not resource is GDScript or not (resource as GDScript).can_instantiate():
    printerr("INVALID SCRIPT: ", path)
    errors += 1
   else:
