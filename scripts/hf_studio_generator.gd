@@ -166,7 +166,12 @@ func decode_queue_stream(body: String, event_id: String) -> Dictionary:
         for line in block.split("\n"):
             if line.begins_with("data: "):
                 payload += line.substr(6)
-        var message: Variant = JSON.parse_string(payload)
+        if payload.is_empty():
+            continue
+        var parsed := JSON.new()
+        if parsed.parse(payload) != OK:
+            continue
+        var message: Variant = parsed.data
         if not message is Dictionary:
             continue
         # Never accept another job's result from a shared session.
