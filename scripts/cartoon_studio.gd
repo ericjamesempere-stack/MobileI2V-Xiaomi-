@@ -40,13 +40,14 @@ func _ready() -> void:
     var panel := VBoxContainer.new()
     panel.custom_minimum_size = Vector2(690, 0)
     panel.add_theme_constant_override("separation", 20)
+    _apply_mobile_theme()
     scroll.add_child(panel)
     var heading := Label.new()
     heading.text = "CARTOON STUDIO"
     heading.add_theme_font_size_override("font_size", 36)
     panel.add_child(heading)
     var subtitle := Label.new()
-    subtitle.text = "Image  >  Dessins  >  MP4"
+    subtitle.text = "01  Personnage     02  Histoire     03  Animation     04  Export"
     panel.add_child(subtitle)
     preview = TextureRect.new()
     preview.custom_minimum_size = Vector2(660, 490)
@@ -54,12 +55,12 @@ func _ready() -> void:
     preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     panel.add_child(preview)
     var import_button := Button.new()
-    import_button.text = "Choisir une image"
+    import_button.text = "  +  Choisir mon personnage"
     import_button.custom_minimum_size.y = 80
     import_button.pressed.connect(_choose_image)
     panel.add_child(import_button)
     var alternate_import := Button.new()
-    alternate_import.text = "Autre methode : parcourir les fichiers"
+    alternate_import.text = "Parcourir les fichiers"
     alternate_import.custom_minimum_size.y = 72
     alternate_import.pressed.connect(func():
         native_picker_pending = false
@@ -115,8 +116,8 @@ func _ready() -> void:
     upload_consent.button_pressed = false
     panel.add_child(upload_consent)
     action = Button.new()
-    action.text = "Generer les dessins"
-    action.custom_minimum_size.y = 100
+    action.text = "Creer mon animation"
+    action.custom_minimum_size.y = 110
     action.pressed.connect(_advance)
     panel.add_child(action)
     status = Label.new()
@@ -144,6 +145,52 @@ func _ready() -> void:
     else:
         status.text = "Photo restauree et prete pour la generation."
     _refresh_review_buttons()
+
+
+func _apply_mobile_theme() -> void:
+    # Shared rounded, high-contrast touch controls across the studio.
+    var theme := Theme.new()
+    var primary := StyleBoxFlat.new()
+    primary.bg_color = Color("#485FD5")
+    primary.set_corner_radius_all(22)
+    primary.shadow_color = Color(0.02, 0.03, 0.12, 0.52)
+    primary.shadow_size = 6
+    primary.content_margin_left = 22.0
+    primary.content_margin_right = 22.0
+    primary.content_margin_top = 16.0
+    primary.content_margin_bottom = 16.0
+    var hover := primary.duplicate()
+    hover.bg_color = Color("#5B72EC")
+    var pressed := primary.duplicate()
+    pressed.bg_color = Color("#3549A8")
+    pressed.shadow_size = 2
+    var disabled := primary.duplicate()
+    disabled.bg_color = Color("#354052")
+    theme.set_stylebox("normal", "Button", primary)
+    theme.set_stylebox("hover", "Button", hover)
+    theme.set_stylebox("pressed", "Button", pressed)
+    theme.set_stylebox("disabled", "Button", disabled)
+    theme.set_color("font_color", "Button", Color.WHITE)
+    theme.set_color("font_hover_color", "Button", Color.WHITE)
+    theme.set_color("font_pressed_color", "Button", Color.WHITE)
+    theme.set_font_size("font_size", "Button", 24)
+    var field := StyleBoxFlat.new()
+    field.bg_color = Color("#1D2A3D")
+    field.border_color = Color("#394C68")
+    field.set_border_width_all(2)
+    field.set_corner_radius_all(18)
+    field.content_margin_left = 16.0
+    field.content_margin_right = 16.0
+    field.content_margin_top = 12.0
+    field.content_margin_bottom = 12.0
+    theme.set_stylebox("normal", "LineEdit", field)
+    theme.set_stylebox("normal", "TextEdit", field)
+    theme.set_stylebox("normal", "SpinBox", field)
+    theme.set_font_size("font_size", "LineEdit", 21)
+    theme.set_font_size("font_size", "TextEdit", 21)
+    theme.set_font_size("font_size", "Label", 20)
+    theme.set_color("font_color", "Label", Color("#EDF3FF"))
+    self.theme = theme
 
 func _choose_image() -> void:
     if busy:
