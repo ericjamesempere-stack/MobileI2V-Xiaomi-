@@ -80,7 +80,14 @@ public final class MP4Exporter extends GodotPlugin {
         new Thread(() -> {
             try {
                 String localPath = ReferenceImageImporter.importImage(getActivity(), uri);
-                emitSignal("reference_image_selected", localPath);
+                // Deliver Godot callbacks on the Android UI thread, not the import worker.
+                // A worker-thread callback can race with scene updates and image previews.
+                Activity currentActivity = getActivity();
+                if (currentActivity != null) {
+                    currentActivity.runOnUiThread(() -> emitSignal("reference_image_selected", localPath));
+                } else {
+                    emitSignal("reference_image_error", "Import termine, mais l application Android est indisponible.");
+                }
             } catch (Exception e) {
                 Log.w("MobileI2V", "Reference import failed: " + e.getClass().getSimpleName());
                 emitSignal("reference_image_error", "Cette image n'a pas pu être importée. Essaie une autre image.");
