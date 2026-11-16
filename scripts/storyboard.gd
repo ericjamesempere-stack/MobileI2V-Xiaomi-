@@ -1654,7 +1654,7 @@ func _save() -> void:
                     nearest_distance = distance
                     nearest = int(original_idx)
             approved_timeline.append(old_to_new[nearest])
-    var data := {"version": 2, "approved_drawings": approved_drawings, "approved_timeline": approved_timeline, "reference_path": imported_path, "description": action_input.text, "ai_endpoint": ai_endpoint.text, "duration_seconds": duration_input.value, "drawings": paths, "approved": flags, "timeline_indices": plan, "warning": "Offline photo camera motion or existing poses; no AI anatomy generation"}
+    var data := {"version": 2, "karma_auto_export": karma_auto_export, "approved_drawings": approved_drawings, "approved_timeline": approved_timeline, "reference_path": imported_path, "description": action_input.text, "ai_endpoint": ai_endpoint.text, "duration_seconds": duration_input.value, "drawings": paths, "approved": flags, "timeline_indices": plan, "warning": "Offline photo camera motion or existing poses; no AI anatomy generation"}
     var f := FileAccess.open(SAVE, FileAccess.WRITE)
     if f == null:
         status.text = "Erreur de sauvegarde"
@@ -1673,6 +1673,7 @@ func _load_saved() -> void:
     action_input.text = str(data.get("description", ""))
     ai_endpoint.text = str(data.get("ai_endpoint", ""))
     duration_input.value = float(data.get("duration_seconds", 6))
+    karma_auto_export = bool(data.get("karma_auto_export", true))
     imported_path = str(data.get("reference_path", ""))
     detected_landmarks.clear()
     sources.clear()
