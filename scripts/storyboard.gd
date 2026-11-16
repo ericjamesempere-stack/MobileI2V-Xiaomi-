@@ -2311,7 +2311,7 @@ func _regenerate_reviewed_drawing() -> void:
     ai_running = true
     review_caption.text = "Je refais le dessin %d…" % (index + 1)
     var previous: Image = sources[index - 1].get_image() if index > 0 else null
-    var instruction: String = "One single drawing, no panels, no text. Story: " + action_input.text + ". Redraw drawing %d of %d, story progression %d percent. Keep the original subject and requested style. Correct the pose and anatomical mistakes." % [index + 1, sources.size(), roundi(100.0 * index / maxi(1, sources.size() - 1))]
+    var instruction: String = "One single drawing, no panels, no text. Story: " + action_input.text + ". Redraw drawing %d of %d, story progression %d percent. Preserve the exact subject type, shape, materials, proportions and requested style. The subject may be a person, animal, object, vehicle, landscape or imaginary creature; do not invent human anatomy. Show the requested action or visual transformation with coherent geometry and continuity." % [index + 1, sources.size(), roundi(100.0 * index / maxi(1, sources.size() - 1))]
     var result: Dictionary = await worker.redraw(reference, instruction, _selected_drawing_style(), previous)
     worker.queue_free()
     ai_running = false
