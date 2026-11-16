@@ -30,6 +30,12 @@ jobs:
           curl -fL --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
           unzip -q godot.zip
           chmod +x Godot_v4.5.2-stable_linux.x86_64
+      - name: Test KARMA ONE intermediate agent contract
+        run: |
+          set -euo pipefail
+          timeout 45s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_karma_intermediate_agent.gd 2>&1 | tee intermediate-agent.log
+          grep -q 'V54_INTERMEDIATE_AGENT_CONTRACT_OK' intermediate-agent.log
+          if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' intermediate-agent.log; then exit 1; fi
       - name: Import project and parse scripts
         run: |
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --editor --path . --import --quit
