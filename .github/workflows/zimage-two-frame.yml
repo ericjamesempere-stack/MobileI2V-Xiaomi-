@@ -1,0 +1,77 @@
+name: Z-Image two-frame character continuity
+on:
+  push:
+    branches: [rebuild/cartoon-studio-20261114]
+    paths: ['.github/workflows/zimage-two-frame.yml']
+  workflow_dispatch:
+jobs:
+  frames:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - name: Generate two pose-guided drawings and contact sheet
+        run: |
+          python - <<'PY'
+          import base64,json,struct,zlib,urllib.request,urllib.error,time,os,sys
+          W=384;H=384
+          host="https://techfreakworm-z-image-studio.hf.space"
+          os.makedirs("frames",exist_ok=True)
+          def chunk(t,d):return struct.pack(">I",len(d))+t+d+struct.pack(">I",zlib.crc32(t+d)&0xffffffff)
+          def pose_png(joints):
+            pix=bytearray(W*H*3)
+            def line(a,b,rgb):
+              x1,y1=joints[a];x2,y2=joints[b];n=max(abs(x2-x1),abs(y2-y1),1)
+              for i in range(n+1):
+                x=round(x1+(x2-x1)*i/n);y=round(y1+(y2-y1)*i/n)
+                for dy in range(-4,5):
+                  for dx in range(-4,5):
+                    xx=x+dx;yy=y+dy
+                    if 0<=xx<W and 0<=yy<H and dx*dx+dy*dy<=16:
+                      k=(yy*W+xx)*3;pix[k:k+3]=bytes(rgb)
+            for a,b,col in [('neck','hip',(0,255,0)),('neck','left_elbow',(255,0,0)),('left_elbow','left_hand',(255,0,0)),('neck','right_elbow',(255,0,0)),('right_elbow','right_hand',(255,0,0)),('hip','left_knee',(0,0,255)),('left_knee','left_foot',(0,0,255)),('hip','right_knee',(0,0,255)),('right_knee','right_foot',(0,0,255))]:line(a,b,col)
+            raw=b"".join(b"\x00"+pix[y*W*3:(y+1)*W*3] for y in range(H))
+            return b"\x89PNG\r\n\x1a\n"+chunk(b"IHDR",struct.pack(">2I5B",W,H,8,2,0,0,0))+chunk(b"IDAT",zlib.compress(raw))+chunk(b"IEND",b"")
+          poses=[
+            {'neck':(190,105),'hip':(192,205),'left_elbow':(140,145),'left_hand':(100,105),'right_elbow':(240,155),'right_hand':(270,105),'left_knee':(150,260),'left_foot':(100,320),'right_knee':(235,260),'right_foot':(280,325)},
+            {'neck':(190,105),'hip':(192,205),'left_elbow':(145,165),'left_hand':(110,205),'right_elbow':(245,100),'right_hand':(280,70),'left_knee':(160,260),'left_foot':(115,325),'right_knee':(245,245),'right_foot':(295,280)}
+          ]
+          for idx,joints in enumerate(poses):
+            png=pose_png(joints)
+            open(f"frames/pose_{idx:02d}.png","wb").write(png)
+            encoded="data:image/png;base64,"+base64.b64encode(png).decode()
+            args=["The exact same small friendly blue robot character, single full body, round head, two antennae, orange chest emblem, clean 2D cartoon animation keyframe, flat colors, white background",{"url":encoded,"meta":{"_type":"gradio.FileData"},"orig_name":f"pose_{idx:02d}.png"},"Pre-processed",1.25,8,20261116,False,None,0.0]
+            ok=False
+            for attempt in range(1,4):
+              try:
+                req=urllib.request.Request(host+"/gradio_api/call/on_controlnet_generate",data=json.dumps({"data":args}).encode(),headers={"Content-Type":"application/json"},method="POST")
+                with urllib.request.urlopen(req,timeout=50) as r:event_id=json.load(r)["event_id"]
+                with urllib.request.urlopen(host+"/gradio_api/call/on_controlnet_generate/"+event_id,timeout=180) as r:
+                  event=""
+                  for raw in r:
+                    line=raw.decode("utf-8","replace").strip()
+                    if line.startswith("event:"):event=line[6:].strip()
+                    if line.startswith("data:") and event in ("complete","error"):
+                      if event=="error":raise RuntimeError("Provider error")
+                      result=json.loads(line[5:])
+                      url=result[0].get("url","")
+                      if not url.startswith(host+"/gradio_api/file="):raise RuntimeError("Unsafe or missing URL")
+                      with urllib.request.urlopen(url,timeout=45) as rr:picture=rr.read(8000000)
+                      if not (picture[:4]==b"RIFF" and picture[8:12]==b"WEBP" and len(picture)>1024):raise RuntimeError("Bad image")
+                      open(f"frames/frame_{idx:02d}.webp","wb").write(picture)
+                      print(f"FRAME {idx} VERIFIED bytes={len(picture)}",flush=True)
+                      ok=True
+                      break
+                  if not ok:raise RuntimeError("No completed event")
+                break
+              except Exception as e:
+                print(f"FRAME {idx} attempt {attempt} error: {str(e)[:300]}",flush=True)
+                if attempt<3:time.sleep(15*attempt)
+            if not ok:sys.exit(f"Frame {idx} generation failed")
+          print("TWO REAL FRAMES GENERATED AND DOWNLOADED",flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: two-frame-controlnet
+          path: frames/
+          if-no-files-found: warn
