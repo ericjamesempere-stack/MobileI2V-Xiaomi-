@@ -77,10 +77,15 @@ func _ready() -> void:
     line.add_child(lbl)
     duration_input = SpinBox.new()
     duration_input.min_value = 1
-    duration_input.max_value = 60
+    duration_input.max_value = 300
     duration_input.step = 1
     duration_input.value = 6
     line.add_child(duration_input)
+    for seconds in [2, 3, 5, 10, 20]:
+        var preset := Button.new()
+        preset.text = "%ds" % seconds
+        preset.pressed.connect(func() -> void: duration_input.value = seconds)
+        line.add_child(preset)
     _button("CREER DES POSES 2D A PARTIR DE MA PHOTO", _automatic_local_movie)
     contact_caption = _label("Les poses generees apparaitront ici.", 20)
     contact_sheet = TextureRect.new()
@@ -698,6 +703,7 @@ func _generate_image_sequence() -> void:
         status.text = "Images generees : %d / %d" % [index, total]
     )
     ai_running = true
+    # Generate at most 120 key drawings; MP4 timing is independent of keyframe count.
     var count: int = clampi(ceili(float(duration_input.value) * 4.0), 2, 120)
     if not endpoint.begins_with("https://"):
         ai_running = false
