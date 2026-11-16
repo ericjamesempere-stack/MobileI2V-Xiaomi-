@@ -11,7 +11,11 @@ const ACTION_PHASES := {
     "saut": ["preparation", "impulsion", "envol", "sommet", "reception"],
     "releve": ["au sol", "appui mains", "genoux", "debout"],
     "salut": ["bras bas", "bras leve", "main oscillante", "bras bas"],
-    "repos": ["pose stable"]
+    "repos": ["pose stable"],
+    "transformation": ["forme initiale", "premiers changements visibles", "transformation a mi-parcours", "forme finale"],
+    "metro": ["approche du quai", "arrivee du train", "portes ouvertes", "depart du train"],
+    "football": ["approche du ballon", "preparation du tir", "contact", "trajectoire du ballon"],
+    "inconnu": ["etat initial", "debut du changement demande", "action en cours", "fin de l action", "etat final"]
 }
 
 func phase_at(action: String, progress: float) -> String:
