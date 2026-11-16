@@ -304,11 +304,19 @@ func _export_board_mp4() -> void:
     exporter.set("hold_keyframes", v5_sheet_loaded)
     add_child(exporter)
     var indices: Array = []
+    # Export only approved drawings, preserving the planned temporal order.
     for item in plan:
-        indices.append(int(item))
+        var frame_id: int = int(item)
+        if frame_id >= 0 and frame_id < sources.size() and frame_id < accepted.size() and accepted[frame_id]:
+            indices.append(frame_id)
     if indices.is_empty():
         for i in range(sources.size()):
-            indices.append(i)
+            if i < accepted.size() and accepted[i]:
+                indices.append(i)
+    if indices.is_empty():
+        status.text = "Aucun dessin valide a exporter."
+        exporter.queue_free()
+        return
     await exporter.call("export_board_mp4", sources, indices, float(duration_input.value))
     exporter.queue_free()
 
