@@ -368,6 +368,13 @@ func _merge_folder_selected(folder: String) -> void:
     _save()
     var missing: Array = result.get("missing", [])
     status.text = "KARMA ONE : %d ajouts, %d doublons ignores, %d dessins manquants." % [int(result.get("added", 0)), int(result.get("duplicates", 0)), missing.size()]
+    if not missing.is_empty() and not action_input.text.strip_edges().is_empty():
+        var relay: RefCounted = load("res://scripts/karma_one_relay.gd").new()
+        var handoff: Dictionary = relay.create_relay(action_input.text, float(duration_input.value), expected_frames, paths)
+        if bool(handoff.get("ok", false)):
+            var prompt_path: String = str(handoff.get("folder", "")).path_join("PROMPT_A_COPIER.txt")
+            DisplayServer.clipboard_set(FileAccess.get_file_as_string(prompt_path))
+            status.text += " Relais vers une autre IA prepare ; instructions copiees."
     if karma_auto_export and bool(result.get("complete", false)) and Engine.has_singleton("MP4Exporter"):
         await _export_board_mp4()
 
