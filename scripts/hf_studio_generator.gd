@@ -565,21 +565,8 @@ func build_reference_prompt(description: String, style: String) -> String:
 func vision_provider_id() -> String:
     return VISION_URL
 
-func build_vision_input(files: Array, prompt: String) -> Dictionary:
-    # Qwen's custom MultimodalInput consumes uploaded path strings.
-    # Its files field is not a standard Gradio Image/FileData component.
-    var paths: Array[String] = []
-    for file in files:
-        if not file is Dictionary or not file.get("path") is String or str(file["path"]).is_empty():
-            return {}
-        paths.append(str(file["path"]))
-    return {"files": paths, "text": prompt}
-
 func _vision_request(images: Array[Image], prompt: String) -> Dictionary:
     var upload: Dictionary = await _upload_images(VISION_URL, images)
     if not upload.get("ok", false):
         return upload
-    var input: Dictionary = build_vision_input(upload["files"], prompt)
-    if input.is_empty():
-        return {"ok": false, "error": "Fichiers d'analyse incompatibles."}
-    return await _call_api(VISION_URL, "add_message", [input])
+    return await _call_api(VISION_URL, "add_message", [{"files": upload["files"], "text": prompt}])

@@ -48,7 +48,7 @@ Preuve : https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs
 La branche contient maintenant :
 - 01da0719 : lecture de la file correspondant à la session et filtrage par identifiant de tâche.
 - 52e0ae55 : lecture silencieuse des événements vides et capture du refus réel.
-- 42377b65 : format du composant multimodal Qwen adapté aux chemins de fichiers attendus.
+- 42377b65 : essai de modification du format d'entrée, ensuite retiré après vérification du prétraitement ModelScope : l'API exige bien FileData et effectue elle-même la conversion en chemins. Le format d'origine est conservé.
 
 Dernier essai réel constaté sur 42377b65 :
 https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/43984127203
