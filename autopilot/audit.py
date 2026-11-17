@@ -11,7 +11,7 @@ from urllib.parse import quote
 from datetime import datetime, timezone
 
 REPO = os.environ.get('GITHUB_REPOSITORY', 'ericjamesempere-stack/MobileI2V-Xiaomi-')
-BRANCH = os.environ.get('KARMA_TARGET_BRANCH', 'karma/v57-local-continuation-20261117')
+BRANCH = os.environ.get('KARMA_TARGET_BRANCH', 'karma/v55-finalisation-20261117')
 # This version's Android workflow includes parser, native, approval and MP4 checks.
 # Historical V53/V54 evidence is preserved separately in validation/autopilot-v2.
 WORKFLOWS = [os.environ.get('KARMA_BUILD_WORKFLOW', 'Build Android APK KARMA ONE V57 Local')]
