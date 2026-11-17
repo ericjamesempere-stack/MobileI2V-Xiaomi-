@@ -2,7 +2,7 @@ name: Build Android APK KARMA ONE AUTOPILOT V2
 
 on:
   push:
-    branches: [main, karma/storyboard-story-sequence-20261113, karma/v54-approval-safety-20261116, karma/autopilot-v2-20261117]
+    branches: [main, karma/storyboard-story-sequence-20261113, karma/v54-approval-safety-20261116, karma/autopilot-v2-20261117, karma/universal-text-entry-v55-20261117]
     paths-ignore:
       - '**.md'
       - '.github/workflows/validate-universal-live.yml'
@@ -161,6 +161,11 @@ jobs:
           set -euo pipefail
           timeout 120s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --import 2>&1 | tee import.log
           if grep -E 'SCRIPT ERROR|Parse Error|ConfigFile parse error' import.log; then exit 1; fi
+
+      - name: Check V55 text-to-image storyboard contracts
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_v55_text_entry_contract.py' -v
 
       - name: Test AUTOPILOT memory and real-tool supervisor
         run: |
