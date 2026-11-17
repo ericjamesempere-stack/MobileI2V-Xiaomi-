@@ -27,3 +27,4 @@ Branch: karma/universal-text-entry-v55-20261117
 - Version ARM64 10 / 1.5.5, build et audit nommés V55, en conservant le stockage et le parcours existants.
 - Ajout du harnais opt-in des trois cas réels, cache lié aux entrées, sans génération GPU automatique en CI.
 - Vraies images Z-Image/Qwen obtenues ; fidélité humaine et mouvement de la banane refusés après examen, scène complexe bloquée par quota. Aucun succès universel annoncé.
+- Correction vérifiée sur les vrais dessins IA : les nouveaux lots importés, fusionnés ou créés par les outils historiques ne sont plus pré-cochés comme gardés. Chaque dessin demande un accord individuel avant la confirmation globale.

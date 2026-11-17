@@ -175,6 +175,9 @@ jobs:
           grep -q 'AUTOPILOT_TECHNICAL_MEMORY_OK' autopilot-memory.log
           timeout 30s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_autopilot_pipeline_budget.gd 2>&1 | tee autopilot-pipeline.log
           grep -q 'AUTOPILOT_PIPELINE_BUDGET_OK' autopilot-pipeline.log
+          timeout 30s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_import_individual_review.gd 2>&1 | tee import-individual-review.log
+          grep -q 'IMPORTED_DRAWINGS_INDIVIDUAL_REVIEW_OK' import-individual-review.log
+          if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' import-individual-review.log; then exit 1; fi
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' autopilot-pipeline.log; then exit 1; fi
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' autopilot-memory.log; then exit 1; fi
       - name: Test KARMA ONE intermediate rendering and cache
@@ -356,6 +359,7 @@ jobs:
             apk-badging.txt
             autopilot-memory.log
             autopilot-pipeline.log
+            import-individual-review.log
             universal-android-integration.log
             validation/autopilot-v2/
             validation/v55/

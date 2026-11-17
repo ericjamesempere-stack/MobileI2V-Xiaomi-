@@ -274,7 +274,7 @@ func _restore_karma_merge() -> void:
     accepted.clear()
     for i in range(sources.size()):
         plan.append(i)
-        accepted.append(true)
+        accepted.append(false)
     frame_index = 0
     _refresh()
     _build_contact_sheet()
@@ -315,7 +315,7 @@ func _merge_folder_selected(folder: String) -> void:
     accepted.clear()
     plan.clear()
     for i in range(sources.size()):
-        accepted.append(true)
+        accepted.append(false)
         plan.append(i)
     frame_index = 0
     _refresh()
@@ -402,7 +402,7 @@ func _drawings_folder_selected(folder: String) -> void:
     accepted.clear()
     for i in range(sources.size()):
         plan.append(i)
-        accepted.append(true)
+        accepted.append(false)
     frame_index = 0
     v5_sheet_loaded = false
     last_ai_sequence_ok = false
@@ -460,7 +460,7 @@ func _pose_sheet_selected(path: String) -> void:
     paths.clear()
     plan.clear()
     for i in range(sources.size()):
-        accepted.append(true)
+        accepted.append(false)
         plan.append(i)
     frame_index = 0
     _refresh()
@@ -1347,7 +1347,7 @@ func _generate_text_cartoon() -> void:
         sources.append(ImageTexture.create_from_image(image))
         paths.append(path)
         plan.append(i)
-        accepted.append(true)
+        accepted.append(false)
         if i % 4 == 0:
             status.text = "Dessins en cours : %d/%d" % [i + 1, count]
             await get_tree().process_frame
@@ -1391,7 +1391,7 @@ func _generate_layered_demo() -> void:
     accepted.clear()
     for i in range(count):
         plan.append(i)
-        accepted.append(true)
+        accepted.append(false)
     frame_index = 0
     _refresh()
     _save()
@@ -1608,7 +1608,7 @@ func _generate_articulated_board(use_detected: bool = false) -> void:
         paths.append(path)
         sources.append(ImageTexture.create_from_image(result))
         plan.append(i)
-        accepted.append(true)
+        accepted.append(false)
         if i % 2 == 0:
             status.text = "Calcul des poses : %d / %d" % [i+1, count]
             await get_tree().process_frame
@@ -1691,7 +1691,7 @@ func _generate_from_photo() -> void:
         paths.append(image_path)
         sources.append(ImageTexture.create_from_image(result))
         plan.append(i)
-        accepted.append(true)
+        accepted.append(false)
         if i % 4 == 0:
             preview.texture = sources[i]
             status.text = "Creation de la planche : %d / %d" % [i + 1, count]

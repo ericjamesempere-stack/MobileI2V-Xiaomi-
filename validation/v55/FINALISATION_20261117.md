@@ -7,6 +7,8 @@ Branche de livraison : karma/v55-finalisation-20261117. Nouvelle identité APK :
 
 Le build 44008779470 échouait dans test_friendly_studio.gd : la fixture de génération fournissait 64×64 pixels alors que le garde V55 exige au moins 256×256. La fixture valide fournit maintenant 512×512 ; les cas succès sans image et image trop petite sont exercés séparément et doivent conserver la référence précédente, sans appeler le storyboard. Le garde de production n'est pas abaissé.
 
+Un second défaut réel a été isolé en important les vrais dessins IA : les nouveaux lots et certains outils historiques pré-cochaient les dessins comme gardés. Les huit initialisations concernées commencent maintenant à false ; la confirmation globale ne peut plus remplacer les actions Garder individuelles. Le test comportemental test_import_individual_review.gd vérifie les lots simples et numérotés, ainsi que la réimportation. Les pixels, projets et validations sauvegardées existants ne sont pas effacés.
+
 Les cinq contrats Python V55 passent. Le test comportemental Godot du véritable écran passe après correction. Le nouveau nom du build est également raccordé à l'audit Autopilot existant.
 
 ## Inférences réellement exécutées
