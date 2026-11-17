@@ -1,4 +1,4 @@
-name: Build Android APK KARMA ONE V59 ChatGPT Assisted
+name: Build Android APK KARMA ONE V60 Simplified Android
 
 on:
   push:
@@ -175,6 +175,13 @@ jobs:
           grep -q 'CHATGPT_BRIDGE_OK' v59-chatgpt.log
           if grep -Ei 'SCRIPT ERROR|Parse Error|Assertion failed' v59-chatgpt.log; then exit 1; fi
 
+      - name: Verify V60 simplified UI and shared-image integration
+        run: |
+          set -euo pipefail
+          timeout 60s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_v60_simplified_receive.gd 2>&1 | tee v60-receive.log
+          grep -q 'V60_SIMPLIFIED_RECEIVE_OK' v60-receive.log
+          if grep -Ei 'SCRIPT ERROR|Parse Error|Assertion failed' v60-receive.log; then exit 1; fi
+
       - name: Check V55 text-to-image storyboard contracts
         run: |
           set -euo pipefail
@@ -312,46 +319,53 @@ jobs:
           set -euo pipefail
           mkdir -p build
           timeout 300s ./Godot_v4.5.2-stable_linux.x86_64 --headless --verbose --path . \
-            --export-debug Android build/KARMA_ONE_V59_CHATGPT_ASSISTED_20261117_ARM64.apk 2>&1 | tee export.log
-          test -s build/KARMA_ONE_V59_CHATGPT_ASSISTED_20261117_ARM64.apk
-          unzip -t build/KARMA_ONE_V59_CHATGPT_ASSISTED_20261117_ARM64.apk | tail -2
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs build/KARMA_ONE_V59_CHATGPT_ASSISTED_20261117_ARM64.apk | tee signing-check.log
+            --export-debug Android build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk 2>&1 | tee export.log
+          test -s build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk
+          unzip -t build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk | tail -2
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk | tee signing-check.log
           # Actions caches are branch-scoped. Publish phone updates from this
           # existing release lane, whose cached key signed the delivered V55.
           if [ "$GITHUB_REF_NAME" = 'karma/v55-finalisation-20261117' ]; then
             grep -q 'certificate SHA-256 digest: 5fe844e7ae98d51d5464f1e3a7d58e218aeade4c11b8fe4a1c5ed5e45d9663ef' signing-check.log
           fi
-          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging build/KARMA_ONE_V59_CHATGPT_ASSISTED_20261117_ARM64.apk | tee apk-badging.txt
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk | tee apk-badging.txt
           grep -q "package: name='com.ericjamesempere.mobilei2v'" apk-badging.txt
+          grep -q "versionCode='15'" apk-badging.txt
+          grep -q "versionName='1.6.0" apk-badging.txt
           grep -q 'launchable-activity:' apk-badging.txt
-          unzip -l build/KARMA_ONE_V59_CHATGPT_ASSISTED_20261117_ARM64.apk | grep -q 'lib/arm64-v8a/libgodot_android.so'
-          if unzip -l build/KARMA_ONE_V59_CHATGPT_ASSISTED_20261117_ARM64.apk | grep -q 'lib/armeabi-v7a/'; then
+          unzip -l build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk | grep -q 'lib/arm64-v8a/libgodot_android.so'
+          if unzip -l build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk | grep -q 'lib/armeabi-v7a/'; then
             echo 'Unexpected 32-bit ARM libraries in ARM64-only APK' >&2
             exit 1
           fi
-          stat -c 'APK size: %s bytes' build/KARMA_ONE_V59_CHATGPT_ASSISTED_20261117_ARM64.apk
-          sha256sum build/KARMA_ONE_V59_CHATGPT_ASSISTED_20261117_ARM64.apk
+          stat -c 'APK size: %s bytes' build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk
+          sha256sum build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk
 
       - name: Verify native MP4 class and Android plugin registration
         run: |
           set -euo pipefail
-          APK=build/KARMA_ONE_V59_CHATGPT_ASSISTED_20261117_ARM64.apk
+          APK=build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk
           "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$APK" | grep -E "^(package:|launchable-activity:|native-code:)" | tee build/apk-runtime-metadata.txt
           "$ANDROID_HOME/build-tools/34.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml > build/apk-manifest.txt
           grep -q 'org.godotengine.plugin.v2.MP4Exporter' build/apk-manifest.txt
           grep -q 'networkSecurityConfig' build/apk-manifest.txt
           grep -q 'ReferenceShareProvider' build/apk-manifest.txt
+          grep -q 'SharedImageReceiverActivity' build/apk-manifest.txt
+          grep -q 'android.intent.action.SEND' build/apk-manifest.txt
           "$ANDROID_HOME/build-tools/34.0.0/aapt" dump xmltree "$APK" res/xml/karma_network_security.xml > build/apk-local-network.txt
           grep -q '127.0.0.1' build/apk-local-network.txt
           python3 - <<'PY'
           import zipfile
-          with zipfile.ZipFile('build/KARMA_ONE_V59_CHATGPT_ASSISTED_20261117_ARM64.apk') as z:
+          with zipfile.ZipFile('build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk') as z:
               dex = [z.read(n) for n in z.namelist() if n.endswith('.dex')]
               assert any(b'Lcom/mobilei2v/encoder/MP4Exporter;' in data for data in dex), 'MP4 native class absent'
               assert any(b'share_last_export' in data for data in dex), 'MP4 share method absent'
               assert any(b'Lcom/mobilei2v/encoder/ReferenceImageImporter;' in data for data in dex), 'Native reference importer absent'
               assert any(b'pick_reference_image' in data for data in dex), 'Native photo picker absent'
               assert any(b'Lcom/mobilei2v/encoder/ReferenceImagePickerActivity;' in data for data in dex), 'Durable receiver absent'
+              assert any(b'Lcom/mobilei2v/encoder/SharedImageReceiverActivity;' in data for data in dex), 'Shared image receiver absent'
+              assert any(b'peek_shared_image_result' in data for data in dex), 'Shared image bridge absent'
+              assert any(b'play_last_export' in data for data in dex), 'MP4 playback entry absent'
               assert any(b'Lcom/mobilei2v/encoder/ReferenceShareProvider;' in data for data in dex), 'Read-only share provider absent'
               assert any(b'share_chatgpt_reference' in data for data in dex), 'ChatGPT share method absent'
               assert any(b'reference_image_import_status' in data for data in dex), 'Photo stage diagnostic absent'
@@ -362,7 +376,7 @@ jobs:
       - name: Publish verified APK checksum and build evidence
         run: |
           set -euo pipefail
-          sha256sum build/KARMA_ONE_V59_CHATGPT_ASSISTED_20261117_ARM64.apk | tee build/SHA256SUMS.txt
+          sha256sum build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk | tee build/SHA256SUMS.txt
           {
             echo "## MobileI2V Android build"
             echo "- Commit: \`$GITHUB_SHA\`"
@@ -378,9 +392,9 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: KARMA_ONE_V59_CHATGPT_ASSISTED_20261117_ARM64
+          name: KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64
           path: |
-            build/KARMA_ONE_V59_CHATGPT_ASSISTED_20261117_ARM64.apk
+            build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk
             build/SHA256SUMS.txt
             build/apk-runtime-metadata.txt
             signing-check.log
@@ -392,6 +406,8 @@ jobs:
             local-prompt.log
             v58-photo.log
             v59-chatgpt.log
+            v60-receive.log
+            validation/v60/
             validation/v59/
             validation/v58/
             local-studio.log

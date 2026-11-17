@@ -6,7 +6,7 @@ func run() -> void:
     var board: Node = load("res://scripts/storyboard.gd").new()
     root.add_child(board)
     await process_frame
-    assert(board.wizard_pages[0].is_ancestor_of(board.local_mode), "Engine choice must be visible before first text-to-image request")
+    assert(board.advanced_panel.is_ancestor_of(board.local_mode), "V60 keeps technical engine selection in advanced options")
     var source: String = "user://v58_fixture.webp"
     var image := Image.create(320, 256, false, Image.FORMAT_RGB8)
     image.fill(Color.YELLOW)

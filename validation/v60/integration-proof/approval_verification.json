@@ -1,0 +1,14 @@
+{
+  "all_drawings_in_review_and_export": true,
+  "device_test": false,
+  "intermediates": 4,
+  "keyposes": 8,
+  "missing_intermediate_export_blocked": true,
+  "rejected_export_blocked": true,
+  "simulated_inference": true,
+  "simulated_user_actions": true,
+  "targeted_keypose_and_intermediate_repair": true,
+  "timeline_frames_checked": 150,
+  "unapproved_export_blocked": true,
+  "unreviewed_intermediate_export_blocked": true
+}

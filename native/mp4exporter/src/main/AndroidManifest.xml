@@ -7,6 +7,13 @@
     </queries>
     <application android:networkSecurityConfig="@xml/karma_network_security">
         <activity android:name="com.mobilei2v.encoder.ReferenceImagePickerActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <activity android:name="com.mobilei2v.encoder.SharedImageReceiverActivity" android:exported="true" android:label="KARMA ONE — importer une image" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
         <provider android:name="com.mobilei2v.encoder.ReferenceShareProvider" android:authorities="${applicationId}.karma.references" android:exported="false" android:grantUriPermissions="true" />
         <meta-data android:name="org.godotengine.plugin.v2.MP4Exporter" android:value="com.mobilei2v.encoder.MP4Exporter" />
     </application>

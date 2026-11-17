@@ -91,12 +91,12 @@ func build(board: Control) -> void:
     shell.add_theme_constant_override("separation", 12)
     margin.add_child(shell)
     text(shell, "KARMA ONE", 36, PURPLE)
-    text(shell, "Imagine. Dessine. Anime. · mode simplifié", 21, MUTED)
+    text(shell, "Imagine. Dessine. Anime. · V60", 21, MUTED)
     var tabs := HBoxContainer.new()
     tabs.add_theme_constant_override("separation", 8)
     shell.add_child(tabs)
     for index in range(3):
-        var tab: Button = button(board, tabs, ["1. Image ou idée", "2. Histoire", "3. Mon film"][index], func() -> void: board._go_step(index))
+        var tab: Button = button(board, tabs, ["1. Créer", "2. Mes dessins", "3. Ma vidéo"][index], func() -> void: board._go_step(index))
         tab.name = "Step%d" % index
         tab.custom_minimum_size.y = 58
         tab.add_theme_font_size_override("font_size", 19)
@@ -127,7 +127,7 @@ func build(board: Control) -> void:
         board.root_box.add_child(page)
         board.wizard_pages.append(page)
 
-    var person: VBoxContainer = card(board.wizard_pages[0], "Que veux-tu créer ?", "Choisis une image ou décris ton idée à l'étape Histoire.")
+    var person: VBoxContainer = card(board.wizard_pages[0], "Que veux-tu créer ?", "Choisis une photo ou décris librement ton idée ci-dessous.")
     button(board, person, "Choisir une photo", board._choose_image, true).name = "ChoosePhoto"
     board.local_mode = CheckBox.new()
     board.local_mode.text = "Moteurs du téléphone — installation et modèles requis"
@@ -142,7 +142,7 @@ func build(board: Control) -> void:
     board.invent_box.add_child(board.character_description)
     text(board.invent_box, "Avec ChatGPT : tu lances la génération dans ChatGPT puis tu importes son image ici. Ton abonnement garde ses propres limites ; aucun appel ZeroGPU par ce bouton.", 18, MUTED)
     button(board, board.invent_box, "Créer cette image dans ChatGPT", board._send_chatgpt_reference, true).name = "ChatGPTReference"
-    button(board, board.invent_box, "Créer avec le moteur configuré", board._create_remote_reference, true)
+
     board.invent_box.visible = false
     board.preview = TextureRect.new()
     board.preview.custom_minimum_size.y = 190
@@ -187,10 +187,10 @@ func build(board: Control) -> void:
     person.add_child(board.style_reference_preview)
     button(board, person, "Importer une référence de style", board._choose_style_reference).name = "ChooseStyleReference"
     button(board, person, "Retirer la référence de style", board._remove_style_reference)
-    text(person, "BD détaillée ou référence de style : deux poses par calcul pour conserver plus de détails. La disponibilité dépend du quota du moteur.", 18)
-    button(board, board.wizard_pages[0], "Continuer : mon histoire", func() -> void: board._go_step(1), true).name = "NextStory"
+    text(person, "Le style est facultatif. Original conserve le style de ta référence.", 18)
+    text(person, "Le bouton Préparer et ouvrir ChatGPT partage la référence et la consigne avec l’application choisie. Tu lances la génération dans ChatGPT ; les limites de ton compte s’appliquent.", 18, MUTED)
 
-    var story: VBoxContainer = card(board.wizard_pages[1], "Que va-t-il se passer ?", "Raconte une petite aventure. Tu peux commencer par un exemple.")
+    var story: VBoxContainer = card(board.wizard_pages[0], "Que va-t-il se passer ?", "Raconte une petite aventure. Tu peux commencer par un exemple.")
     board.action_input = TextEdit.new()
     board.action_input.custom_minimum_size.y = 200
     board.action_input.placeholder_text = "Il marche, puis court. Il trébuche, tombe et se relève."
@@ -212,8 +212,9 @@ func build(board: Control) -> void:
         preset.custom_minimum_size.y = 60
         preset.add_theme_font_size_override("font_size", 19)
     board.choice_summary = text(story, "", 19, MUTED)
-    var chatgpt: VBoxContainer = card(board.wizard_pages[1], "Dessiner avec ChatGPT", "Mode assisté : envoie la référence et l'histoire à ChatGPT, lance la génération là-bas, enregistre l'image puis importe-la ici. Ce bouton partage ta photo avec l'application choisie. Pas de clé API ni de ZeroGPU ; les limites de ton abonnement s'appliquent.")
-    button(board, chatgpt, "Envoyer l'histoire à ChatGPT", board._send_chatgpt_board, true).name = "ChatGPTBoard"
+    var chatgpt: VBoxContainer = card(board.wizard_pages[1], "Mes dessins", "Depuis ChatGPT : Partager → KARMA ONE, puis choisir Planche. Tu peux aussi enregistrer et importer l’image. Chaque dessin doit être examiné avant la vidéo.")
+    button(board, board.wizard_pages[0], "Préparer et ouvrir ChatGPT", board._send_chatgpt_board, true).name = "ChatGPTBoard"
+    button(board, board.wizard_pages[0], "Voir mes dessins", func() -> void: board._go_step(1), true).name = "NextStory"
     var grid_shape := HBoxContainer.new()
     var grid_toggle := Button.new()
     grid_toggle.text = "Corriger la grille (si nécessaire)"
@@ -237,7 +238,7 @@ func build(board: Control) -> void:
     text(chatgpt, "Grille automatique par défaut : 4 × 2. Vérifie les dessins après import.", 18, MUTED)
     button(board, chatgpt, "Importer la planche de ChatGPT", board._choose_chatgpt_board).name = "ImportChatGPTBoard"
     button(board, chatgpt, "Importer le dessin refait", board._choose_chatgpt_replacement).name = "ImportChatGPTRedo"
-    button(board, board.wizard_pages[1], "C'est parti ! Créer mes dessins", board._friendly_generate, true).name = "GenerateStory"
+    button(board, chatgpt, "Voir l’image partagée en attente", board._reopen_shared_image).name = "SharedImagePending"
     button(board, board.wizard_pages[1], "Revoir mon image de départ", func() -> void: board._go_step(0))
 
     var film: VBoxContainer = card(board.wizard_pages[2], "Ton histoire prend forme", "Regarde les dessins avant de créer ta vidéo.")
@@ -246,13 +247,15 @@ func build(board: Control) -> void:
     board.movie_preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     board.movie_preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     film.add_child(board.movie_preview)
-    board.contact_caption = text(film, "Tes dessins apparaîtront ici.", 20, MUTED)
+    var drawings: VBoxContainer = card(board.wizard_pages[1], "Examiner la planche", "Agrandis chaque dessin : Garder, Refuser ou Refaire.")
+    board.contact_caption = text(drawings, "Tes dessins apparaîtront ici.", 20, MUTED)
     board.contact_sheet = TextureRect.new()
     board.contact_sheet.custom_minimum_size.y = 200
     board.contact_sheet.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     board.contact_sheet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-    film.add_child(board.contact_sheet)
-    button(board, film, "Agrandir et vérifier les dessins", board._show_drawing_review)
+    drawings.add_child(board.contact_sheet)
+    button(board, drawings, "Agrandir et vérifier les dessins", board._show_drawing_review)
+    button(board, drawings, "Continuer : ma vidéo", func() -> void: board._go_step(2), true).name = "NextVideo"
     board.preview_toggle = button(board, film, "Voir défiler mes dessins", board._toggle_drawing_preview)
     board.preview_toggle.name = "PreviewDrawings"
     board.review_check = CheckBox.new()
@@ -269,6 +272,7 @@ func build(board: Control) -> void:
     film.add_child(board.review_check)
     board.friendly_export = button(board, board.wizard_pages[2], "Créer ma vidéo MP4", board._friendly_export, true)
     board.friendly_export.name = "CreateMovie"
+    button(board, board.wizard_pages[2], "Lire ma dernière vidéo", board._play_last_mp4).name = "PlayMovie"
     button(board, board.wizard_pages[2], "Partager ma vidéo", board._share_last_mp4)
     button(board, board.wizard_pages[2], "Améliorer mon histoire", func() -> void: board._go_step(1))
 
@@ -276,6 +280,8 @@ func build(board: Control) -> void:
     var advanced: VBoxContainer = card(board.root_box, "Le coin des réglages", "Facultatif : les trois étapes suffisent pour commencer.", Color("edf0f9"))
     board.advanced_panel = advanced.get_parent()
     board.advanced_panel.visible = false
+    button(board, advanced, "Créer avec le moteur configuré", board._create_remote_reference).name = "ConfiguredReference"
+    button(board, advanced, "Créer les dessins avec le moteur configuré", board._friendly_generate).name = "GenerateStory"
     advanced.add_child(board.local_mode)
     text(advanced, "Mode local : MNN Chat et Local Dream nécessitent des modèles installés. Décoche pour utiliser les services distants ; leurs quotas s'appliquent. Aucune bascule automatique.", 18, MUTED)
     text(advanced, "Durée personnalisée (secondes)", 20)

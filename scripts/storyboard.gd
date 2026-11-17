@@ -43,6 +43,8 @@ var importing_style_reference: bool = false
 var style_reference_preview: TextureRect
 var style_reference_hint: Label
 var last_ai_sequence_ok: bool = false
+var shared_image_dialog: AcceptDialog
+var shared_image_deferred: bool = false
 var chatgpt_columns: SpinBox
 var chatgpt_rows: SpinBox
 var chatgpt_pending: Dictionary = {}
@@ -2410,6 +2412,8 @@ func _process(delta: float) -> void:
             if shared.begins_with("error:"):
                 status.text = "Partage vers ChatGPT impossible (" + shared + "). La consigne reste copiée et le projet conservé."
 
+    if not shared_image_deferred:
+        _poll_shared_image()
     friendly_ui_clock += delta
     if friendly_ui_clock >= 0.12:
         friendly_ui_clock = 0.0
@@ -2508,7 +2512,7 @@ func _toggle_drawing_preview() -> void:
 
 func _friendly_restore() -> void:
     _load_saved()
-    _go_step(2 if sources.size() > 1 else 0)
+    _go_step(1 if sources.size() > 1 else 0)
     if sources.is_empty() and imported_path.is_empty():
         status.text = "Aucun projet enregistré pour le moment. Commence par une image ou une idée."
 
@@ -2972,6 +2976,8 @@ func _send_chatgpt_reference() -> void:
     _send_chatgpt_request("reference")
 
 func _send_chatgpt_board() -> void:
+    if action_input.text.strip_edges().is_empty() and not character_description.text.strip_edges().is_empty():
+        action_input.text = character_description.text.strip_edges()
     _send_chatgpt_request("board")
 
 func _choose_chatgpt_board() -> void:
@@ -3060,5 +3066,115 @@ func _import_chatgpt_result(path: String, role: String) -> void:
     _refresh()
     _build_contact_sheet()
     _save()
-    _go_step(2)
+    _go_step(1)
     status.text = "%d cases importées sans étirement. Vérifie les découpes, l'identité et les actions ; garde chaque dessin avant le MP4. Aucune fidélité IA automatiquement certifiée." % paths.size()
+
+func _poll_shared_image() -> void:
+    if not photo_app_focused or ai_running or disk_drawing_running or exporting_video or photo_importing or is_instance_valid(shared_image_dialog):
+        return
+    if Engine.has_singleton("MP4Exporter"):
+        var native: Object = Engine.get_singleton("MP4Exporter")
+        if native.has_method("peek_shared_image_result"):
+            _offer_shared_image(str(native.call("peek_shared_image_result")))
+
+func _ack_shared_image(id: String) -> void:
+    if Engine.has_singleton("MP4Exporter"):
+        var native: Object = Engine.get_singleton("MP4Exporter")
+        if native.has_method("acknowledge_shared_image"):
+            native.call("acknowledge_shared_image", id)
+
+func _offer_shared_image(encoded: String) -> void:
+    if encoded.is_empty() or is_instance_valid(shared_image_dialog):
+        return
+    var result: Variant = JSON.parse_string(encoded)
+    if not result is Dictionary or not result.get("id") is String:
+        return
+    var id: String = result["id"]
+    if result.get("state", "") != "selected":
+        status.text = str(result.get("value", "Réception impossible. Projet conservé."))
+        _ack_shared_image(id)
+        return
+    var image: Image = load("res://scripts/android_image_reader.gd").read_image(str(result.get("value", "")))
+    if image == null:
+        status.text = "Image partagée inaccessible. Ton projet est conservé."
+        _ack_shared_image(id)
+        return
+    shared_image_dialog = AcceptDialog.new()
+    shared_image_dialog.title = "Image reçue — choisir son usage"
+    shared_image_dialog.dialog_text = ""
+    shared_image_dialog.size = Vector2i(640, 640)
+    shared_image_dialog.get_ok_button().text = "Ignorer cette image"
+    shared_image_dialog.add_button("Plus tard", false, "defer")
+    var content := VBoxContainer.new()
+    shared_image_dialog.add_child(content)
+    var picture := TextureRect.new()
+    picture.custom_minimum_size = Vector2(540, 300)
+    picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+    picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+    picture.texture = ImageTexture.create_from_image(image)
+    content.add_child(picture)
+    var hint := Label.new()
+    hint.text = "Choisis l'usage de cette image. Le projet actuel reste conservé jusqu'à ton choix."
+    hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    content.add_child(hint)
+    var context: Dictionary = _chatgpt_context()
+    for entry in [["Utiliser comme image de départ", "reference"], ["Importer comme planche", "board"], ["Remplacer le dessin demandé", "replacement"]]:
+        var role: String = entry[1]
+        var button := Button.new()
+        button.text = entry[0]
+        button.custom_minimum_size.y = 68
+        button.disabled = role == "replacement" and chatgpt_pending.get("kind", "") != "replacement"
+        button.pressed.connect(func() -> void:
+            if context != _chatgpt_context():
+                status.text = "Le projet a changé. Image en attente, aucun dessin remplacé."
+                _close_shared_dialog()
+                return
+            if ai_running or exporting_video or disk_drawing_running or photo_importing:
+                status.text = "Attends la fin de l'opération avant d'appliquer l'image partagée."
+                return
+            await _apply_shared_image(str(result["value"]), role)
+            _ack_shared_image(id)
+            _close_shared_dialog(false)
+        )
+        content.add_child(button)
+    shared_image_dialog.confirmed.connect(func() -> void: _ack_shared_image(id); _close_shared_dialog(false))
+    shared_image_dialog.custom_action.connect(func(_action: String) -> void: _close_shared_dialog())
+    shared_image_dialog.close_requested.connect(_close_shared_dialog)
+    add_child(shared_image_dialog)
+    shared_image_dialog.popup_centered()
+
+func _close_shared_dialog(defer: bool = true) -> void:
+    if is_instance_valid(shared_image_dialog):
+        shared_image_dialog.queue_free()
+    shared_image_dialog = null
+    # Closing leaves the native inbox intact. The explicit button can reopen it.
+    shared_image_deferred = defer
+
+func _reopen_shared_image() -> void:
+    shared_image_deferred = false
+    _poll_shared_image()
+    if not is_instance_valid(shared_image_dialog):
+        status.text = "Aucune image partagée en attente. Utilise Partager → KARMA ONE depuis ChatGPT, ou Importe la planche."
+
+func _apply_shared_image(path: String, role: String) -> void:
+    if ai_running or exporting_video or disk_drawing_running or photo_importing:
+        return
+    if role == "reference":
+        await _image_chosen(path)
+        _go_step(0)
+    elif role == "board":
+        chatgpt_pending = _chatgpt_context()
+        chatgpt_pending["kind"] = "board"
+        chatgpt_pending["columns"] = int(chatgpt_columns.value)
+        chatgpt_pending["rows"] = int(chatgpt_rows.value)
+        await _import_chatgpt_result(path, "board")
+    elif role == "replacement":
+        await _import_chatgpt_result(path, "replacement")
+
+func _play_last_mp4() -> void:
+    if Engine.has_singleton("MP4Exporter"):
+        var native: Object = Engine.get_singleton("MP4Exporter")
+        if native.has_method("play_last_export") and bool(native.call("play_last_export")):
+            status.text = "Ouverture de ta vidéo dans le lecteur Android."
+            return
+    status.text = "Crée d'abord une vidéo MP4. Les vidéos déjà enregistrées restent dans Movies/KARMA ONE."

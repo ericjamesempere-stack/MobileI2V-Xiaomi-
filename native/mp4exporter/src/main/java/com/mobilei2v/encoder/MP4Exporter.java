@@ -80,6 +80,9 @@ public final class MP4Exporter extends GodotPlugin {
         return report.toString();
     }
 
+    @UsedByGodot public String peek_shared_image_result() { return SharedImageInbox.peek(getContext()); }
+    @UsedByGodot public void acknowledge_shared_image(String id) { SharedImageInbox.acknowledge(getContext(), id); }
+
     private volatile String chatgptShareResult = "";
     private volatile boolean chatgptSharing = false;
     @UsedByGodot public String consume_chatgpt_share_result() {
@@ -259,6 +262,7 @@ public final class MP4Exporter extends GodotPlugin {
                     values.put(MediaStore.Video.Media.IS_PENDING, 0);
                     activity.getContentResolver().update(uri, values, null, null);
                     lastExportUri = uri;
+                    activity.getSharedPreferences("karma_video_v60",0).edit().putString("last_uri",uri.toString()).apply();
                     completed.delete();
                     return "Movies/KARMA ONE/" + completed.getName();
                 } catch (Exception e) {
@@ -273,14 +277,38 @@ public final class MP4Exporter extends GodotPlugin {
     @UsedByGodot
     public boolean share_last_export() {
         Activity activity = getActivity();
-        if (activity == null || lastExportUri == null) return false;
-        final Uri uri = lastExportUri;
+        final Uri uri = savedExportUri();
+        if (activity == null || uri == null) return false;
         activity.runOnUiThread(() -> {
             Intent intent = new Intent(Intent.ACTION_SEND);
             intent.setType("video/mp4");
             intent.putExtra(Intent.EXTRA_STREAM, uri);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             activity.startActivity(Intent.createChooser(intent, "Partager le MP4"));
+        });
+        return true;
+    }
+
+    private Uri savedExportUri() {
+        if (lastExportUri != null) return lastExportUri;
+        String saved = getContext().getSharedPreferences("karma_video_v60",0).getString("last_uri", "");
+        if (saved.isEmpty()) return null;
+        Uri uri = Uri.parse(saved);
+        return "content".equals(uri.getScheme()) && "media".equals(uri.getAuthority()) ? uri : null;
+    }
+    @UsedByGodot public boolean play_last_export() {
+        Activity activity = getActivity();
+        Uri uri = savedExportUri();
+        if (activity == null || uri == null) return false;
+        activity.runOnUiThread(() -> {
+            try {
+                Intent play = new Intent(Intent.ACTION_VIEW).setDataAndType(uri, "video/mp4");
+                play.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                activity.startActivity(play);
+            } catch (RuntimeException e) {
+                error = "Lecteur Android indisponible ou vidéo déplacée.";
+                android.widget.Toast.makeText(activity,error,android.widget.Toast.LENGTH_LONG).show();
+            }
         });
         return true;
     }
