@@ -1,0 +1,3 @@
+Godot Engine v4.6.3.stable.official.7d41c59c4 - https://godotengine.org
+
+V58_LIVE_TEXT_RESULT {"error":"Quota GPU gratuit atteint. Les dessins termines sont conserves ; aucun nouvel essai automatique sur ce moteur dans ce lot.","error_kind":"quota","ok":false,"quota_detail":"{\"error\": \"You have exceeded your ZeroGPU runs limit. Authenticate with a Hugging Face token for more quota - https://huggingface.co/settings/tokens\", \"duration\": 10, \"visible\": true, \"title\": \"ZeroGPU quota exceeded\"}"}

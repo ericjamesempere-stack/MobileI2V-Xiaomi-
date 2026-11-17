@@ -44,12 +44,12 @@ func _local_request(base: String, path: String, payload: Dictionary = {}, get_re
     var error: Error = http.request(base + path, headers, HTTPClient.METHOD_GET if get_request else HTTPClient.METHOD_POST, "" if get_request else JSON.stringify(payload))
     if error != OK:
         http.queue_free()
-        return {"ok": false, "error": "Connexion au moteur local impossible."}
+        return {"ok": false, "endpoint": path, "request_error": int(error), "error": "Requête locale impossible : " + base + path + " (erreur %d). Aucun fichier envoyé en ligne." % int(error)}
     var response: Array = await http.request_completed
     http.queue_free()
     if int(response[0]) != HTTPRequest.RESULT_SUCCESS or int(response[1]) != 200:
         var guidance: String = "Copie la clé du service API MNN Chat dans le champ privé de KARMA ONE." if vision_call and int(response[1]) in [401, 403] else "Ouvre %s, charge son modèle et laisse son service actif." % ("MNN Chat" if vision_call else "Local Dream")
-        return {"ok": false, "http_status": int(response[1]), "error": "Moteur local non prêt (HTTP %d). %s Aucun service en ligne n'est appelé." % [int(response[1]), guidance]}
+        return {"ok": false, "http_status": int(response[1]), "network_result": int(response[0]), "endpoint": path, "error": "Moteur local indisponible : %s%s (HTTP %d, réseau %d). %s Aucun service en ligne n'est appelé." % [base, path, int(response[1]), int(response[0]), guidance]}
     return {"ok": true, "body": (response[3] as PackedByteArray).get_string_from_utf8()}
 
 func select_active_model(models: Variant) -> Dictionary:
@@ -74,6 +74,10 @@ func inspect_local_engines(include_vision: bool = true, include_drawing: bool = 
     # GET only: no photo, prompt, token in report, generation or paid fallback.
     var report: Dictionary = {"ok": true, "cloud_requests": 0, "inference_verified": false, "vision": {"status": "not_checked"}, "drawing": {"status": "not_checked"}, "message": ""}
     var failures: Array[String] = []
+    if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
+        var native: Object = Engine.get_singleton("MP4Exporter")
+        if native.has_method("local_engine_installation_status"):
+            report["android_apps"] = JSON.parse_string(str(native.call("local_engine_installation_status")))
     if include_vision:
         var response: Dictionary = await _local_request(vision_base, "/v1/models", {}, true, 4.0)
         var parsed := JSON.new()
@@ -85,7 +89,7 @@ func inspect_local_engines(include_vision: bool = true, include_drawing: bool = 
             report["vision"] = {"status": "active_model_listed", "model": local_model, "vision_capability_verified": false}
         else:
             report["ok"] = false
-            report["vision"] = {"status": "unavailable", "http_status": response.get("http_status", 0)}
+            report["vision"] = {"status": "unavailable", "http_status": response.get("http_status", 0), "network_result": response.get("network_result", -1), "endpoint": response.get("endpoint", "")}
             failures.append(selection["error"])
     if include_drawing:
         var response: Dictionary = await _local_request(drawing_base, "/health", {}, true, 4.0)
@@ -97,7 +101,7 @@ func inspect_local_engines(include_vision: bool = true, include_drawing: bool = 
         else:
             drawing_probe_base = ""
             report["ok"] = false
-            report["drawing"] = {"status": "unavailable", "http_status": response.get("http_status", 0)}
+            report["drawing"] = {"status": "unavailable", "http_status": response.get("http_status", 0), "network_result": response.get("network_result", -1), "endpoint": response.get("endpoint", "")}
             failures.append(response.get("error", "Ouvre Local Dream et charge un modèle CPU avec img2img."))
     report["message"] = "Connexion locale vérifiée. L'analyse et les dessins doivent encore réussir avec les modèles chargés." if failures.is_empty() else " ".join(failures)
     last_probe = report.duplicate(true)

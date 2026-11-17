@@ -41,34 +41,6 @@ public final class MP4Exporter extends GodotPlugin {
     public MP4Exporter(Godot godot) { super(godot); }
     @NonNull @Override public String getPluginName() { return "MP4Exporter"; }
 
-    private static final int PHOTO_REQUEST = 24071;
-    private volatile boolean pickingPhoto = false;
-    private volatile String photoResult = "";
-    private volatile int photoGeneration = 0;
-    private volatile int photoRequestCode = PHOTO_REQUEST;
-
-    // The Godot render loop consumes this result; no scene updates on Android UI threads.
-    @UsedByGodot public synchronized String consume_reference_image_result() {
-        String result = photoResult;
-        photoResult = "";
-        return result;
-    }
-
-    @UsedByGodot public synchronized void cancel_reference_image_import() {
-        photoGeneration++;
-        pickingPhoto = false;
-        photoResult = "";
-    }
-
-    private synchronized void completePhoto(int generation, String state, String value) {
-        if (generation != photoGeneration) return;
-        JSONObject result = new JSONObject();
-        try { result.put("state", state); result.put("value", value); }
-        catch (Exception ignored) { return; }
-        photoResult = result.toString();
-        pickingPhoto = false;
-    }
-
     @NonNull @Override public Set<SignalInfo> getPluginSignals() {
         return new HashSet<>(Arrays.asList(
             new SignalInfo("reference_image_selected", String.class),
@@ -76,51 +48,36 @@ public final class MP4Exporter extends GodotPlugin {
             new SignalInfo("reference_image_cancelled")));
     }
 
+    // The internal receiver persists a mailbox across Godot/Android recreation.
+    @UsedByGodot public String consume_reference_image_result() {
+        return ReferenceImagePickerActivity.consume(getGodot().getContext());
+    }
+    @UsedByGodot public String reference_image_import_status() {
+        return ReferenceImagePickerActivity.status(getGodot().getContext());
+    }
+    @UsedByGodot public void cancel_reference_image_import() {
+        ReferenceImagePickerActivity.cancel(getGodot().getContext());
+    }
     @UsedByGodot public boolean pick_reference_image() {
-        Activity activity = getActivity();
-        if (activity == null || pickingPhoto) return false;
-        pickingPhoto = true;
-        photoResult = "";
-        final int generation = ++photoGeneration;
-        final int requestCode = PHOTO_REQUEST + generation % 1000;
-        photoRequestCode = requestCode;
-        activity.runOnUiThread(() -> {
-            if (generation != photoGeneration) return;
-            try {
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.setType("image/*");
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                activity.startActivityForResult(intent, requestCode);
-            } catch (Exception e) {
-                completePhoto(generation, "error", "Impossible d'ouvrir la galerie Android.");
-            }
-        });
-        return true;
+        return pick_reference_image_for_role("reference");
+    }
+    @UsedByGodot public boolean pick_reference_image_for_role(String role) {
+        return ReferenceImagePickerActivity.launch(getActivity(), "style".equals(role) ? "style" : "reference");
     }
 
-    @Override public void onMainActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode != photoRequestCode || !pickingPhoto) return;
-        final int generation = photoGeneration;
-        if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) {
-            completePhoto(generation, "cancelled", "");
-            return;
-        }
-        final Uri uri = data.getData();
-        final Activity activity = getActivity();
-        if (activity == null) {
-            completePhoto(generation, "error", "L application Android est indisponible. Réessaie.");
-            return;
-        }
-        new Thread(() -> {
+    @UsedByGodot public String local_engine_installation_status() {
+        JSONObject report = new JSONObject();
+        for (String name : new String[]{"io.github.xororz.localdream", "com.alibaba.mnnllm.android", "com.alibaba.mnnllm.android.release"}) {
             try {
-                String localPath = ReferenceImageImporter.importImage(activity.getApplicationContext(), uri);
-                completePhoto(generation, "selected", localPath);
+                android.content.pm.PackageInfo pkg = getContext().getPackageManager().getPackageInfo(name, 0);
+                report.put(name, new JSONObject().put("installed", true).put("version", pkg.versionName));
+            } catch (android.content.pm.PackageManager.NameNotFoundException e) {
+                try { report.put(name, new JSONObject().put("installed", false)); } catch (Exception ignored) {}
             } catch (Exception e) {
-                Log.w("MobileI2V", "Reference import failed: " + e.getClass().getSimpleName());
-                completePhoto(generation, "error", "Cette image n'a pas pu être importée. Essaie une autre image.");
+                try { report.put(name, new JSONObject().put("status", "unknown")); } catch (Exception ignored) {}
             }
-        }, "KarmaPhotoImport").start();
+        }
+        return report.toString();
     }
 
     @UsedByGodot public String import_reference_uri(String uri) {

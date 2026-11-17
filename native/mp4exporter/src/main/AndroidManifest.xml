@@ -1,5 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries>
+        <package android:name="io.github.xororz.localdream" />
+        <package android:name="com.alibaba.mnnllm.android" />
+        <package android:name="com.alibaba.mnnllm.android.release" />
+    </queries>
     <application android:networkSecurityConfig="@xml/karma_network_security">
+        <activity android:name="com.mobilei2v.encoder.ReferenceImagePickerActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <meta-data android:name="org.godotengine.plugin.v2.MP4Exporter" android:value="com.mobilei2v.encoder.MP4Exporter" />
     </application>
 </manifest>

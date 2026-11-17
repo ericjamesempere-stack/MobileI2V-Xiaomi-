@@ -15,6 +15,10 @@ public final class ReferenceImageImporter {
     private static final int MAX_SIDE = 4096;
     private ReferenceImageImporter() {}
     public static String importImage(Context context, Uri uri) throws Exception {
+        return importImage(context, uri, phase -> {});
+    }
+    public static String importImage(Context context, Uri uri, java.util.function.Consumer<String> progress) throws Exception {
+        progress.accept("decoding");
         if (context == null || uri == null) throw new IllegalArgumentException("Missing image selection");
         Bitmap bitmap;
         if (Build.VERSION.SDK_INT >= 28) {
@@ -41,6 +45,8 @@ public final class ReferenceImageImporter {
             }
         }
         if (bitmap == null) throw new IllegalArgumentException("Unsupported or unreadable image");
+        try {
+        progress.accept("saving");
         File folder = new File(context.getFilesDir(), "reference_imports");
         if (!folder.isDirectory() && !folder.mkdirs()) throw new IllegalStateException("Cannot create image folder");
         File output = File.createTempFile("reference_", ".png", folder);
@@ -51,8 +57,8 @@ public final class ReferenceImageImporter {
             complete = true;
             return output.getAbsolutePath();
         } finally {
-            bitmap.recycle();
             if (!complete) output.delete();
         }
+        } finally { bitmap.recycle(); }
     }
 }

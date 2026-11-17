@@ -208,7 +208,7 @@ func build(board: Control) -> void:
         preset.add_theme_font_size_override("font_size", 19)
     board.choice_summary = text(story, "", 19, MUTED)
     board.local_mode = CheckBox.new()
-    board.local_mode.text = "Sans quota en ligne : utiliser les moteurs du téléphone"
+    board.local_mode.text = "Moteurs du téléphone — installation et modèles requis"
     board.local_mode.button_pressed = true
     story.add_child(board.local_mode)
     text(story, "Mode local : MNN Chat pour l'analyse et Local Dream pour les dessins doivent être installés, avec leurs modèles chargés. Le moteur de calcul reste séparé de KARMA ONE. Aucun appel en ligne automatique dans ce mode.", 18, MUTED)

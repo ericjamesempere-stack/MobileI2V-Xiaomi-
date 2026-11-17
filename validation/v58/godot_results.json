@@ -1,0 +1,27 @@
+[
+  {
+    "test": "test_v58_photo_recovery",
+    "ok": true,
+    "exit_code": 0
+  },
+  {
+    "test": "test_import_individual_review",
+    "ok": true,
+    "exit_code": 0
+  },
+  {
+    "test": "test_local_prompt",
+    "ok": true,
+    "exit_code": 0
+  },
+  {
+    "test": "test_friendly_studio",
+    "ok": true,
+    "exit_code": 0
+  },
+  {
+    "test": "test_universal_android_integration",
+    "ok": true,
+    "exit_code": 0
+  }
+]

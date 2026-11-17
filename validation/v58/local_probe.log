@@ -1,0 +1,7 @@
+PASS_LOCAL_PROBE ready GETs 2 POSTs 0
+PASS_LOCAL_PROBE auth GETs 8 POSTs 0
+PASS_LOCAL_PROBE empty GETs 8 POSTs 0
+PASS_LOCAL_PROBE multiple GETs 8 POSTs 0
+PASS_LOCAL_PROBE health_missing GETs 8 POSTs 0
+PASS_LOCAL_PROBE redirect GETs 8 POSTs 0
+LOCAL_ENGINE_PROBE_HTTP_OK: six scenarios, real loopback, simulated engine metadata, zero POSTs/cloud calls

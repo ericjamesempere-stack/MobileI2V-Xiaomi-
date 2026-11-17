@@ -45,6 +45,7 @@ var style_reference_hint: Label
 var last_ai_sequence_ok: bool = false
 var photo_importing: bool = false
 var photo_import_clock: float = 0.0
+var photo_import_stage: String = ""
 var photo_app_focused: bool = true
 const PHOTO_IMPORT_TIMEOUT: float = 45.0
 var review_fingerprint: String = ""
@@ -763,7 +764,8 @@ func _choose_image(as_style: bool = false) -> void:
         if native.has_method("pick_reference_image"):
             photo_importing = true
             status.text = "Ouverture de la galerie…"
-            photo_importing = bool(native.call("pick_reference_image"))
+            photo_import_stage = "opening"
+            photo_importing = bool(native.call("pick_reference_image_for_role", "style" if as_style else "reference")) if native.has_method("pick_reference_image_for_role") else bool(native.call("pick_reference_image"))
             status.text = "Choisis une image dans ta galerie." if photo_importing else "La galerie n'a pas pu s'ouvrir. Réessaie."
             if not photo_importing:
                 importing_style_reference = false
@@ -827,6 +829,8 @@ func _image_chosen(path: String) -> void:
     if img.save_png(saved_path) != OK:
         status.text = "ERREUR : impossible de copier la photo."
         return
+    if not imported_path.is_empty():
+        _save()
     _clear_universal_state()
     v5_sheet_loaded = false
     required_drawing_count = 0
@@ -1825,6 +1829,11 @@ func _save() -> void:
         return
     f.store_string(JSON.stringify(data, "  "))
     f.close()
+    if imported_path.begins_with("user://projects/"):
+        var snapshot := FileAccess.open(imported_path.get_base_dir().path_join("project.json"), FileAccess.WRITE)
+        if snapshot != null:
+            snapshot.store_string(JSON.stringify(data, "  "))
+            snapshot.close()
     status.text = "Planche sauvegardee dans les donnees locales de l'application."
 
 func _load_saved() -> void:
@@ -2474,12 +2483,14 @@ func _cancel_photo_import() -> void:
     _sync_friendly_ui()
 
 func _consume_photo_result(encoded: String) -> void:
-    if not photo_importing or encoded.is_empty():
+    if encoded.is_empty():
         return
     var result: Variant = JSON.parse_string(encoded)
     if not result is Dictionary:
         _native_image_error("Réponse de la galerie illisible. Réessaie.")
         return
+    if result.has("role"):
+        importing_style_reference = str(result["role"]) == "style"
     match str(result.get("state", "")):
         "selected": _image_chosen(str(result.get("value", "")))
         "cancelled": _native_image_cancelled()
@@ -2494,20 +2505,38 @@ func _notification(what: int) -> void:
         photo_import_clock = 0.0
 
 func _poll_photo_import(delta: float) -> void:
-    if not photo_importing:
-        return
+    var phase: String = ""
     if Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
         if native.has_method("consume_reference_image_result"):
-            _consume_photo_result(str(native.call("consume_reference_image_result")))
+            # Also recover a pending result after Android recreated Godot.
+            var result: String = str(native.call("consume_reference_image_result"))
+            if not result.is_empty():
+                _consume_photo_result(result)
+                return
+        if photo_importing and native.has_method("reference_image_import_status"):
+            phase = str(native.call("reference_image_import_status"))
     if not photo_importing:
         return
-    if not photo_app_focused:
+    if phase != photo_import_stage:
+        photo_import_stage = phase
+        photo_import_clock = 0.0
+    # Time spent choosing a document belongs to the user, not the decoder.
+    if phase == "selecting":
+        status.text = "Galerie ouverte : choisis une image ou reviens pour annuler."
         return
-    photo_import_clock += delta
-    if photo_import_clock >= PHOTO_IMPORT_TIMEOUT:
+    if phase == "decoding":
+        status.text = "Photo reçue : décodage Android en cours…"
+    elif phase == "saving":
+        status.text = "Photo décodée : sauvegarde privée en cours…"
+    if not photo_app_focused and phase not in ["decoding", "saving"]:
+        return
+    photo_import_clock += minf(delta, 0.25)
+    var limit_seconds: float = 120.0 if phase in ["decoding", "saving"] else PHOTO_IMPORT_TIMEOUT
+    if photo_import_clock >= limit_seconds:
+        var failed_stage: String = phase if not phase.is_empty() else "retour du sélecteur / résultat natif absent"
         _cancel_photo_import()
-        status.text = "Le chargement ne répond pas. Réessaie avec une image JPG ou PNG enregistrée sur l'appareil."
+        status.text = "Import interrompu à l'étape : " + failed_stage + ". Projet précédent conservé. Réessaie une image locale."
 
 func _native_image_error(message: String) -> void:
     photo_importing = false

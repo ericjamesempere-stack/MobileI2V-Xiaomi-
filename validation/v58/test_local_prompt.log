@@ -1,0 +1,3 @@
+Godot Engine v4.5.2.stable.official.6ce3de25a - https://godotengine.org
+
+LOCAL_PROMPT_BUDGET_OK: ten simulated cases; French/scene/reference retained, tokenizer budget enforced before diffusion, bounded shortening, no automatic approval

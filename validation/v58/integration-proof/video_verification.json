@@ -1,0 +1,18 @@
+{
+  "decoded_without_error": true,
+  "device_test": false,
+  "real_encoder": "ffmpeg libx264",
+  "simulated_drawings": true,
+  "simulated_mediacodec": true,
+  "streams": [
+    {
+      "codec_name": "h264",
+      "duration": "5.000000",
+      "height": 160.0,
+      "nb_frames": "150",
+      "pix_fmt": "yuv420p",
+      "r_frame_rate": "30/1",
+      "width": 96.0
+    }
+  ]
+}

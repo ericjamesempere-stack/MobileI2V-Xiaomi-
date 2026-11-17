@@ -5,3 +5,6 @@
 __pycache__/
 /autopilot/state/
 /autopilot/reports/
+
+/native/mp4exporter/.gradle/
+/native/mp4exporter/build/

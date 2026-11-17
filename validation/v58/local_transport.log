@@ -1,0 +1,10 @@
+Godot Engine v4.6.3.stable.official.7d41c59c4 - https://godotengine.org
+
+LOCAL_STUDIO_TRANSPORT_OK: real loopback HTTP; SIMULATED inference; shared screen/pipeline, eight poses and nine in-betweens in three automatic batches, local budget two, bounded thumbnails/full PNG review, selective redo, consent, restore; no remote request or model inference
+
+LOCAL_HTTP_NO_CLOUD_COUNTS_OK ready {'models': 2, 'health': 2, 'analysis': 1, 'review': 49, 'generate': 19, 'compile': 19, 'tokenize': 19}
+Godot Engine v4.6.3.stable.official.7d41c59c4 - https://godotengine.org
+
+LOCAL_STUDIO_TRANSPORT_OK: real loopback HTTP; SIMULATED inference; shared screen/pipeline, eight poses and nine in-betweens in three automatic batches, local budget two, bounded thumbnails/full PNG review, selective redo, consent, restore; no remote request or model inference
+
+LOCAL_HTTP_NO_CLOUD_COUNTS_OK outage {'models': 3, 'health': 3, 'analysis': 1, 'review': 49, 'generate': 20, 'compile': 20, 'tokenize': 20}
