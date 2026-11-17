@@ -1,0 +1,67 @@
+name: Validate universal board real inference
+on:
+  push:
+    branches:
+      - karma/v54-approval-safety-20261116
+    paths:
+      - "tools/test_universal_live_board.gd"
+      - "scripts/hf_studio_generator.gd"
+      - "tests/test_hf_studio_generator.gd"
+      - ".github/workflows/validate-universal-live.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: universal-live-board
+  cancel-in-progress: false
+jobs:
+  real-inference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot
+        run: |
+          set -euo pipefail
+          curl -fL --retry 2 -o godot.zip https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.5.2-stable_linux.x86_64
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --editor --path . --import --quit
+      - name: Verify result session routing and parser
+        run: |
+          set -euo pipefail
+          timeout 30s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_hf_studio_generator.gd 2>&1 | tee session-protocol.log
+          grep -q 'HF_STUDIO_PROTOCOL_TESTS_OK' session-protocol.log
+          if grep -E 'SCRIPT ERROR|Parse Error|Assertion failed' session-protocol.log; then exit 1; fi
+      - name: Capture public vision API contract and failed server output
+        run: |
+          mkdir -p live-evidence
+          curl -fsS --max-time 20 https://qwen-qwen3-vl-demo.hf.space/gradio_api/info -o live-evidence/vision-api-info.json || true
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          info = Path("live-evidence/vision-api-info.json")
+          if info.exists():
+              value = json.loads(info.read_text())
+              print("VISION_API_CONTRACT", json.dumps({name: {"parameters": [{"name": p.get("parameter_name"), "example": p.get("example_input")} for p in endpoint.get("parameters", [])], "returns": [p.get("component") for p in endpoint.get("returns", [])]} for name, endpoint in value.get("named_endpoints", {}).items() if name == "/add_message"}))
+          source = Path("scripts/hf_studio_generator.gd")
+          content = source.read_text()
+          marker = '    var body: String = (response[3] as PackedByteArray).get_string_from_utf8()'
+          assert content.count(marker) == 1
+          content = content.replace(marker, marker + '\n    if base == VISION_URL:\n        print("VISION_RAW_RESULT ", body.substr(0, 12000))')
+          source.write_text(content)
+          PY
+      - name: Attempt production image to board path once
+        env:
+          KARMA_LIVE_EVIDENCE_DIR: ${{ github.workspace }}/live-evidence
+        run: |
+          set -euo pipefail
+          mkdir -p live-evidence
+          timeout --signal=TERM --kill-after=10s 420s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tools/test_universal_live_board.gd 2>&1 | tee live-evidence/run.log
+      - name: Upload actual results including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: universal-board-real-evidence
+          path: live-evidence/
+          if-no-files-found: warn

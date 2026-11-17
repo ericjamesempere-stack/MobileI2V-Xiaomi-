@@ -1,0 +1,7 @@
+Godot Engine v4.6.3.stable.official.7d41c59c4 - https://godotengine.org
+
+WARNING: Loaded resource as image file, this will not work on export: 'res://validation/v54-poses/reference.png'. Instead, import the image file as an Image resource and load it normally as a resource.
+     at: load (core/io/image.cpp:2756)
+     GDScript backtrace (most recent call first):
+         [0] run (res://tests/test_universal_generated_cache.gd:13)
+ACTUAL_CANDIDATE_CACHE_OK: 8 real candidate PNGs reused, identical SHA256, zero inference; fidelity remains unverified

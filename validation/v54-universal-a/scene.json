@@ -1,0 +1,139 @@
+{
+  "analysis_origin": "assistant_annotation",
+  "annotation_notice": "Visual annotation of the public synthetic drawing by the assistant, NOT automatic in-app vision inference. Bounds and motion features are estimates.",
+  "entities": [
+    {
+      "allowed_changes": [
+        "limb joint positions",
+        "whole-body orientation and position required by running, stumbling and falling"
+      ],
+      "appearance": "One curved yellow banana with a brown outline and stem, two black dot eyes and a smile, two existing brown stick arms and two existing brown stick legs, no human torso, clothing or hair.",
+      "bbox": [
+        0.3,
+        0.09,
+        0.41,
+        0.76
+      ],
+      "id": "e1",
+      "invariants": [
+        "yellow curved peel body and brown stem",
+        "two black dot eyes and smile",
+        "two brown stick arms and two brown stick legs",
+        "flat simple original line drawing, no clothing or human torso"
+      ],
+      "kind": "anthropomorphic fruit",
+      "origin": "visible"
+    },
+    {
+      "allowed_changes": [],
+      "appearance": "Thin horizontal ground line near the bottom of the beige scene.",
+      "bbox": [
+        0.0,
+        0.858,
+        1.0,
+        0.01
+      ],
+      "id": "e2",
+      "invariants": [
+        "level fixed horizontal ground line",
+        "no new obstacle or prop unless explicitly requested"
+      ],
+      "kind": "ground",
+      "origin": "visible"
+    },
+    {
+      "allowed_changes": [],
+      "appearance": "Plain beige background.",
+      "bbox": [
+        0.0,
+        0.0,
+        1.0,
+        1.0
+      ],
+      "id": "e3",
+      "invariants": [
+        "plain beige background",
+        "fixed camera, same viewpoint and lighting"
+      ],
+      "kind": "environment",
+      "origin": "visible"
+    }
+  ],
+  "reference_sha": "090a027c36b5d1c169a4fd0a79626d40718b75ffa80876f5527b94b351359251",
+  "relations": [
+    {
+      "from": "e1",
+      "relation": "feet contact the ground during support phases; the body contacts the ground at impact",
+      "to": "e2"
+    }
+  ],
+  "steps": [
+    {
+      "actor_ids": [
+        "e1"
+      ],
+      "amplitude": 0.75,
+      "camera": 0.0,
+      "id": "run",
+      "instruction": "e1 runs to the right across e2; keep e3 and the camera fixed.",
+      "interaction": 0.0,
+      "object_ids": [
+        "e2"
+      ],
+      "occlusion": 0.05,
+      "phases": [
+        "e1 leans forward while running right: left foot lands ahead on e2, right leg bent behind, arms counter-swing; preserve the curved banana body",
+        "e1 pushes off into a running flight phase: BOTH feet above e2, legs separated, opposite arm swing, body moving right without changing its curved banana silhouette",
+        "e1 lands its right foot ahead on e2, left leg trailing behind, body still leaning forward, opposite stride from the first running drawing"
+      ],
+      "speed": 0.9,
+      "static": false,
+      "weight": 4.0
+    },
+    {
+      "actor_ids": [
+        "e1"
+      ],
+      "amplitude": 0.5,
+      "camera": 0.0,
+      "id": "stumble",
+      "instruction": "e1 trips on its own leading toe against the level ground e2; do not invent a rock or a new object.",
+      "interaction": 0.9,
+      "object_ids": [
+        "e2"
+      ],
+      "occlusion": 0.15,
+      "phases": [
+        "e1 leading toe catches on e2 while its body continues forward; the leading leg blocks, torso-free banana body tilts, existing arms spread for balance",
+        "e1 loses balance: banana body pitches steeply forward, center of mass beyond the caught foot, trailing foot lifts, arms reach ahead, no stable stance"
+      ],
+      "speed": 0.9,
+      "static": false,
+      "weight": 1.5
+    },
+    {
+      "actor_ids": [
+        "e1"
+      ],
+      "amplitude": 0.95,
+      "camera": 0.0,
+      "id": "fall",
+      "instruction": "e1 falls forward onto e2 and finishes lying still; preserve e3 and the original design.",
+      "interaction": 0.8,
+      "object_ids": [
+        "e2"
+      ],
+      "occlusion": 0.4,
+      "phases": [
+        "e1 descends almost horizontally above e2, feet off the ground, existing arms extended toward the ground, original curved banana body rotated as a whole",
+        "e1 makes contact with e2 on its side: curved banana body horizontal against the ground, arms bent at impact, legs still lifted from the momentum",
+        "e1 lies still on e2 after the fall, its SAME curved yellow banana body horizontal, original arms and legs resting low, no standing pose, no body redesign"
+      ],
+      "speed": 0.8,
+      "static": false,
+      "weight": 2.5
+    }
+  ],
+  "story": "Le personnage court, trébuche puis tombe.",
+  "unresolved": []
+}

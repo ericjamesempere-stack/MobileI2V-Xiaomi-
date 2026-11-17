@@ -8,9 +8,12 @@ var contact_caption: Label
 var skeleton_preview: TextureRect
 var character_description: TextEdit
 var drawing_style: OptionButton
+var custom_style_input: LineEdit
 var ai_drawings_count: SpinBox
 var ai_endpoint: LineEdit
 var ai_token_input: LineEdit
+var local_mode: CheckBox
+var local_auth_input: LineEdit
 var ai_http: HTTPRequest
 var ai_running: bool = false
 var pose_http: HTTPRequest
@@ -33,15 +36,29 @@ var drawings_folder_picker: FileDialog
 var pose_sheet_picker: FileDialog
 var exporting_video: bool = false
 var imported_path: String = ""
+var style_reference_path: String = ""
+var importing_style_reference: bool = false
+var style_reference_preview: TextureRect
+var style_reference_hint: Label
 var last_ai_sequence_ok: bool = false
 var photo_importing: bool = false
+var photo_import_clock: float = 0.0
+var photo_app_focused: bool = true
+const PHOTO_IMPORT_TIMEOUT: float = 45.0
 var review_fingerprint: String = ""
+var required_drawing_count: int = 0
 var explicit_rejections: Dictionary = {}
 var review_dialog: PanelContainer
 var review_image: TextureRect
 var review_caption: Label
 var review_index: int = 0
 var session_agent: RefCounted = null
+var universal_pipeline: Node = null
+var universal_folder: String = ""
+var universal_plan: Dictionary = {}
+var universal_quality: Dictionary = {}
+var universal_style: String = ""
+var universal_input_signature: String = ""
 var disk_drawing_running: bool = false
 var karma_auto_export: bool = false
 var karma_auto_export_toggle: CheckBox
@@ -80,6 +97,7 @@ func _ready() -> void:
     picker.use_native_dialog = true
     picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp;Images;image/png,image/jpeg,image/webp"])
     picker.file_selected.connect(_image_chosen)
+    picker.canceled.connect(_native_image_cancelled)
     add_child(picker)
     drawings_folder_picker = FileDialog.new()
     drawings_folder_picker.file_mode = FileDialog.FILE_MODE_OPEN_DIR
@@ -117,10 +135,10 @@ func _ready() -> void:
     pose_http.request_completed.connect(_pose_completed)
     if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_signal("reference_image_selected"):
-            native.connect("reference_image_selected", Callable(self, "_image_chosen"))
-            native.connect("reference_image_error", Callable(self, "_native_image_error"))
-            native.connect("reference_image_cancelled", Callable(self, "_native_image_cancelled"))
+        if not native.has_method("consume_reference_image_result") and native.has_signal("reference_image_selected"):
+            native.connect("reference_image_selected", Callable(self, "_image_chosen"), CONNECT_DEFERRED)
+            native.connect("reference_image_error", Callable(self, "_native_image_error"), CONNECT_DEFERRED)
+            native.connect("reference_image_cancelled", Callable(self, "_native_image_cancelled"), CONNECT_DEFERRED)
     review_check.toggled.connect(_review_confirmation_changed)
     _load_saved()
     if not sources.is_empty():
@@ -244,6 +262,12 @@ func _restore_karma_merge() -> void:
             return
         restored_sources.append(tex)
         restored_paths.append(str(p))
+    _clear_universal_state()
+    session_agent = null
+    review_fingerprint = ""
+    review_check.set_pressed_no_signal(false)
+    explicit_rejections.clear()
+    required_drawing_count = 0
     sources = restored_sources
     paths = restored_paths
     plan.clear()
@@ -280,6 +304,12 @@ func _merge_folder_selected(folder: String) -> void:
     if next_sources.is_empty():
         status.text = "KARMA ONE : aucune image exploitable."
         return
+    _clear_universal_state()
+    session_agent = null
+    review_fingerprint = ""
+    review_check.set_pressed_no_signal(false)
+    explicit_rejections.clear()
+    required_drawing_count = 0
     sources = next_sources
     paths = next_paths
     accepted.clear()
@@ -360,6 +390,12 @@ func _drawings_folder_selected(folder: String) -> void:
     if imported_textures.is_empty():
         status.text = "KARMA ONE : aucune image lisible ou enregistrable."
         return
+    _clear_universal_state()
+    session_agent = null
+    review_fingerprint = ""
+    review_check.set_pressed_no_signal(false)
+    explicit_rejections.clear()
+    required_drawing_count = 0
     sources = imported_textures
     paths = imported_paths
     plan.clear()
@@ -412,6 +448,12 @@ func _pose_sheet_selected(path: String) -> void:
             var part: Image = sheet.get_region(Rect2i(x1, y1, x2 - x1, y2 - y1))
             part.resize(540, 960, Image.INTERPOLATE_LANCZOS)
             imported.append(ImageTexture.create_from_image(part))
+    _clear_universal_state()
+    session_agent = null
+    review_fingerprint = ""
+    review_check.set_pressed_no_signal(false)
+    explicit_rejections.clear()
+    required_drawing_count = 0
     sources = imported
     v5_sheet_loaded = true
     accepted.clear()
@@ -433,7 +475,7 @@ func _export_board_mp4() -> void:
     if exporting_video or disk_drawing_running:
         status.text = "Une generation ou un export est deja en cours."
         return
-    if not Engine.has_singleton("MP4Exporter"):
+    if not _mp4_encoder_available():
         status.text = "MP4 indisponible : plugin Android absent. Utilise EXPORTER AVI."
         return
     if sources.is_empty():
@@ -443,11 +485,12 @@ func _export_board_mp4() -> void:
     for accepted_flag in accepted:
         if accepted_flag:
             selected += 1
-    if selected == 0:
-        status.text = "Valide les dessins avant l'export MP4."
+    # V54: an unapproved/rejected frame must block the entire export.
+    # Do not silently skip drawings: this would change the approved story.
+    if selected == 0 or accepted.size() != sources.size() or selected != sources.size():
+        status.text = "Export bloque : valide ou refais chaque dessin de la planche."
         return
-    var exporter: Node = Node.new()
-    exporter.set_script(load("res://scripts/export_mp4.gd"))
+    var exporter: Node = _make_mp4_exporter()
     exporter.set("status_label", status)
     exporter.set("hold_keyframes", v5_sheet_loaded)
     add_child(exporter)
@@ -468,7 +511,8 @@ func _export_board_mp4() -> void:
     exporting_video = true
     if session_agent != null:
         session_agent.record_user_approval(review_fingerprint)
-    await exporter.call("export_board_mp4", sources.duplicate(), indices, float(duration_input.value))
+    var export_images: Array = paths.duplicate() if not universal_folder.is_empty() else sources.duplicate()
+    await exporter.call("export_board_mp4", export_images, indices, float(duration_input.value))
     if session_agent != null:
         session_agent.record_video_result(str(exporter.get("last_output")))
     exporting_video = false
@@ -496,6 +540,9 @@ func _choose_video_export() -> void:
     video_picker.popup_centered_ratio(0.9)
 
 func _export_video(destination: String) -> void:
+    if not _has_current_review():
+        status.text = "Export bloqué : examine et garde chaque dessin, puis confirme la planche."
+        return
     if exporting_video:
         return
     exporting_video = true
@@ -697,30 +744,75 @@ func _open_photo_folder(folder: String) -> void:
             picker.current_dir = folder
     picker.popup_centered_ratio(0.9)
 
-func _choose_image() -> void:
+func _choose_style_reference() -> void:
+    _choose_image(true)
+
+func _choose_image(as_style: bool = false) -> void:
+    if photo_importing and not (ai_running or disk_drawing_running or exporting_video):
+        _cancel_photo_import()
+        return
     if ai_running or disk_drawing_running or exporting_video or photo_importing:
         status.text = "Attends la fin de l operation en cours."
         return
+    importing_style_reference = as_style
+    photo_import_clock = 0.0
     if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
         if native.has_method("pick_reference_image"):
+            photo_importing = true
+            status.text = "Ouverture de la galerie…"
             photo_importing = bool(native.call("pick_reference_image"))
             status.text = "Choisis une image dans ta galerie." if photo_importing else "La galerie n'a pas pu s'ouvrir. Réessaie."
+            if not photo_importing:
+                importing_style_reference = false
             return
     # Native Android document/photo picker uses a user-selected URI; do not
     # request broad storage permissions merely to choose one image.
     # The selected content URI is passed to android_image_reader.gd.
+    photo_importing = true
     picker.popup_centered_ratio(0.9)
+
+func _set_style_reference(path: String) -> bool:
+    var image: Image = load("res://scripts/android_image_reader.gd").read_image(path)
+    if image == null or image.is_empty():
+        status.text = "Reference de style illisible. L'ancienne reference est conservee."
+        return false
+    var folder: String = "user://projects/style_%d" % Time.get_ticks_usec()
+    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK or image.save_png(folder.path_join("style.png")) != OK:
+        status.text = "Sauvegarde de la reference de style impossible."
+        return false
+    style_reference_path = folder.path_join("style.png")
+    _refresh_style_reference()
+    _save()
+    status.text = "Reference de style sauvegardee. Le sujet reste celui de ton image principale."
+    return true
+
+func _refresh_style_reference() -> void:
+    style_reference_preview.texture = _texture_for_path(style_reference_path) if not style_reference_path.is_empty() else null
+    style_reference_preview.visible = style_reference_preview.texture != null
+    style_reference_hint.text = "Cette reference guide les traits, les ombres et les details des planches." if style_reference_preview.texture != null else "Facultatif : importe une illustration ou une planche dont tu veux retrouver le style."
+
+func _remove_style_reference() -> void:
+    if ai_running or exporting_video or disk_drawing_running or photo_importing:
+        return
+    style_reference_path = ""
+    _refresh_style_reference()
+    _save()
 
 func _image_chosen(path: String) -> void:
     photo_importing = false
+    var as_style: bool = importing_style_reference
+    importing_style_reference = false
+    if as_style:
+        _set_style_reference(path)
+        return
     var img: Image = load("res://scripts/android_image_reader.gd").read_image(path)
     if img == null or img.is_empty():
         status.text = "ERREUR PHOTO : impossible de lire le fichier. Essaie JPG ou PNG."
         return
     var max_side: int = maxi(img.get_width(), img.get_height())
-    if max_side > 1200:
-        var factor: float = 1200.0 / float(max_side)
+    if max_side > 4096:
+        var factor: float = 4096.0 / float(max_side)
         img.resize(maxi(1, int(img.get_width() * factor)), maxi(1, int(img.get_height() * factor)), Image.INTERPOLATE_LANCZOS)
     # Keep every imported reference in a distinct local project folder.
     # Previously each new image silently overwrote the previous project's photo.
@@ -733,7 +825,10 @@ func _image_chosen(path: String) -> void:
     if img.save_png(saved_path) != OK:
         status.text = "ERREUR : impossible de copier la photo."
         return
+    _clear_universal_state()
     v5_sheet_loaded = false
+    required_drawing_count = 0
+    session_agent = null
     imported_path = saved_path
     explicit_rejections.clear()
     review_fingerprint = ""
@@ -754,6 +849,8 @@ func _image_chosen(path: String) -> void:
     status.text = "Ton image est affichée et sauvegardée. Ajoute ton histoire pour créer la planche."
 
 func _texture_for_path(path: String) -> Texture2D:
+    if not FileAccess.file_exists(path):
+        return null
     if path.begins_with("user://") or path.begins_with("/"):
         var img := Image.new()
         if img.load(path) == OK:
@@ -921,6 +1018,7 @@ func _generate_image_sequence() -> void:
             return
         new_sources.append(ImageTexture.create_from_image(img))
         new_paths.append(file_path)
+    required_drawing_count = 0
     sources = new_sources
     paths = new_paths
     plan.clear()
@@ -993,6 +1091,7 @@ func _ai_completed(_result: int, code: int, _headers: PackedStringArray, body: P
             return
         new_paths.append(path)
         new_sources.append(ImageTexture.create_from_image(imgs[i]))
+    required_drawing_count = 0
     sources = new_sources
     paths = new_paths
     plan.clear()
@@ -1284,6 +1383,7 @@ func _generate_layered_demo() -> void:
         if i % 12 == 0:
             status.text = "Dessin articule : %d/%d" % [i + 1, count]
             await get_tree().process_frame
+    required_drawing_count = 0
     sources = new_sources
     paths.clear()
     paths.append_array(new_paths)
@@ -1603,6 +1703,9 @@ func _generate_from_photo() -> void:
     status.text = "PHOTO VISIBLE : %d images creees et validees. Bouton 2 pour animer." % count
 
 func _export_png_sequence() -> void:
+    if not _has_current_review():
+        status.text = "Export bloqué : examine et garde chaque dessin, puis confirme la planche."
+        return
     if sources.is_empty():
         status.text = "Prepare et valide d'abord la planche."
         return
@@ -1627,6 +1730,7 @@ func _export_png_sequence() -> void:
     status.text = "%d PNG exportes dans %s (dossier interne de l'application). Pas de MP4." % [saved, folder]
 
 func _prepare() -> void:
+    required_drawing_count = 0
     sources.clear()
     paths.clear()
     plan.clear()
@@ -1677,7 +1781,9 @@ func _reject_all() -> void:
         review_check.set_pressed_no_signal(false)
     for i in range(accepted.size()):
         accepted[i] = false
+    review_fingerprint = ""
     _refresh()
+    _save()
 
 func _toggle_approval() -> void:
     if review_check != null:
@@ -1688,7 +1794,7 @@ func _toggle_approval() -> void:
     _save()
 
 func _save() -> void:
-    if sources.is_empty(): return
+    if sources.is_empty() and imported_path.is_empty() and style_reference_path.is_empty(): return
     var flags: Array = []
     for a in accepted: flags.append(a)
     var approved_drawings: Array = []
@@ -1710,7 +1816,7 @@ func _save() -> void:
                     nearest_distance = distance
                     nearest = int(original_idx)
             approved_timeline.append(old_to_new[nearest])
-    var data := {"version": 2, "explicit_rejections": explicit_rejections.keys(), "character_description": character_description.text, "drawing_style": drawing_style.selected, "ai_drawings_count": ai_drawings_count.value, "karma_auto_export": karma_auto_export, "approved_drawings": approved_drawings, "approved_timeline": approved_timeline, "reference_path": imported_path, "description": action_input.text, "ai_endpoint": ai_endpoint.text, "duration_seconds": duration_input.value, "drawings": paths, "approved": flags, "timeline_indices": plan, "warning": "Offline photo camera motion or existing poses; no AI anatomy generation"}
+    var data := {"version": 3, "local_mode": local_mode.button_pressed, "universal_folder": universal_folder, "universal_quality": universal_quality, "universal_style": universal_style, "universal_input_signature": universal_input_signature, "required_drawing_count": required_drawing_count, "explicit_rejections": explicit_rejections.keys(), "character_description": character_description.text, "drawing_style": drawing_style.selected, "custom_style": custom_style_input.text, "ai_drawings_count": ai_drawings_count.value, "karma_auto_export": karma_auto_export, "approved_drawings": approved_drawings, "approved_timeline": approved_timeline, "reference_path": imported_path, "style_reference_path": style_reference_path, "description": action_input.text, "ai_endpoint": ai_endpoint.text, "duration_seconds": duration_input.value, "drawings": paths, "approved": flags, "timeline_indices": plan, "warning": "Offline photo camera motion or existing poses; no AI anatomy generation"}
     var f := FileAccess.open(SAVE, FileAccess.WRITE)
     if f == null:
         status.text = "Erreur de sauvegarde"
@@ -1726,8 +1832,12 @@ func _load_saved() -> void:
     var data = JSON.parse_string(f.get_as_text())
     f.close()
     if not data is Dictionary: return
+    local_mode.set_pressed_no_signal(bool(data.get("local_mode", str(data.get("universal_folder", "")).is_empty())))
     character_description.text = str(data.get("character_description", ""))
-    drawing_style.select(clampi(int(data.get("drawing_style", 0)), 0, 5))
+    drawing_style.select(clampi(int(data.get("drawing_style", 0)), 0, drawing_style.item_count - 1))
+    style_reference_path = str(data.get("style_reference_path", ""))
+    _refresh_style_reference()
+    custom_style_input.text = str(data.get("custom_style", ""))
     ai_drawings_count.value = int(data.get("ai_drawings_count", 6))
     action_input.text = str(data.get("description", ""))
     ai_endpoint.text = str(data.get("ai_endpoint", ""))
@@ -1735,7 +1845,26 @@ func _load_saved() -> void:
     karma_auto_export = false
     if karma_auto_export_toggle != null:
         karma_auto_export_toggle.set_pressed_no_signal(karma_auto_export)
+    required_drawing_count = int(data.get("required_drawing_count", 0))
     imported_path = str(data.get("reference_path", ""))
+    _clear_universal_state()
+    session_agent = null
+    universal_folder = str(data.get("universal_folder", ""))
+    universal_quality = data.get("universal_quality", {})
+    universal_style = str(data.get("universal_style", ""))
+    universal_input_signature = str(data.get("universal_input_signature", ""))
+    if not universal_folder.is_empty():
+        var stored: Variant = JSON.parse_string(FileAccess.get_file_as_string(universal_folder.path_join("plan.json"))) if FileAccess.file_exists(universal_folder.path_join("plan.json")) else null
+        if stored is Dictionary:
+            universal_plan = stored
+        var guide: Image = load("res://scripts/android_image_reader.gd").read_image(style_reference_path) if not style_reference_path.is_empty() else null
+        _configure_universal_pipeline(guide)
+        var ledger_path: String = universal_folder.path_join("karma_agents.json")
+        var ledger: Variant = JSON.parse_string(FileAccess.get_file_as_string(ledger_path)) if FileAccess.file_exists(ledger_path) else null
+        if ledger is Dictionary:
+            session_agent = load("res://scripts/karma_studio_session.gd").new()
+            session_agent.state = ledger
+            session_agent.folder_path = universal_folder
     detected_landmarks.clear()
     sources.clear()
     paths.clear()
@@ -1743,7 +1872,7 @@ func _load_saved() -> void:
     var saved_drawings: Array = data.get("drawings", [])
     for original_idx in range(saved_drawings.size()):
         var path: String = str(saved_drawings[original_idx])
-        var tex: Texture2D = _texture_for_path(path)
+        var tex: Texture2D = _drawing_thumbnail(path) if not universal_folder.is_empty() else _texture_for_path(path)
         if tex != null:
             old_to_new[original_idx] = sources.size()
             sources.append(tex)
@@ -1762,8 +1891,8 @@ func _load_saved() -> void:
     explicit_rejections.clear()
     for item in data.get("explicit_rejections", []):
         var rejected_index: int = int(item)
-        if rejected_index >= 0 and rejected_index < sources.size():
-            explicit_rejections[rejected_index] = true
+        if old_to_new.has(rejected_index):
+            explicit_rejections[int(old_to_new[rejected_index])] = true
     review_check.set_pressed_no_signal(false)
     review_fingerprint = ""
     frame_index = 0
@@ -1779,6 +1908,9 @@ func _close() -> void:
     queue_free()
 
 func _validate_and_animate() -> void:
+    if not _has_current_review():
+        status.text = "Export bloqué : examine et garde chaque dessin, puis confirme la planche."
+        return
     if sources.is_empty():
         status.text = "Prepare d'abord une planche."
         return
@@ -1884,36 +2016,30 @@ func _share_last_mp4() -> void:
 
 
 func _selected_drawing_style() -> String:
-    return ["original", "cartoon", "manga", "anime", "3d", "cinema"][drawing_style.selected]
+    if custom_style_input != null and not custom_style_input.text.strip_edges().is_empty():
+        return custom_style_input.text.strip_edges().substr(0, 160)
+    return ["original", "cartoon", "manga", "anime", "3d", "cinema", "bd_detail"][drawing_style.selected]
 
-func _create_remote_reference() -> void:
-    if ai_running or disk_drawing_running or exporting_video:
+func _create_remote_reference(description_override: String = "") -> void:
+    if ai_running or disk_drawing_running or exporting_video or photo_importing:
         status.text = "Une operation est deja en cours."
         return
-    var description: String = character_description.text.strip_edges()
+    var description: String = description_override.strip_edges()
     if description.is_empty():
-        status.text = "Decris le personnage a creer dans le champ Personnage."
+        description = character_description.text.strip_edges()
+    if description.is_empty():
+        status.text = "Décris le sujet ou la scène à créer."
         return
-    imported_path = ""
-    sources.clear()
-    paths.clear()
-    accepted.clear()
-    plan.clear()
-    explicit_rejections.clear()
-    review_fingerprint = ""
-    review_check.set_pressed_no_signal(false)
-    preview.texture = null
-    contact_sheet.texture = null
     ai_running = true
-    status.text = "Création de ton personnage… Cela peut prendre un petit moment."
-    var worker: Node = load("res://scripts/hf_studio_generator.gd").new()
+    status.text = "Création de ton image de départ… Cela peut prendre un petit moment."
+    var worker: Node = _make_drawing_worker()
     worker.hf_token = ai_token_input.text.strip_edges()
     add_child(worker)
     var result: Dictionary = await worker.create_reference(description, _selected_drawing_style())
     worker.queue_free()
     ai_running = false
     if not result.get("ok", false):
-        status.text = str(result.get("error", "Generation echouee."))
+        status.text = str(result.get("error", "Generation echouee.")) + " Ta photo et tes dessins existants sont conserves."
         return
     var folder: String = "user://projects/reference_ai_%d" % Time.get_ticks_usec()
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
@@ -1925,7 +2051,7 @@ func _create_remote_reference() -> void:
         return
     await _image_chosen(path)
     _reuse_reference_drawing()
-    status.text = "Ton personnage est prêt et sauvegardé ! Passe à ton histoire."
+    status.text = "Ton image est prête et sauvegardée ! Passe à ton histoire."
 
 func _reuse_reference_drawing() -> void:
     if ai_running or disk_drawing_running or exporting_video:
@@ -1934,6 +2060,9 @@ func _reuse_reference_drawing() -> void:
     if texture == null:
         status.text = "Importe ou cree une image de depart."
         return
+    _clear_universal_state()
+    session_agent = null
+    required_drawing_count = 0
     sources.assign([texture])
     paths.assign([imported_path])
     accepted.assign([false])
@@ -1944,109 +2073,145 @@ func _reuse_reference_drawing() -> void:
     _save()
     status.text = "Image de depart reprise a l identique : aucune regeneration."
 
+func _make_universal_pipeline() -> Node:
+    var engine: Node = load("res://scripts/universal_board_pipeline.gd").new()
+    engine.local_inference = local_mode.button_pressed
+    return engine
+
+func _configure_universal_pipeline(style_image: Image = null) -> void:
+    if is_instance_valid(universal_pipeline):
+        universal_pipeline.queue_free()
+    universal_pipeline = _make_universal_pipeline()
+    add_child(universal_pipeline)
+    universal_pipeline.worker.hf_token = ai_token_input.text.strip_edges()
+    universal_pipeline.worker.style_reference = style_image
+    if universal_pipeline.worker.has_method("configure_local"):
+        universal_pipeline.worker.configure_local(local_auth_input.text)
+    # Pressing Create submits the image/story to the disclosed online analysis
+    # and drawing services. Mere import never uploads the user's image.
+    universal_pipeline.worker.remote_vision_consent = true
+    universal_pipeline.stage_changed.connect(_universal_progress)
+
+func _universal_progress(stage: String, completed: int, total: int) -> void:
+    if stage == "analysis":
+        status.text = "Analyse IA de ton image et de l'histoire…"
+    elif stage == "generation":
+        status.text = "Création des poses : %d / %d" % [completed, total]
+    else:
+        status.text = "Contrôle de fidélité des poses et correction ciblée…"
+
+func _universal_signature() -> String:
+    var identity: String = FileAccess.get_sha256(imported_path) if FileAccess.file_exists(imported_path) else "missing"
+    var guide: String = FileAccess.get_sha256(style_reference_path) if not style_reference_path.is_empty() and FileAccess.file_exists(style_reference_path) else style_reference_path
+    var signature: Array = [identity, action_input.text.strip_edges(), float(duration_input.value), _selected_drawing_style(), guide]
+    if local_mode.button_pressed:
+        signature.append("mnn-localdream-v1")
+    return JSON.stringify(signature).sha256_text()
+
+func _clear_universal_state() -> void:
+    universal_folder = ""
+    universal_plan.clear()
+    universal_quality.clear()
+    universal_style = ""
+    universal_input_signature = ""
+    if is_instance_valid(universal_pipeline):
+        universal_pipeline.queue_free()
+    universal_pipeline = null
+
 func _draw_remote_story() -> void:
-    if ai_running or disk_drawing_running or exporting_video:
-        status.text = "Une operation est deja en cours."
+    if ai_running or disk_drawing_running or exporting_video or photo_importing:
+        status.text = "Une opération est déjà en cours."
         return
     var reference: Image = load("res://scripts/android_image_reader.gd").read_image(imported_path)
     if reference == null:
-        status.text = "Importe une photo ou cree d abord ton personnage par IA."
+        status.text = "Importe une image ou décris ton idée pour créer l'image de départ."
         return
     var story: String = action_input.text.strip_edges()
     if story.is_empty():
-        status.text = "Ecris l histoire avant de lancer les dessins."
+        status.text = "Écris l'histoire avant de lancer les dessins."
         return
-    var style: String = _selected_drawing_style()
-    var duration: float = duration_input.value
-    var total: int = int(ai_drawings_count.value)
-    session_agent = load("res://scripts/karma_studio_session.gd").new()
-    var preparation: Dictionary = session_agent.begin(story, duration, total)
-    if not preparation.get("ok", false):
-        status.text = str(preparation.get("error", "Scénario impossible."))
-        return
-    var motion: Dictionary = preparation["motion"]
-    var cache_key: String = (imported_path + story + style + str(total) + str(duration)).sha256_text().substr(0, 24)
-    var folder: String = "user://projects/hf_" + cache_key
-    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
-        status.text = "Dossier IA impossible a creer."
-        return
+    var style_image: Image = null
+    if not style_reference_path.is_empty():
+        style_image = load("res://scripts/android_image_reader.gd").read_image(style_reference_path)
+        if style_image == null:
+            status.text = "La référence de style est manquante. Réimporte-la avant de générer."
+            return
+    var signature: String = _universal_signature()
+    var folder: String = "user://projects/universal_" + signature.substr(0, 24)
+    _configure_universal_pipeline(style_image)
     ai_running = true
     last_ai_sequence_ok = false
-    var worker: Node = load("res://scripts/hf_studio_generator.gd").new()
-    worker.hf_token = ai_token_input.text.strip_edges()
-    add_child(worker)
-    var drawings: Array[Texture2D] = []
-    var drawing_paths: Array[String] = []
-    var previous: Image = null
-    var failure: String = ""
-    for index in range(total):
-        var path: String = folder.path_join("frame_%04d.png" % index)
-        var frame := Image.new()
-        var cached: bool = FileAccess.file_exists(path) and frame.load(path) == OK and not frame.is_empty()
-        if not cached:
-            var seconds: float = float(index) / float(maxi(1, total - 1)) * duration
-            var directive: String = story
-            var phase: float = 0.0
-            for step in motion.get("steps", []):
-                if seconds < float(step["end"]) or step == motion["steps"].back():
-                    directive = str(step["description"])
-                    phase = clampf((seconds - float(step["start"])) / maxf(0.001, float(step["end"]) - float(step["start"])), 0.0, 1.0)
-                    break
-            status.text = "Dessin %d sur %d · Création en cours…" % [index + 1, total]
-            var instruction: String = "Draw exactly ONE full-frame drawing, no grid, no panels, no text. Full story: " + story + ". Current action: " + directive + ". Action progression: %d percent. Preserve the same background and subject proportions." % roundi(phase * 100.0)
-            var result: Dictionary = await worker.redraw(reference, instruction, style, previous)
-            if not result.get("ok", false):
-                failure = str(result.get("error", "Erreur distante."))
-                break
-            frame = result["image"]
-            var quality: Dictionary = session_agent.inspect_frame(frame, previous)
-            if not quality.get("ok", false):
-                failure = "Dessin refusé par le contrôle technique : " + str(quality.get("issues", []))
-                break
-            if previous != null and frame.get_size() == previous.get_size() and frame.get_data() == previous.get_data():
-                failure = "Le moteur a retourne deux dessins identiques. Verifie les directives avant de reprendre."
-                break
-            var temp: String = path + ".part"
-            if frame.save_png(temp) != OK or DirAccess.rename_absolute(temp, path) != OK:
-                failure = "Echec sauvegarde du dessin."
-                break
-        var inspection: Dictionary = session_agent.inspect_frame(frame, previous)
-        if not inspection.get("ok", false):
-            failure = "Un dessin sauvegardé ne passe pas le contrôle technique. Refais ce dessin avant de valider."
-            break
-        session_agent.record_frame(index, path, inspection)
-        session_agent.save(folder)
-        drawings.append(ImageTexture.create_from_image(frame))
-        drawing_paths.append(path)
-        previous = frame
-        preview.texture = drawings.back()
-        await get_tree().process_frame
-    worker.queue_free()
+    var result: Dictionary = await universal_pipeline.build_boards(reference, story, float(duration_input.value), _selected_drawing_style(), folder, 2147483647 if local_mode.button_pressed else int(ai_drawings_count.value))
     ai_running = false
-    session_agent.finish_drawings(failure)
-    session_agent.save(folder)
-    if not drawings.is_empty():
-        explicit_rejections.clear()
-        review_fingerprint = ""
-        review_check.set_pressed_no_signal(false)
-        sources = drawings
-        paths = drawing_paths
-        accepted.clear()
-        plan.clear()
-        for index in range(paths.size()):
-            accepted.append(false)
-            plan.append(index)
-        frame_index = 0
-        duration_input.value = duration
-        v5_sheet_loaded = true
-        _refresh()
-        _build_contact_sheet()
-        _save()
-    if not failure.is_empty():
-        status.text = "%d/%d dessins conserves. Relance avec les memes parametres pour reprendre. %s" % [drawing_paths.size(), total, failure]
+    if result.get("stage", "") == "budget":
+        status.text = "L'analyse prévoit %d poses clés ; ta limite est %d. Augmente la limite dans Réglages et outils, puis relance : l'analyse est sauvegardée." % [int(result["required"]), int(result["budget"])]
         return
-    last_ai_sequence_ok = true
-    status.text = "Tes %d dessins sont prêts ! Regarde les visages et les poses avant de créer ton film." % total
+    if not result.has("plan"):
+        status.text = "Analyse IA non aboutie ; tes dessins sont conservés. " + str(result.get("detail", {}).get("error", result.get("error", "Service indisponible.")))
+        return
+    var generation: Dictionary = result.get("generation", result.get("detail", {}))
+    var generated_paths: Array = generation.get("paths", [])
+    if generated_paths.is_empty():
+        status.text = "Aucun nouveau dessin ; ton projet est conservé. " + str(generation.get("error", "Génération indisponible."))
+        return
+    universal_folder = folder
+    universal_plan = result["plan"]
+    universal_quality = result.get("quality", {"ok": false, "fidelity_verified": false})
+    universal_style = _selected_drawing_style()
+    universal_input_signature = signature
+    sources.clear()
+    paths.clear()
+    accepted.clear()
+    plan.clear()
+    session_agent = load("res://scripts/karma_studio_session.gd").new()
+    session_agent.state = {"version": 2, "story": story, "duration": duration_input.value, "count": universal_plan["keyposes"], "frames": {}, "semantic_analysis": universal_plan["semantic_analysis"], "identity_verified": false, "agents": {"scenario": "live_vision_model", "pose": "universal_physical_phases", "image": "running", "quality": "pending", "recovery": "saving", "video": "waiting_for_user"}}
+    for path in generated_paths:
+        var texture: Texture2D = _drawing_thumbnail(str(path))
+        if texture == null:
+            break
+        sources.append(texture)
+        paths.append(str(path))
+        accepted.append(false)
+        session_agent.record_frame(paths.size() - 1, str(path), {"identity_verified": false})
+    required_drawing_count = int(universal_plan["keyposes"])
+    var cursor: int = 0
+    for frame in range(int(universal_plan["video_frames"])):
+        while cursor + 1 < universal_plan["boards"].size() and int(universal_plan["boards"][cursor + 1]["video_frame"]) <= frame:
+            cursor += 1
+        plan.append(cursor)
+    explicit_rejections.clear()
+    review_fingerprint = ""
+    review_check.set_pressed_no_signal(false)
+    frame_index = 0
+    v5_sheet_loaded = true
+    var failure: String = str(generation.get("error", ""))
+    session_agent.finish_drawings(failure)
+    session_agent.state["quality"] = universal_quality
+    session_agent.state["agents"]["quality"] = "model_review_passed" if universal_quality.get("fidelity_verified", false) else "unverified_or_rejected"
+    session_agent.save(folder)
+    last_ai_sequence_ok = paths.size() == required_drawing_count
+    _refresh()
+    _build_contact_sheet()
+    _save()
+    if not last_ai_sequence_ok:
+        status.text = "%d/%d poses conservées. Relance avec les mêmes paramètres pour reprendre. %s" % [paths.size(), required_drawing_count, failure]
+    elif not universal_quality.get("fidelity_verified", false):
+        status.text = "%d poses affichées ; fidélité non validée. Examine les dessins et refais les poses signalées. %s" % [paths.size(), str(universal_quality.get("error", ""))]
+    else:
+        status.text = "%d poses contrôlées. Agrandis-les, garde ou refuse chaque dessin, puis confirme la planche. Les intermédiaires restent à produire." % paths.size()
+
+func _universal_ready_for_review() -> bool:
+    if universal_folder.is_empty():
+        return true # Existing imported V53/V54 projects retain their review flow.
+    if not universal_plan.get("semantic_analysis", false) or not universal_quality.get("fidelity_verified", false) or universal_input_signature != _universal_signature() or sources.size() != int(universal_plan.get("keyposes", -1)) or not is_instance_valid(universal_pipeline):
+        return false
+    for i in range(paths.size()):
+        if paths[i] != universal_folder.path_join("pose_%04d.png" % i) or not universal_pipeline._cached(universal_plan, i, universal_style, universal_folder):
+            return false
+        var meta: Variant = JSON.parse_string(FileAccess.get_file_as_string(universal_folder.path_join("pose_%04d.json" % i)))
+        if not meta is Dictionary or not meta.get("fidelity_verified", false) or meta.get("review_binding", "") != universal_pipeline._review_binding(universal_plan, i, universal_style, str(meta.get("image_sha", ""))):
+            return false
+    return true
 
 
 func _go_step(index: int) -> void:
@@ -2062,6 +2227,7 @@ func _go_step(index: int) -> void:
     _sync_friendly_ui()
 
 func _process(delta: float) -> void:
+    _poll_photo_import(delta)
     friendly_ui_clock += delta
     if friendly_ui_clock >= 0.12:
         friendly_ui_clock = 0.0
@@ -2085,6 +2251,9 @@ func _sync_friendly_ui() -> void:
     var busy: bool = ai_running or disk_drawing_running or exporting_video or photo_importing
     for item in wizard_buttons:
         item.disabled = busy
+        if item.name == "ChoosePhoto":
+            item.text = "Annuler le chargement" if photo_importing else "Choisir une photo"
+            item.disabled = ai_running or disk_drawing_running or exporting_video
     for index in range(style_tiles.size()):
         style_tiles[index].set_pressed_no_signal(index == drawing_style.selected)
         style_tiles[index].add_theme_color_override("font_color", Color("6955da") if index == drawing_style.selected else Color("26314b"))
@@ -2098,31 +2267,35 @@ func _sync_friendly_ui() -> void:
         drawing_preview_index = 0
         drawing_preview_playing = false
     preview_toggle.text = "Mettre l aperçu en pause" if drawing_preview_playing else "Voir défiler mes dessins"
-    review_check.disabled = busy or sources.size() < 2
-    friendly_export.disabled = busy or sources.size() < 2 or not review_check.button_pressed or not explicit_rejections.is_empty()
+    var minimum: int = 1 if not universal_folder.is_empty() else 2
+    review_check.disabled = busy or sources.size() < minimum
+    friendly_export.disabled = busy or sources.size() < minimum or not review_check.button_pressed or not explicit_rejections.is_empty()
     action_input.editable = not busy
     character_description.editable = not busy
     ai_token_input.editable = not busy
     ai_endpoint.editable = not busy
     duration_input.editable = not busy
     ai_drawings_count.editable = not busy
+    local_mode.disabled = busy
+    local_auth_input.editable = not busy
     busy_bar.visible = busy
     if busy:
         busy_bar.value = 20.0 + 60.0 * (0.5 + 0.5 * sin(float(Time.get_ticks_msec()) / 800.0))
     choice_summary.text = "%d secondes · %d dessins · %s" % [int(duration_input.value), int(ai_drawings_count.value), drawing_style.get_item_text(drawing_style.selected)]
 
 func _friendly_generate() -> void:
-    if ai_running or disk_drawing_running or exporting_video:
+    if ai_running or disk_drawing_running or exporting_video or photo_importing:
         return
     if action_input.text.strip_edges().is_empty():
         status.text = "Raconte ton histoire, ou choisis un exemple juste en dessous."
         return
     if imported_path.is_empty():
-        if character_description.text.strip_edges().is_empty():
-            _go_step(0)
-            status.text = "Il nous faut un héros : choisis une photo ou invente ton personnage."
-            return
-        await _create_remote_reference()
+        # One idea can describe a scene, object, landscape or several subjects.
+        # Keep the full story for the same universal pipeline after creation.
+        var initial_idea: String = character_description.text.strip_edges()
+        if initial_idea.is_empty():
+            initial_idea = action_input.text.strip_edges()
+        await _create_remote_reference(initial_idea)
         if imported_path.is_empty():
             return
     var previous_paths: Array[String] = paths.duplicate()
@@ -2155,22 +2328,71 @@ func _friendly_restore() -> void:
     _load_saved()
     _go_step(2 if sources.size() > 1 else 0)
     if sources.is_empty() and imported_path.is_empty():
-        status.text = "Aucun projet enregistré pour le moment. Créons ton premier personnage !"
+        status.text = "Aucun projet enregistré pour le moment. Commence par une image ou une idée."
 
+
+func _cancel_photo_import() -> void:
+    if Engine.has_singleton("MP4Exporter"):
+        var native: Object = Engine.get_singleton("MP4Exporter")
+        if native.has_method("cancel_reference_image_import"):
+            native.call("cancel_reference_image_import")
+    if picker != null:
+        picker.hide()
+    _native_image_cancelled()
+    _sync_friendly_ui()
+
+func _consume_photo_result(encoded: String) -> void:
+    if not photo_importing or encoded.is_empty():
+        return
+    var result: Variant = JSON.parse_string(encoded)
+    if not result is Dictionary:
+        _native_image_error("Réponse de la galerie illisible. Réessaie.")
+        return
+    match str(result.get("state", "")):
+        "selected": _image_chosen(str(result.get("value", "")))
+        "cancelled": _native_image_cancelled()
+        "error": _native_image_error(str(result.get("value", "Import impossible. Réessaie.")))
+        _: _native_image_error("Réponse de la galerie inconnue. Réessaie.")
+
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+        photo_app_focused = false
+    elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
+        photo_app_focused = true
+        photo_import_clock = 0.0
+
+func _poll_photo_import(delta: float) -> void:
+    if not photo_importing:
+        return
+    if Engine.has_singleton("MP4Exporter"):
+        var native: Object = Engine.get_singleton("MP4Exporter")
+        if native.has_method("consume_reference_image_result"):
+            _consume_photo_result(str(native.call("consume_reference_image_result")))
+    if not photo_importing:
+        return
+    if not photo_app_focused:
+        return
+    photo_import_clock += delta
+    if photo_import_clock >= PHOTO_IMPORT_TIMEOUT:
+        _cancel_photo_import()
+        status.text = "Le chargement ne répond pas. Réessaie avec une image JPG ou PNG enregistrée sur l'appareil."
 
 func _native_image_error(message: String) -> void:
     photo_importing = false
+    importing_style_reference = false
     status.text = message
 
 func _native_image_cancelled() -> void:
     photo_importing = false
+    importing_style_reference = false
     status.text = "Sélection annulée. Ton projet est conservé."
 
 func _drawing_fingerprint() -> String:
-    if sources.size() < 2:
+    if sources.is_empty():
         return ""
     var digest := HashingContext.new()
     digest.start(HashingContext.HASH_SHA256)
+    digest.update(JSON.stringify([action_input.text, duration_input.value, _selected_drawing_style(), plan, imported_path, style_reference_path, local_mode.button_pressed]).to_utf8_buffer())
     for index in range(sources.size()):
         var image: Image = sources[index].get_image()
         if image == null or image.is_empty():
@@ -2182,14 +2404,42 @@ func _drawing_fingerprint() -> String:
     return digest.finish().hex_encode()
 
 func _review_confirmation_changed(checked: bool) -> void:
-    review_fingerprint = _drawing_fingerprint() if checked and explicit_rejections.is_empty() else ""
+    if checked and not _universal_ready_for_review():
+        review_check.set_pressed_no_signal(false)
+        review_fingerprint = ""
+        status.text = "Validation bloquée : l'analyse ou la fidélité des poses n'est pas confirmée, ou les paramètres ont changé. Reprends la création ou refais les dessins signalés."
+        return
+    if checked and required_drawing_count > sources.size():
+        review_check.set_pressed_no_signal(false)
+        review_fingerprint = ""
+        status.text = "Planche incomplète : %d/%d dessins. Relance la création pour reprendre." % [sources.size(), required_drawing_count]
+        return
+    # V54: a global confirmation is valid only after each drawing was kept.
+    var all_approved: bool = sources.size() >= (1 if not universal_folder.is_empty() else 2) and accepted.size() == sources.size()
+    if all_approved:
+        for keep in accepted:
+            if not bool(keep):
+                all_approved = false
+                break
+    if checked and (not all_approved or not explicit_rejections.is_empty()):
+        review_check.set_pressed_no_signal(false)
+        review_fingerprint = ""
+        status.text = "Examine et garde chaque dessin avant de confirmer la planche."
+        return
+    review_fingerprint = _drawing_fingerprint() if checked and all_approved and explicit_rejections.is_empty() else ""
     if checked and not review_fingerprint.is_empty():
         reviewed_paths = "|".join(paths)
-    if checked and not explicit_rejections.is_empty():
-        review_check.set_pressed_no_signal(false)
-        status.text = "Un dessin est refusé. Refais-le ou garde-le explicitement avant de valider."
 
 func _has_current_review() -> bool:
+    if ai_running or disk_drawing_running or exporting_video or not _universal_ready_for_review():
+        return false
+    if required_drawing_count > sources.size():
+        return false
+    if sources.size() < (1 if not universal_folder.is_empty() else 2) or accepted.size() != sources.size():
+        return false
+    for keep in accepted:
+        if not keep:
+            return false
     return review_check != null and review_check.button_pressed and explicit_rejections.is_empty() and not review_fingerprint.is_empty() and review_fingerprint == _drawing_fingerprint()
 
 func _show_drawing_review(index: int = 0) -> void:
@@ -2260,9 +2510,14 @@ func _refresh_review_dialog() -> void:
     if not is_instance_valid(review_dialog) or sources.is_empty():
         return
     review_index = clampi(review_index, 0, sources.size() - 1)
-    review_image.texture = sources[review_index]
+    review_image.texture = _texture_for_path(paths[review_index]) if not universal_folder.is_empty() and review_index < paths.size() else sources[review_index]
     var state: String = "Refusé" if explicit_rejections.has(review_index) else ("Gardé" if review_index < accepted.size() and accepted[review_index] else "À examiner")
     review_caption.text = "Dessin %d / %d · %s" % [review_index + 1, sources.size(), state]
+    if not universal_folder.is_empty():
+        var meta_path: String = universal_folder.path_join("pose_%04d.json" % review_index)
+        var meta: Variant = JSON.parse_string(FileAccess.get_file_as_string(meta_path)) if FileAccess.file_exists(meta_path) else null
+        if meta is Dictionary and not meta.get("fidelity_verified", false):
+            review_caption.text += " · Contrôle IA non confirmé : " + JSON.stringify(meta.get("model_review", {}).get("defects", []))
 
 func _review_move(direction: int) -> void:
     if ai_running:
@@ -2286,19 +2541,37 @@ func _review_choose(keep: bool) -> void:
 func _regenerate_reviewed_drawing() -> void:
     if ai_running or exporting_video or disk_drawing_running:
         return
+    if not universal_folder.is_empty():
+        await _regenerate_universal_drawing()
+        return
     var reference: Image = load("res://scripts/android_image_reader.gd").read_image(imported_path)
     if reference == null or action_input.text.strip_edges().is_empty():
         status.text = "Il faut l'image de référence et l'histoire pour refaire ce dessin."
         return
     var index: int = review_index
-    var worker: Node = load("res://scripts/hf_studio_generator.gd").new()
+    var style_image: Image = null
+    if not style_reference_path.is_empty():
+        style_image = load("res://scripts/android_image_reader.gd").read_image(style_reference_path)
+        if style_image == null:
+            status.text = "La reference de style est manquante. Reimporte-la avant de refaire."
+            return
+    var worker: Node = _make_drawing_worker()
     worker.hf_token = ai_token_input.text.strip_edges()
+    worker.style_reference = style_image
     add_child(worker)
     ai_running = true
     review_caption.text = "Je refais le dessin %d…" % (index + 1)
     var previous: Image = sources[index - 1].get_image() if index > 0 else null
-    var instruction: String = "One single drawing, no panels, no text. Story: " + action_input.text + ". Redraw drawing %d of %d, story progression %d percent. Keep the original subject and requested style. Correct the pose and anatomical mistakes." % [index + 1, sources.size(), roundi(100.0 * index / maxi(1, sources.size() - 1))]
-    var result: Dictionary = await worker.redraw(reference, instruction, _selected_drawing_style(), previous)
+    var total: int = maxi(required_drawing_count, sources.size())
+    var brief: Dictionary = load("res://scripts/board_generation_plan.gd").new().remote_frame(action_input.text, duration_input.value, total, index)
+    if not brief.get("ok", false):
+        worker.queue_free()
+        ai_running = false
+        status.text = str(brief.get("error", "Plan impossible."))
+        _refresh_review_dialog()
+        return
+    var instruction: String = str(brief["instruction"])
+    var result: Dictionary = await worker.redraw(reference, instruction, _selected_drawing_style(), previous, true)
     worker.queue_free()
     ai_running = false
     if not result.get("ok", false):
@@ -2332,3 +2605,62 @@ func _regenerate_reviewed_drawing() -> void:
     _save()
     _refresh_review_dialog()
     status.text = "Le dessin a été refait. Agrandis-le et vérifie-le avant validation."
+
+func _mp4_encoder_available() -> bool:
+    return Engine.has_singleton("MP4Exporter")
+
+func _make_mp4_exporter() -> Node:
+    return load("res://scripts/export_mp4.gd").new()
+
+func _regenerate_universal_drawing() -> void:
+    if universal_plan.is_empty() or universal_input_signature != _universal_signature() or not is_instance_valid(universal_pipeline):
+        status.text = "Les paramètres ont changé. Relance la création pour préparer le bon plan."
+        return
+    var reference: Image = load("res://scripts/android_image_reader.gd").read_image(imported_path)
+    if reference == null:
+        status.text = "Réimporte l'image de référence."
+        return
+    var index: int = review_index
+    if index < 0 or index >= paths.size() or not universal_pipeline._cached(universal_plan, index, universal_style, universal_folder):
+        status.text = "Ce dessin est manquant ou a changé. Reprends la création pour le récupérer."
+        return
+    var meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(universal_folder.path_join("pose_%04d.json" % index)))
+    var defect: String = JSON.stringify(meta.get("model_review", {}).get("defects", []))
+    if defect == "[]":
+        defect = "The user rejected this drawing. Faithfully match the original entity identities, requested physical state and contacts in the prepared plan."
+    ai_running = true
+    review_fingerprint = ""
+    review_check.set_pressed_no_signal(false)
+    universal_pipeline.worker.vision_failed = false
+    status.text = "Correction du dessin %d…" % (index + 1)
+    var result: Dictionary = await universal_pipeline.repair_keypose(reference, universal_plan, universal_style, universal_folder, index, defect)
+    if result.get("ok", false):
+        sources[index] = _drawing_thumbnail(paths[index])
+        accepted[index] = false
+        explicit_rejections.erase(index)
+        universal_quality = await universal_pipeline.review_keyposes(reference, universal_plan, universal_folder, universal_style)
+        if session_agent != null:
+            session_agent.record_frame(index, paths[index], {"fidelity_verified": universal_quality.get("fidelity_verified", false)})
+            session_agent.state["quality"] = universal_quality
+            session_agent.save(universal_folder)
+        _build_contact_sheet()
+    ai_running = false
+    _save()
+    _refresh_review_dialog()
+    status.text = ("Dessin refait. Examine-le et garde-le avant une nouvelle confirmation." if universal_quality.get("fidelity_verified", false) else "Dessin refait ; contrôle de fidélité encore non confirmé. " + str(universal_quality.get("error", ""))) if result.get("ok", false) else "L'ancien dessin est conservé. " + str(result.get("error", "Correction indisponible."))
+
+func _drawing_thumbnail(path: String) -> Texture2D:
+    var image: Image = load("res://scripts/android_image_reader.gd").read_image(path)
+    if image == null:
+        return null
+    var side: int = maxi(image.get_width(), image.get_height())
+    if side > 320:
+        var factor: float = 320.0 / float(side)
+        image.resize(maxi(1, roundi(image.get_width() * factor)), maxi(1, roundi(image.get_height() * factor)), Image.INTERPOLATE_LANCZOS)
+    return ImageTexture.create_from_image(image)
+
+func _make_drawing_worker() -> Node:
+    var worker: Node = load("res://scripts/local_studio_generator.gd" if local_mode.button_pressed else "res://scripts/hf_studio_generator.gd").new()
+    if worker.has_method("configure_local"):
+        worker.configure_local(local_auth_input.text)
+    return worker

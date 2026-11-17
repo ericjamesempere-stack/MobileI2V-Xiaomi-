@@ -1,0 +1,96 @@
+extends SceneTree
+
+func _initialize() -> void:
+    call_deferred("run")
+
+func run() -> void:
+    var save: String = "user://mobilei2v_storyboard_v23.json"
+    var existed: bool = FileAccess.file_exists(save)
+    var backup: PackedByteArray = FileAccess.get_file_as_bytes(save) if existed else PackedByteArray()
+    var subject := Image.create(1800, 1200, false, Image.FORMAT_RGB8)
+    subject.fill(Color.RED)
+    subject.fill_rect(Rect2i(0, 0, 900, 1200), Color.BLUE)
+    var guide := Image.create(640, 960, false, Image.FORMAT_RGB8)
+    guide.fill(Color.GREEN)
+    assert(subject.save_png("user://style_test_subject.png") == OK)
+    assert(guide.save_png("user://style_test_guide.png") == OK)
+    var board: Control = load("res://scripts/storyboard.gd").new()
+    root.add_child(board)
+    await board._image_chosen("user://style_test_subject.png")
+    var original_path: String = board.imported_path
+    var original_hash: String = FileAccess.get_sha256(original_path)
+    assert(board.sources[0].get_image().get_size() == Vector2i(1800, 1200))
+    board.importing_style_reference = true
+    await board._image_chosen("user://style_test_guide.png")
+    assert(board.imported_path == original_path)
+    assert(FileAccess.get_sha256(original_path) == original_hash)
+    assert(not board.importing_style_reference)
+    assert(board.style_reference_preview.texture != null)
+    var style_path: String = board.style_reference_path
+    board.drawing_style.select(6)
+    board.custom_style_input.text = ""
+    board._save()
+    board.style_reference_path = ""
+    board.drawing_style.select(0)
+    board._load_saved()
+    assert(board.style_reference_path == style_path)
+    assert(board.drawing_style.selected == 6 and board._selected_drawing_style() == "bd_detail")
+    var worker: Node = load("res://scripts/hf_studio_generator.gd").new()
+    assert(worker.max_batch_size("cartoon") == 4)
+    assert(worker.max_batch_size("bd_detail") == 2)
+    var original: Dictionary = worker.build_edit_payload(subject, "run", "original")
+    assert(original["adapter"] == "Style-Transfer")
+    assert(original["images"].size() == 2)
+    worker.style_reference = guide
+    assert(worker.max_batch_size("original") == 2)
+    assert(not worker.build_edit_payload(subject, "run", "cartoon")["instruction"].contains("flat colors"))
+    var previous := Image.create(32, 32, false, Image.FORMAT_RGB8)
+    previous.fill(Color.YELLOW)
+    var payload: Dictionary = worker.build_edit_payload(subject, "run", "bd_detail", previous)
+    assert(payload["adapter"] == "Style-Transfer" and payload["images"].size() == 3)
+    assert(payload["instruction"].contains("Image 2 is a permanent visual-style guide ONLY"))
+    assert(payload["instruction"].contains("Image 3 is temporal context only"))
+    worker.repair_target = previous
+    var repair_payload: Dictionary = worker.build_edit_payload(subject, "correct face", "bd_detail", previous)
+    assert(repair_payload["images"].size() == 3)
+    assert(repair_payload["instruction"].contains("Image 3 is the existing candidate drawing to repair"))
+    assert(not repair_payload["instruction"].contains("Image 3 is temporal context only"))
+    worker.repair_target = null
+    var decoded := Image.new()
+    assert(decoded.load_png_from_buffer(Marshalls.base64_to_raw(payload["images"][1])) == OK)
+    assert(decoded.get_pixel(0, 0).is_equal_approx(Color.GREEN))
+    assert(subject.get_size() == Vector2i(1800, 1200))
+    var sheet := Image.create(1024, 1024, false, Image.FORMAT_RGB8)
+    sheet.fill(Color.RED)
+    sheet.fill_rect(Rect2i(512, 0, 512, 1024), Color.BLUE)
+    var split: Dictionary = worker.split_batch(sheet, 2, 1)
+    assert(split["ok"])
+    assert(split["images"][0].get_size() == Vector2i(512, 1024))
+    assert(split["images"][1].get_pixel(0, 0).is_equal_approx(Color.BLUE))
+    assert(not worker.split_batch(sheet, 3, 1)["ok"])
+    var planner: RefCounted = load("res://scripts/board_generation_plan.gd").new()
+    var briefs: Array = [planner.remote_frame("Le personnage danse.", 8.0, 16, 8), planner.remote_frame("Le personnage danse.", 8.0, 16, 9)]
+    var batch: String = worker.batch_prompt(briefs, 1)
+    assert(batch.contains("Sequence drawing 9 of 16") and batch.contains("Sequence drawing 10 of 16"))
+    assert(batch.contains(briefs[0]["pose"]) and batch.contains(briefs[1]["pose"]))
+    assert(batch.contains("Lock the camera position"))
+    assert(batch.contains("including head and existing extremities"))
+    assert(batch.contains("exact clothing cut"))
+    worker.free()
+    board.importing_style_reference = true
+    board._native_image_cancelled()
+    assert(not board.importing_style_reference)
+    assert(board.style_reference_path == style_path)
+    board._remove_style_reference()
+    assert(board.style_reference_path.is_empty() and board.style_reference_preview.texture == null)
+    board.free()
+    if existed:
+        var file := FileAccess.open(save, FileAccess.WRITE)
+        file.store_buffer(backup)
+        file.close()
+    else:
+        DirAccess.remove_absolute(save)
+    DirAccess.remove_absolute("user://style_test_subject.png")
+    DirAccess.remove_absolute("user://style_test_guide.png")
+    print("DETAILED_STYLE_REFERENCE_OK: separate identity/style/context; portrait crops; source resolution; import/cancel/save/restore; original adapter")
+    quit(0)

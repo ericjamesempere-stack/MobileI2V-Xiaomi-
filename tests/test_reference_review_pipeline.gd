@@ -52,6 +52,46 @@ func run() -> void:
     board._review_choose(true)
     board.review_check.set_pressed(true)
     assert(board._has_current_review())
+    board.required_drawing_count = 3
+    board.review_check.set_pressed(false)
+    board.review_check.set_pressed(true)
+    assert(not board._has_current_review(), "A partial generation must not export as a complete story")
+    board.required_drawing_count = 2
+    board.review_check.set_pressed(true)
+    assert(board._has_current_review())
+    # All export routes share the same human-review gate.
+    board.accepted[1] = false
+    assert(not board._has_current_review())
+    var blocked_output: String = folder.path_join("must_not_exist.avi")
+    await board._export_video(blocked_output)
+    assert(not FileAccess.file_exists(blocked_output))
+    board._export_png_sequence()
+    assert(board.status.text.contains("Export bloqué"))
+    board._validate_and_animate()
+    assert(board.status.text.contains("Export bloqué"))
+    board.accepted[1] = true
+    board._reject_all()
+    board._load_saved()
+    assert(not board.accepted[0] and not board.accepted[1], "Reject all must persist after reopening")
+    board.custom_style_input.text = "peinture à l huile"
+    board._save()
+    board.custom_style_input.text = ""
+    board._load_saved()
+    assert(board.custom_style_input.text == "peinture à l huile")
+    # Removing a damaged earlier drawing must remap the rejection to its new index.
+    board.explicit_rejections[1] = true
+    board._save()
+    assert(DirAccess.remove_absolute(first_path) == OK)
+    board._load_saved()
+    assert(board.sources.size() == 1 and board.explicit_rejections.has(0))
+    assert(reference.save_png(first_path) == OK)
+    board.sources.assign([ImageTexture.create_from_image(reference), ImageTexture.create_from_image(second)])
+    board.paths.assign([first_path, second_path])
+    board.accepted.assign([true, true])
+    board.explicit_rejections.clear()
+    board._sync_friendly_ui()
+    board.review_check.set_pressed(true)
+    assert(board._has_current_review())
     second.fill_rect(Rect2i(0, 0, 20, 20), Color.GREEN)
     assert(second.save_png(second_path) == OK)
     assert(not board._has_current_review(), "A drawing changed after review must invalidate approval")
@@ -72,6 +112,39 @@ func run() -> void:
     var ledger: Variant = JSON.parse_string(FileAccess.get_file_as_string(folder.path_join("karma_agents.json")))
     assert(ledger["agents"]["video"] == "waiting_for_user")
     assert(not ledger["frames"]["0"]["human_approved"])
+    # A lost Android signal must not trap the wizard in its disabled state.
+    board.photo_importing = true
+    board.importing_style_reference = false
+    board._sync_friendly_ui()
+    assert(not board.find_child("ChoosePhoto", true, false).disabled)
+    assert(board.find_child("ChoosePhoto", true, false).text == "Annuler le chargement")
+    board._consume_photo_result(JSON.stringify({"state": "selected", "value": input_path}))
+    assert(not board.photo_importing and board.preview.texture != null)
+    var preserved: String = board.imported_path
+    board._consume_photo_result(JSON.stringify({"state": "selected", "value": input_path}))
+    assert(board.imported_path == preserved, "Ignore stale results after completion")
+    board.photo_importing = true
+    board.importing_style_reference = true
+    board._consume_photo_result(JSON.stringify({"state": "cancelled", "value": ""}))
+    assert(not board.photo_importing and not board.importing_style_reference)
+    assert(board.imported_path == preserved)
+    board.photo_importing = true
+    board._consume_photo_result(JSON.stringify({"state": "error", "value": "Photo indisponible"}))
+    assert(not board.photo_importing and board.status.text == "Photo indisponible")
+    board.photo_importing = true
+    board._choose_image()
+    assert(not board.photo_importing and board.imported_path == preserved)
+    board.photo_importing = true
+    board.photo_import_clock = 0.0
+    board.photo_app_focused = false
+    board._poll_photo_import(board.PHOTO_IMPORT_TIMEOUT + 1.0)
+    assert(board.photo_importing, "Do not time out while choosing a photo in Android")
+    board.photo_app_focused = true
+    board._poll_photo_import(board.PHOTO_IMPORT_TIMEOUT + 1.0)
+    board._sync_friendly_ui()
+    assert(not board.photo_importing and board.status.text.contains("ne répond pas"))
+    assert(not board.find_child("ChoosePhoto", true, false).disabled)
+    assert(board.imported_path == preserved)
     board.free()
     if existed:
         var file := FileAccess.open(save_path, FileAccess.WRITE)

@@ -1,0 +1,24 @@
+{
+  "android_device_test": false,
+  "complete": true,
+  "engines": {
+    "qwen": {
+      "identity_verified": false,
+      "quota_remaining": "not_exposed",
+      "status": "generated_unreviewed"
+    }
+  },
+  "frames": [
+    {
+      "height": 1024,
+      "width": 512
+    },
+    {
+      "height": 1024,
+      "width": 512
+    }
+  ],
+  "human_approved": false,
+  "status": "Tes 2 dessins sont prêts ! Regarde les visages et les poses avant de créer ton film.",
+  "style": "bd_detail"
+}

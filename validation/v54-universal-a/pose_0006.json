@@ -1,0 +1,15 @@
+{
+  "binding": "cb348edde9f18e9a8dbd9a05b304c2f9c9a17f39bdf3cf457ea2326c30891ce5",
+  "fidelity_verified": false,
+  "human_approved": false,
+  "image_sha": "572da02ea5e538531012172fff3a8e39cc32ef50b11d69f88cacb00477b1c945",
+  "pose_id": "pose_0006",
+  "repair_reason": "Keep the complete horizontal body and impact pose of the candidate. Correct the face to EXACTLY two black dot eyes and ONE small curved smile, with no other facial marks. Keep EXACTLY two original brown stick arms and two original brown stick legs, with clean joints and no extra fragments or branches. Match the shape, flat colors and brown outline of the original reference. Keep the existing empty ground and beige background.",
+  "technical_quality": {
+    "average_change": -1.0,
+    "brightness": 0.75941075606958,
+    "issues": [],
+    "ok": true,
+    "variance": 0.010360043651647
+  }
+}

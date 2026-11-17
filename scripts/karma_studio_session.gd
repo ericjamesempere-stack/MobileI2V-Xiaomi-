@@ -10,6 +10,8 @@ func begin(story: String, duration: float, count: int) -> Dictionary:
         "agents": {"scenario": "done", "pose": "timed_instructions_ready", "image": "running", "quality": "pending", "recovery": "saving", "video": "waiting_for_user"}}
     return {"ok": true, "motion": preparation["motion"]}
 func inspect_frame(image: Image, previous: Image = null) -> Dictionary:
+    if image == null or image.is_empty():
+        return {"ok": false, "issues": ["missing_or_empty_image"]}
     var result: Dictionary = load("res://scripts/drawing_quality_gate.gd").new().inspect(image, previous)
     if image != null and (image.get_width() < 512 or image.get_height() < 512):
         result["ok"] = false
@@ -43,7 +45,21 @@ func record_user_approval(fingerprint: String) -> void:
         save(folder_path)
 
 func record_video_result(output: String) -> void:
-    state["agents"]["video"] = "encoded_native" if not output.is_empty() else "failed"
-    state["video_output"] = output
+    # A returned path is not proof that an MP4 was encoded successfully.
+    var exists: bool = not output.is_empty() and FileAccess.file_exists(output)
+    var valid_mp4: bool = exists and output.to_lower().ends_with(".mp4")
+    var size_ok: bool = false
+    if valid_mp4:
+        var file := FileAccess.open(output, FileAccess.READ)
+        if file != null:
+            if file.get_length() > 1024:
+                # MP4 ISO BMFF starts with a box size followed by the ftyp brand.
+                file.seek(4)
+                size_ok = file.get_buffer(4).get_string_from_ascii() == "ftyp"
+            file.close()
+    state["agents"]["video"] = "encoded_native" if size_ok else "failed"
+    state["video_output"] = output if size_ok else ""
+    if not size_ok:
+        state["video_error"] = "MP4 missing, empty, or not confirmed on disk"
     if not folder_path.is_empty():
         save(folder_path)

@@ -2,17 +2,104 @@ extends RefCounted
 # Image-first storyboard production contract for KARMA ONE.
 # Generates precise drawing briefs; does not falsely claim to generate AI images.
 const MAX_BOARDS := 240
+const REMOTE_BRIEF_VERSION := "v54-batch-5"
+# Physical states, restricted to the current action. Sending the entire story
+# to every edit encouraged multiple simultaneous poses and duplicate subjects.
+const REMOTE_POSES := {
+    # A continuous dance phrase, sampled across the whole action rather than
+    # restarting the same few vague poses in every remote batch.
+    "danse": [
+        "dance begins with weight over the left support, knees softly bent, torso slightly left, existing arms low",
+        "weight stays left, right heel lifts, torso begins shifting toward center",
+        "right knee lifts slightly forward, left support stays planted, arms counterbalance",
+        "right support steps to the right, torso follows, knees remain soft",
+        "weight transfers right, left heel lifts, left arm begins extending outward",
+        "left support draws inward, torso turns slightly left, right arm extends forward",
+        "both supports grounded, knees bend, existing arms open halfway to the sides",
+        "weight shifts left, torso rises, existing arms open farther to the sides",
+        "right heel lifts, torso turns slightly right, open arms counterbalance",
+        "right support crosses slightly in front of left, torso follows the crossing step",
+        "left support steps outward to uncross, knees bend, arms start lowering",
+        "both supports planted apart, body lowers into a shallow crouch, arms lowered for balance",
+        "weight shifts right while crouched, torso leans slightly right, head follows torso",
+        "body lowers farther with knees flexed, existing arms stay beside the body without touching ground",
+        "body starts rising, weight transfers left, arms begin opening again",
+        "dance phrase ends with weight over the right support, left heel lifted, knees softly bent and arms partly open"
+    ],
+    "course": ["forward lean, left support contacting ground, right limb trailing", "push off the ground, rear limb extended", "airborne stride, supports separated", "right support contacting ground, left limb trailing"],
+    "trebuche": ["leading support catches on the ground while momentum continues forward", "support blocked, body pitching forward, existing limbs spread to recover balance", "balance lost, body tipping farther forward, no stable support"],
+    "roule": ["initial position, existing object touching its support", "existing object rotates while translating along the requested path", "existing object farther along the same path, rotation continues"],
+    "rebond": ["existing object descending toward the existing surface", "existing object contacts the surface", "existing object rising away from the surface after impact", "existing object at the apex of its rebound"],
+    "interaction": ["existing participants preparing the requested interaction", "existing participants carrying out the requested interaction with each other", "existing participants completing the requested interaction"],
+    "chute": ["balance lost, body tilting forward above the ground", "body halfway down, descending toward ground", "body nearly horizontal, just above ground", "impact with ground, body horizontal", "lying still on the ground after the fall, no standing pose"]
+}
+
+func remote_frame(story: String, seconds: float, count: int, index: int) -> Dictionary:
+    var motion: Dictionary = load("res://scripts/story_motion_planner.gd").new().plan(story, seconds)
+    var steps: Array = motion.get("steps", [])
+    if not motion.get("ok", false) or count < 2 or index < 0 or index >= count:
+        return {"ok": false, "error": "Plan de dessins invalide."}
+    if count < steps.size():
+        return {"ok": false, "error": "Choisis au moins %d dessins pour couvrir les %d actions." % [steps.size(), steps.size()]}
+    # Reserve a drawing for every action, even for a brief stumble between
+    # longer actions. Remaining drawings follow their relative durations.
+    var allocation: Array[int] = []
+    for step in steps:
+        allocation.append(1)
+    for unused in range(count - steps.size()):
+        var best: int = 0
+        var score: float = -1.0
+        for s in range(steps.size()):
+            var weight: float = (float(steps[s]["end"]) - float(steps[s]["start"])) / float(allocation[s])
+            if weight > score:
+                score = weight
+                best = s
+        allocation[best] += 1
+    var offset: int = 0
+    for s in range(steps.size()):
+        if index >= offset + allocation[s]:
+            offset += allocation[s]
+            continue
+        var action: String = str(steps[s]["action"])
+        var phase: float = float(index - offset) / float(allocation[s] - 1) if allocation[s] > 1 else (1.0 if s == steps.size() - 1 else 0.5)
+        var pose: String = phase_at(action, phase)
+        if REMOTE_POSES.has(action):
+            var poses: Array = REMOTE_POSES[action]
+            pose = str(poses[mini(poses.size() - 1, int(floor(phase * poses.size())))])
+        var instruction: String = "Create exactly one full-frame drawing of the scene from image 1, retaining ALL existing subjects, characters, animals, vehicles, objects, and environmental landmarks unless this action explicitly changes them. Current action only: %s. Required physical state: %s. Move only the subjects and objects involved in this action, keeping other scene elements stable. Preserve each subject's identity, existing anatomy or object structure, proportions, materials, markings, colors, and spatial relationships. Preserve the background and perspective unless the action explicitly requires a change. Do not add human anatomy to a non-human subject or change its species or object type unless explicitly requested by this action. Show the requested physical action, interaction, transformation or explicitly requested camera change; do not substitute camera motion for physical movement. No duplicate subjects or invented objects unless explicitly requested, motion trails, collage, grid, captions, or extra panels." % [str(steps[s]["description"]), pose]
+        return {"ok": true, "action": action, "phase": phase, "description": str(steps[s]["description"]), "pose": pose, "instruction": instruction, "sequence_index": index, "sequence_count": count, "action_index": index - offset, "action_count": allocation[s]}
+    return {"ok": false, "error": "Action du dessin introuvable."}
 const ACTION_PHASES := {
     "course": ["contact gauche", "propulsion", "suspension", "contact droit"],
     "marche": ["appui gauche", "passage", "appui droit", "passage"],
-    "danse": ["pose initiale", "transfert poids gauche", "extension", "transfert poids droit", "retour"],
+    "danse": ["appui gauche flechi", "talon droit leve", "genou droit leve", "pas lateral droit", "transfert droit", "rotation et bras avant", "ouverture des bras", "extension laterale", "rotation droite", "pas croise", "decroisement", "flexion", "transfert bas", "accroupissement", "remontee", "appui droit final"],
     "chute": ["perte equilibre", "inclinaison", "bascule", "impact", "immobilisation"],
     "trebuche": ["obstacle", "deséquilibre", "rattrapage"],
     "saut": ["preparation", "impulsion", "envol", "sommet", "reception"],
     "releve": ["au sol", "appui mains", "genoux", "debout"],
     "salut": ["bras bas", "bras leve", "main oscillante", "bras bas"],
-    "repos": ["pose stable"]
+    "repos": ["pose stable"],
+    "transformation": ["forme initiale", "premiers changements visibles", "transformation a mi-parcours", "forme finale"],
+    "metro": ["approche du quai", "arrivee du train", "portes ouvertes", "depart du train"],
+    "football": ["approche du ballon", "preparation du tir", "contact", "trajectoire du ballon"],
+    "vol": ["preparation", "decollage", "ascension", "vol stabilise", "atterrissage"],
+    "roule": ["position initiale", "rotation et translation", "roulement en cours", "position plus loin sur le trajet"],
+    "rebond": ["descente", "contact avec la surface", "remontee apres impact", "sommet du rebond"],
+    "interaction": ["preparation de l interaction demandee", "interaction en cours entre les participants existants", "fin de l interaction demandee"],
+    "nage": ["entree dans l eau", "propulsion", "glisse", "nouvelle propulsion", "sortie"],
+    "rotation": ["orientation initiale", "quart de tour", "demi-tour", "trois quarts", "orientation finale"],
+    "apparition": ["etat initial", "premiers signes", "transition visible", "apparition ou disparition complete"],
+    "inconnu": ["etat initial", "debut du changement demande", "action en cours", "fin de l action", "etat final"]
 }
+
+func phase_at(action: String, progress: float) -> String:
+    # Universal phase labels: unknown actions remain meaningful and never
+    # silently become a human standing still.
+    var phases: Array = ACTION_PHASES.get(action, [])
+    if phases.is_empty():
+        phases = ["initial state", "begin requested change", "mid-action", "complete requested change", "final state"]
+    var index: int = mini(phases.size() - 1, int(floor(clampf(progress, 0.0, 1.0) * phases.size())))
+    return str(phases[index])
 
 func make_plan(story: String, reference_images: Array, seconds: float, target_fps: int = 30) -> Dictionary:
     var planner: RefCounted = load("res://scripts/story_motion_planner.gd").new()
@@ -30,7 +117,7 @@ func make_plan(story: String, reference_images: Array, seconds: float, target_fp
     for step_index in range(steps.size()):
         var step: Dictionary = steps[step_index]
         var action: String = str(step.get("action", "repos"))
-        var phases: Array = ACTION_PHASES.get(action, ACTION_PHASES["repos"])
+        var phases: Array = ACTION_PHASES.get(action, ACTION_PHASES["inconnu"])
         # More key drawings for longer action sequences, capped for mobile memory.
         var step_duration: float = maxf(0.1, float(step.get("end", seconds)) - float(step.get("start", 0.0)))
         var desired: int = clampi(ceili(step_duration * 3.0), phases.size(), 48)
@@ -63,7 +150,7 @@ func make_plan(story: String, reference_images: Array, seconds: float, target_fp
         "palette_policy": "locked_across_scene",
         "line_art_policy": "consistent_line_width_and_style",
         "background_policy": "reuse_approved_background",
-        "negative_constraints": ["different face", "different clothing", "extra limbs", "missing limbs", "flicker", "color shift", "background jump"]
+        "negative_constraints": ["subject identity drift", "unrequested human anatomy", "unrequested shape changes", "flicker", "color shift", "background jump"]
     }
     for board in boards:
         board["continuity"] = continuity.duplicate(true)
@@ -88,3 +175,90 @@ func validate_drawings(plan: Dictionary) -> Dictionary:
         if str(board.get("image_path", "")).is_empty() or str(board.get("status", "")) != "approved":
             missing.append(str(board.get("id", "unknown")))
     return {"ok": not plan.get("boards", []).is_empty() and missing.is_empty(), "missing": missing}
+
+func calculate_density(scene: Dictionary, seconds: float, fps: int = 30, fluidity: float = 12.0) -> Dictionary:
+    var validation: Dictionary = load("res://scripts/reference_visual_analysis.gd").new().validate_scene(scene, str(scene.get("reference_sha", "")))
+    if not validation.get("ok", false):
+        return validation
+    if not (seconds > 0.0 and seconds <= 300.0) or fps < 1 or fps > 60 or not (fluidity > 0.0 and fluidity <= fps):
+        return {"ok": false, "error": "invalid_duration_or_fluidity"}
+    var steps: Array = scene["steps"]
+    var video_count: int = maxi(1, roundi(seconds * fps))
+    var allocations: Array[int] = []
+    var minimum: int = 0
+    var weights: float = 0.0
+    for step in steps:
+        var required: int = 1 if step.get("static", false) else step["phases"].size()
+        allocations.append(required)
+        minimum += required
+        weights += float(step["weight"])
+    if minimum > video_count:
+        return {"ok": false, "error": "duration_too_short_for_physical_phases", "minimum_video_frames": minimum}
+    # Weighted allocation in video-frame units avoids duration rounding drift.
+    for unused in range(video_count - minimum):
+        var best: int = 0
+        var deficit: float = -INF
+        for i in range(steps.size()):
+            var wanted: float = video_count * float(steps[i]["weight"]) / weights - allocations[i]
+            if wanted > deficit:
+                best = i
+                deficit = wanted
+        allocations[best] += 1
+    var boards: Array = []
+    var summary: Array = []
+    var cursor: int = 0
+    var intermediate_count: int = 0
+    for i in range(steps.size()):
+        var step: Dictionary = steps[i]
+        var physical_actors: Dictionary = {}
+        for id in step["actor_ids"]:
+            if validation["entities"][id]["kind"] != "camera":
+                physical_actors[id] = true
+        var actor_factor: float = minf(1.0, maxf(0.0, (physical_actors.size() - 1) / 3.0))
+        var risk: float = clampf(0.2 * float(step["speed"]) + 0.2 * float(step["amplitude"]) + 0.2 * float(step["interaction"]) + 0.15 * float(step["occlusion"]) + 0.15 * float(step["camera"]) + 0.1 * actor_factor, 0.0, 1.0)
+        var duration: float = float(allocations[i]) / fps
+        var static_step: bool = bool(step.get("static", false))
+        var keys: int = 1 if static_step else mini(allocations[i], maxi(step["phases"].size(), ceili(duration * (0.5 + risk))))
+        var desired_rate: float = 0.0 if static_step else minf(float(fps), fluidity * (0.5 + risk))
+        var unique: int = 1 if static_step else mini(allocations[i], maxi(keys, ceili(duration * desired_rate)))
+        var inbetweens: int = unique - keys
+        summary.append({"id": step["id"], "instruction": step["instruction"], "actor_ids": step["actor_ids"], "object_ids": step["object_ids"], "duration_frames": allocations[i], "duration_seconds": duration, "risk_score": risk, "mobile_subjects": physical_actors.size(), "requested_features": {"speed": step["speed"], "amplitude": step["amplitude"], "interaction": step["interaction"], "occlusion": step["occlusion"], "camera": step["camera"]}, "minimum_phases": step["phases"].size(), "keyposes": keys, "intermediate_drawings": inbetweens, "unique_drawings": unique, "video_frames": allocations[i], "held_video_frames": allocations[i] - unique, "intermediate_method": "none_static_hold" if static_step else "new_generation_required_no_verified_rig"})
+        for k in range(keys):
+            var fraction: float = float(k) / maxi(1, keys - 1)
+            # Allocate extra poses between physical phases, rather than repeat
+            # the same phase text several times when a long action needs more keys.
+            var state: Dictionary = _physical_state(step["phases"], keys, k)
+            var phase: String = state["pose"]
+            var frame: int = cursor + roundi(fraction * maxi(0, allocations[i] - 1))
+            boards.append({"id": "pose_%04d" % boards.size(), "index": boards.size(), "step_id": step["id"], "time_seconds": float(frame) / fps, "video_frame": frame, "description": step["instruction"], "pose": phase, "phase_from": state["from"], "phase_to": state["to"], "phase_progress": state["progress"], "actor_ids": step["actor_ids"], "object_ids": step["object_ids"], "camera": step["camera"], "instruction": "Render the complete scene at this physical phase: " + phase + ". Action: " + str(step["instruction"]) + ". Acting entity IDs: " + JSON.stringify(step["actor_ids"]) + "; interacting object IDs: " + JSON.stringify(step["object_ids"]) + ". Apply all entity invariants and explicitly allowed changes from the scene registry. Preserve the number and identity of all subjects; do not impose a subject type. No panels or text."})
+        intermediate_count += inbetweens
+        cursor += allocations[i]
+    for i in range(boards.size()):
+        boards[i]["sequence_index"] = i
+        boards[i]["sequence_count"] = boards.size()
+        boards[i]["instruction"] += " Sequence drawing %d of %d, at %.3f seconds. Render only this physical state, not a restart of the action." % [i + 1, boards.size(), float(boards[i]["time_seconds"])]
+    var result: Dictionary = {"ok": true, "schema_version": 1, "reference_sha": scene["reference_sha"], "analysis_origin": validation["analysis_origin"], "semantic_analysis": validation["semantic_analysis"], "entities": scene["entities"], "relations": scene.get("relations", []), "steps": summary, "boards": boards, "duration_seconds": seconds, "fps": fps, "keyposes": boards.size(), "intermediate_drawings": intermediate_count, "total_unique_drawings": boards.size() + intermediate_count, "video_frames": video_count, "count_method": "physical_phase_minimum + duration_and_motion_risk; fluidity_scaled_by_motion_risk", "estimates_not_measurements": true, "intermediates_generated": 0, "interpolation_verified": false, "identity_verified": false, "human_approved": false, "ready_for_animation": false}
+    # KARMA ONE assigns the between-pose work to its own dedicated agent.
+    # Scheduling is not rendering: all tasks remain pending and unapproved.
+    var intermediate_schedule: Dictionary = load("res://scripts/karma_intermediate_agent.gd").new().schedule(result)
+    result["intermediate_schedule"] = intermediate_schedule
+    result["intermediate_tasks_pending"] = intermediate_schedule.get("scheduled", 0)
+    return result
+
+func _physical_state(phases: Array, count: int, index: int) -> Dictionary:
+    if phases.size() == 1 or index == count - 1:
+        var phase: String = str(phases.back())
+        return {"pose": phase, "from": phase, "to": phase, "progress": 0.0}
+    var segments: int = phases.size() - 1
+    var intervals: int = count - 1
+    var cursor: int = 0
+    for segment in range(segments):
+        var span: int = intervals / segments + (1 if segment < intervals % segments else 0)
+        if index < cursor + span:
+            var progress: float = float(index - cursor) / float(span)
+            var first: String = str(phases[segment])
+            var last: String = str(phases[segment + 1])
+            var pose: String = first if progress == 0.0 else "Physical transition %.3f%% from [%s] toward [%s]. Draw a single coherent physical state at this progress, preserving entity anatomy and contacts; do not blend images, duplicate subjects or overlay endpoint poses." % [progress * 100.0, first, last]
+            return {"pose": pose, "from": first, "to": last, "progress": progress}
+        cursor += span
+    return {}

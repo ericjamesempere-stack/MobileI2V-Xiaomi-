@@ -1,0 +1,18 @@
+{
+  "engines": {
+    "anypose": {
+      "error": "Cet adaptateur AnyPose n'a pas de controle de scene valide. Les dessins deja obtenus sont conserves.",
+      "error_kind": "unsupported_scene_registry",
+      "quota_detail": "",
+      "status": "unavailable"
+    },
+    "qwen": {
+      "error": "Quota GPU gratuit atteint. Les dessins termines sont conserves ; aucun nouvel essai automatique sur ce moteur dans ce lot.",
+      "error_kind": "quota",
+      "quota_detail": "{\"error\": \"You have exceeded your ZeroGPU runs limit. Authenticate with a Hugging Face token for more quota - https://huggingface.co/settings/tokens\", \"duration\": 10, \"visible\": true, \"title\": \"ZeroGPU quota exceeded\"}",
+      "status": "unavailable"
+    }
+  },
+  "error": "Aucun moteur n'a produit ce dessin. qwen: Quota GPU gratuit atteint. Les dessins termines sont conserves ; aucun nouvel essai automatique sur ce moteur dans ce lot. | anypose: Cet adaptateur AnyPose n'a pas de controle de scene valide. Les dessins deja obtenus sont conserves.",
+  "ok": false
+}

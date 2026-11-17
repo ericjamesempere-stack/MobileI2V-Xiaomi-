@@ -1,0 +1,10 @@
+Godot Engine v4.6.3.stable.official.7d41c59c4 - https://godotengine.org
+
+V54_REAL_STORY_RESULT {"complete":false,"device_test":false,"frames":["user://projects/hf_5a3c8ad3a914a5d8ad8b4745/frame_0000.png"],"human_approved":false,"status":"1/6 dessins conserves. Relance avec les memes parametres pour reprendre. Quota GPU gratuit atteint. Attends son renouvellement ou utilise ton compte Hugging Face gratuit via le champ de jeton dans Réglages et outils."}
+ERROR: Object '<Object#78064390070>' was freed or unreferenced while a signal is being emitted from it. Try connecting to the signal using 'CONNECT_DEFERRED' flag, or use queue_free() to free the object (if this object is a Node) to avoid this error and potential crashes.
+   at: ~Object (core/object/object.cpp:2451)
+   GDScript backtrace (most recent call first):
+       [0] run (res://tools/test_v54_real_story.gd:24)
+       [1] _draw_remote_story (res://scripts/storyboard.gd:2088)
+       [2] redraw (res://scripts/hf_studio_generator.gd:121)
+       [3] _call_api (res://scripts/hf_studio_generator.gd:46)

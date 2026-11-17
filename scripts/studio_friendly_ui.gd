@@ -91,12 +91,12 @@ func build(board: Control) -> void:
     shell.add_theme_constant_override("separation", 12)
     margin.add_child(shell)
     text(shell, "KARMA ONE", 36, PURPLE)
-    text(shell, "Imagine. Dessine. Anime. · V53", 21, MUTED)
+    text(shell, "Imagine. Dessine. Anime. · V54", 21, MUTED)
     var tabs := HBoxContainer.new()
     tabs.add_theme_constant_override("separation", 8)
     shell.add_child(tabs)
     for index in range(3):
-        var tab: Button = button(board, tabs, ["1. Personnage", "2. Histoire", "3. Mon film"][index], func() -> void: board._go_step(index))
+        var tab: Button = button(board, tabs, ["1. Image ou idée", "2. Histoire", "3. Mon film"][index], func() -> void: board._go_step(index))
         tab.name = "Step%d" % index
         tab.custom_minimum_size.y = 58
         tab.add_theme_font_size_override("font_size", 19)
@@ -104,7 +104,7 @@ func build(board: Control) -> void:
     var status_panel := PanelContainer.new()
     status_panel.add_theme_stylebox_override("panel", box(Color("e8e4ff"), 16))
     shell.add_child(status_panel)
-    board.status = text(status_panel, "Tout commence par un personnage. À toi de jouer !", 20)
+    board.status = text(status_panel, "Commence par une image ou une idée. À toi de jouer !", 20)
     board.busy_bar = ProgressBar.new()
     board.busy_bar.custom_minimum_size.y = 8
     board.busy_bar.show_percentage = false
@@ -127,17 +127,17 @@ func build(board: Control) -> void:
         board.root_box.add_child(page)
         board.wizard_pages.append(page)
 
-    var person: VBoxContainer = card(board.wizard_pages[0], "Ton héros, c'est qui ?", "Choisis une photo ou invente ton personnage.")
+    var person: VBoxContainer = card(board.wizard_pages[0], "Que veux-tu créer ?", "Choisis une image ou décris ton idée à l'étape Histoire.")
     button(board, person, "Choisir une photo", board._choose_image, true).name = "ChoosePhoto"
     board.invent_box = VBoxContainer.new()
     board.invent_box.add_theme_constant_override("separation", 12)
-    button(board, person, "Inventer mon personnage", func() -> void: board.invent_box.visible = not board.invent_box.visible).name = "InventCharacter"
+    button(board, person, "Décrire mon image de départ", func() -> void: board.invent_box.visible = not board.invent_box.visible).name = "InventCharacter"
     person.add_child(board.invent_box)
     board.character_description = TextEdit.new()
     board.character_description.custom_minimum_size.y = 120
-    board.character_description.placeholder_text = "Un renard en veste bleue, une aventurière aux cheveux rouges..."
+    board.character_description.placeholder_text = "Un renard, un paysage, un véhicule, plusieurs sujets…"
     board.invent_box.add_child(board.character_description)
-    button(board, board.invent_box, "Faire apparaître mon personnage", board._create_remote_reference, true)
+    button(board, board.invent_box, "Créer mon image de départ", board._create_remote_reference, true)
     board.invent_box.visible = false
     board.preview = TextureRect.new()
     board.preview.custom_minimum_size.y = 190
@@ -145,7 +145,7 @@ func build(board: Control) -> void:
     board.preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     person.add_child(board.preview)
     board.reference_hint = Label.new()
-    board.reference_hint.text = "Ton personnage apparaîtra ici"
+    board.reference_hint.text = "Ton image de départ apparaîtra ici"
     board.reference_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     board.reference_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     board.reference_hint.add_theme_color_override("font_color", MUTED)
@@ -154,7 +154,7 @@ func build(board: Control) -> void:
     board.preview.add_child(board.reference_hint)
     text(person, "Choisis son univers", 24)
     board.drawing_style = OptionButton.new()
-    var names: Array[String] = ["Original", "Cartoon", "Manga", "Anime", "3D", "Cinéma"]
+    var names: Array[String] = ["Original", "Cartoon", "Manga", "Anime", "3D", "Cinéma", "BD détaillée"]
     for value in names:
         board.drawing_style.add_item(value)
     board.drawing_style.hide()
@@ -169,6 +169,20 @@ func build(board: Control) -> void:
         tile.custom_minimum_size.y = 64
         tile.toggle_mode = true
         board.style_tiles.append(tile)
+    board.custom_style_input = LineEdit.new()
+    board.custom_style_input.placeholder_text = "Autre style libre : aquarelle, pâte à modeler, pixel art..."
+    board.custom_style_input.custom_minimum_size.y = 58
+    person.add_child(board.custom_style_input)
+    board.style_reference_hint = text(person, "Facultatif : importe une illustration ou une planche dont tu veux retrouver le style.", 18)
+    board.style_reference_preview = TextureRect.new()
+    board.style_reference_preview.custom_minimum_size = Vector2(0, 180)
+    board.style_reference_preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+    board.style_reference_preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+    board.style_reference_preview.hide()
+    person.add_child(board.style_reference_preview)
+    button(board, person, "Importer une référence de style", board._choose_style_reference).name = "ChooseStyleReference"
+    button(board, person, "Retirer la référence de style", board._remove_style_reference)
+    text(person, "BD détaillée ou référence de style : deux poses par calcul pour conserver plus de détails. La disponibilité dépend du quota du moteur.", 18)
     button(board, board.wizard_pages[0], "Continuer : mon histoire", func() -> void: board._go_step(1), true).name = "NextStory"
 
     var story: VBoxContainer = card(board.wizard_pages[1], "Que va-t-il se passer ?", "Raconte une petite aventure. Tu peux commencer par un exemple.")
@@ -193,9 +207,14 @@ func build(board: Control) -> void:
         preset.custom_minimum_size.y = 60
         preset.add_theme_font_size_override("font_size", 19)
     board.choice_summary = text(story, "", 19, MUTED)
-    text(story, "La création IA se fait en ligne. Ton image et ton histoire sont envoyées aux moteurs ; les quotas gratuits peuvent demander d'attendre.", 18, MUTED)
+    board.local_mode = CheckBox.new()
+    board.local_mode.text = "Sans quota en ligne : utiliser les moteurs du téléphone"
+    board.local_mode.button_pressed = true
+    story.add_child(board.local_mode)
+    text(story, "Mode local : MNN Chat pour l'analyse et Local Dream pour les dessins doivent être installés, avec leurs modèles chargés. Le moteur de calcul reste séparé de KARMA ONE. Aucun appel en ligne automatique dans ce mode.", 18, MUTED)
+    text(story, "Mode en ligne : décoche la case pour envoyer l'image et l'histoire aux services distants. Leurs quotas s'appliquent.", 18, MUTED)
     button(board, board.wizard_pages[1], "C'est parti ! Créer mes dessins", board._friendly_generate, true).name = "GenerateStory"
-    button(board, board.wizard_pages[1], "Revoir mon personnage", func() -> void: board._go_step(0))
+    button(board, board.wizard_pages[1], "Revoir mon image de départ", func() -> void: board._go_step(0))
 
     var film: VBoxContainer = card(board.wizard_pages[2], "Ton histoire prend forme", "Regarde les dessins avant de créer ta vidéo.")
     board.movie_preview = TextureRect.new()
@@ -239,12 +258,20 @@ func build(board: Control) -> void:
     board.duration_input.max_value = 300
     board.duration_input.value = 6
     advanced.add_child(board.duration_input)
-    text(advanced, "Dessins IA par lot (commence par 6)", 20)
+    text(advanced, "Limite de poses clés en ligne (sans plafond par lot en mode local)", 20)
     board.ai_drawings_count = SpinBox.new()
     board.ai_drawings_count.min_value = 2
     board.ai_drawings_count.max_value = 24
-    board.ai_drawings_count.value = 6
+    board.ai_drawings_count.value = 24
     advanced.add_child(board.ai_drawings_count)
+    text(advanced, "Installation des moteurs locaux", 20)
+    text(advanced, "MNN Chat : charge un modèle vision et active l'API sur le port 8080. Local Dream : charge un modèle SD1.5 CPU avec prise en charge img2img ; son moteur écoute sur le port 8081. Le GPU MediaTek reste à vérifier. Les modèles se téléchargent séparément.", 18, MUTED)
+    button(board, advanced, "Télécharger MNN Chat", func() -> void: OS.shell_open("https://github.com/alibaba/MNN/releases"))
+    button(board, advanced, "Télécharger Local Dream", func() -> void: OS.shell_open("https://github.com/xororz/local-dream/releases"))
+    board.local_auth_input = LineEdit.new()
+    board.local_auth_input.secret = true
+    board.local_auth_input.placeholder_text = "Jeton de l'API locale MNN Chat, si elle en exige un"
+    advanced.add_child(board.local_auth_input)
     text(advanced, "Compte Hugging Face : jeton facultatif", 20)
     board.ai_token_input = LineEdit.new()
     board.ai_token_input.secret = true

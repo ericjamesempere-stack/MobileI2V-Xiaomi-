@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - karma/storyboard-story-sequence-20261113
+      - karma/v54-approval-safety-20261116
     paths:
       - ".github/workflows/verify-storyboard.yml"
       - "scripts/**"
@@ -29,6 +30,18 @@ jobs:
           curl -fL --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
           unzip -q godot.zip
           chmod +x Godot_v4.5.2-stable_linux.x86_64
+      - name: Test KARMA ONE intermediate rendering and cache
+        run: |
+          set -euo pipefail
+          timeout 60s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_karma_intermediate_render.gd 2>&1 | tee intermediate-render.log
+          grep -q 'V54_INTERMEDIATE_RENDER_CANDIDATES_OK' intermediate-render.log
+          if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' intermediate-render.log; then exit 1; fi
+      - name: Test KARMA ONE intermediate agent contract
+        run: |
+          set -euo pipefail
+          timeout 45s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_karma_intermediate_agent.gd 2>&1 | tee intermediate-agent.log
+          grep -q 'V54_INTERMEDIATE_AGENT_CONTRACT_OK' intermediate-agent.log
+          if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' intermediate-agent.log; then exit 1; fi
       - name: Import project and parse scripts
         run: |
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --editor --path . --import --quit
@@ -38,7 +51,7 @@ jobs:
           sudo apt-get install -y -qq ffmpeg
       - name: Render articulated visual smoke test
         run: |
-          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_visual_smoke.gd
+          timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_visual_smoke.gd
           FRAMES_DIR="$(find "$HOME/.local/share/godot/app_userdata" -type d -name visual_smoke -print -quit)"
           test -n "$FRAMES_DIR"
           test "$(find "$FRAMES_DIR" -name 'frame_*.png' | wc -l)" -eq 60
@@ -64,13 +77,13 @@ jobs:
           if-no-files-found: error
       - name: Test articulated run fall rise drawings
         run: |
-          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_articulated_action_frames.gd
+          timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_articulated_action_frames.gd
       - name: Test story motion planner (French and English)
         run: |
-          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_story_motion_planner.gd
+          timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_story_motion_planner.gd
       - name: Test painted limb warp
         run: |
-          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_painted_limb_warp.gd
+          timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_painted_limb_warp.gd
       - name: Encode walking and running character preview
         run: |
           set -euo pipefail
@@ -103,7 +116,7 @@ jobs:
           if-no-files-found: error
       - name: Test generic pose keyframe solver
         run: |
-          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_pose_keyframe_solver.gd
+          timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_pose_keyframe_solver.gd
       - name: Encode and verify multi-action character MP4
         run: |
           set -euo pipefail
@@ -175,45 +188,78 @@ jobs:
           if-no-files-found: error
       - name: Test two-bone inverse kinematics
         run: |
-          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_two_bone_ik.gd
+          timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_two_bone_ik.gd
       - name: Test test_story_motion_planner.gd
         timeout-minutes: 2
         run: |
-          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_story_motion_planner.gd
+          timeout --signal=TERM --kill-after=5s 75s timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_story_motion_planner.gd
       - name: Test test_adaptive_storyboard.gd
         timeout-minutes: 2
         run: |
-          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_adaptive_storyboard.gd
+          timeout --signal=TERM --kill-after=5s 75s timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_adaptive_storyboard.gd
       - name: Test test_story_director.gd
         timeout-minutes: 2
         run: |
-          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_story_director.gd
+          timeout --signal=TERM --kill-after=5s 75s timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_story_director.gd
       - name: Test test_character_separator.gd
         timeout-minutes: 2
         run: |
-          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_character_separator.gd
+          timeout --signal=TERM --kill-after=5s 75s timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_character_separator.gd
       - name: Test test_continuous_rig.gd
         timeout-minutes: 2
         run: |
-          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_continuous_rig.gd
+          timeout --signal=TERM --kill-after=5s 75s timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_continuous_rig.gd
+      - name: Test selected-image visual analysis and reference locking
+        timeout-minutes: 2
+        run: |
+          timeout --signal=TERM --kill-after=5s 75s timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_reference_visual_analysis.gd
       - name: Test test_board_generation_plan.gd
         timeout-minutes: 2
         run: |
-          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_board_generation_plan.gd
+          timeout --signal=TERM --kill-after=5s 75s timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_board_generation_plan.gd
+      - name: Test V54 pose budget and action briefs
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          for test in board_pose_budget remote_pose_briefs full_scene_brief; do
+            timeout --signal=TERM --kill-after=5s 30s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script "res://tests/test_${test}.gd" 2>&1 | tee "${test}.log"
+            if grep -E 'SCRIPT ERROR|Assertion failed|Parse Error' "${test}.log"; then exit 1; fi
+          done
+      - name: Test local engines without cloud calls
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          GODOT_BIN="$PWD/Godot_v4.5.2-stable_linux.x86_64" python3 tests/test_local_studio_transport.py 2>&1 | tee local-studio.log
+          grep -q 'LOCAL_HTTP_NO_CLOUD_COUNTS_OK' local-studio.log
+      - name: Test integrated universal Android screen through MP4
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_universal_android_integration.gd 2>&1 | tee universal-android-integration.log
+          grep -q 'UNIVERSAL_ANDROID_INTEGRATION_OK' universal-android-integration.log
+          if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' universal-android-integration.log; then exit 1; fi
+      - name: Test universal board planning and resumable fidelity review
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          for test in universal_board_contract universal_generated_cache universal_phase_progress universal_review_resume; do
+            timeout --signal=TERM --kill-after=5s 30s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script "res://tests/test_${test}.gd" 2>&1 | tee "${test}.log"
+            if grep -E 'SCRIPT ERROR|Assertion failed|Parse Error' "${test}.log"; then exit 1; fi
+          done
       - name: Test test_frame_interpolator.gd
         timeout-minutes: 2
         run: |
-          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_frame_interpolator.gd
+          timeout --signal=TERM --kill-after=5s 75s timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_frame_interpolator.gd
       - name: Test test_drawing_quality_gate.gd
         timeout-minutes: 2
         run: |
-          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_drawing_quality_gate.gd
+          timeout --signal=TERM --kill-after=5s 75s timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_drawing_quality_gate.gd
       - name: Test test_procedural_cartoon_generator.gd
         timeout-minutes: 2
         run: |
-          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_procedural_cartoon_generator.gd
+          timeout --signal=TERM --kill-after=5s 75s timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_procedural_cartoon_generator.gd
 
       - name: Test visual routing for transformation story
         timeout-minutes: 2
         run: |
-          timeout --signal=TERM --kill-after=5s 75s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_visual_routing.gd
+          timeout --signal=TERM --kill-after=5s 75s timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_visual_routing.gd

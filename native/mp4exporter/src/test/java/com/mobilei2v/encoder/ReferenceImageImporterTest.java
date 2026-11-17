@@ -63,11 +63,18 @@ public class ReferenceImageImporterTest {
         assertTrue(new File(path).length() > 0);
         image.recycle();
     }
-    @Test public void boundsLargeCameraImagesBeforeAllocatingTheOutputBitmap() throws Exception {
+    @Test public void preservesSourceDetailAboveLegacyImportLimit() throws Exception {
         Context context = RuntimeEnvironment.getApplication();
         String path = ReferenceImageImporter.importImage(context, photo(context, 3200, 1600));
         Bitmap image = BitmapFactory.decodeFile(path);
-        assertNotNull(image); assertEquals(1600, image.getWidth()); assertEquals(800, image.getHeight());
+        assertNotNull(image); assertEquals(3200, image.getWidth()); assertEquals(1600, image.getHeight());
+        image.recycle();
+    }
+    @Test public void boundsVeryLargeCameraImagesBeforeAllocatingTheOutputBitmap() throws Exception {
+        Context context = RuntimeEnvironment.getApplication();
+        String path = ReferenceImageImporter.importImage(context, photo(context, 8192, 1024));
+        Bitmap image = BitmapFactory.decodeFile(path);
+        assertNotNull(image); assertEquals(4096, image.getWidth()); assertEquals(512, image.getHeight());
         image.recycle();
     }
 }

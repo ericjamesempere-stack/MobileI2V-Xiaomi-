@@ -1,0 +1,16 @@
+{
+  "binding": "ae9306836d19057a1a71d0b5cdb133b91ee5cede74ba5ce3a00c9a870ce2cccb",
+  "binding_migrated_without_generation": true,
+  "fidelity_verified": false,
+  "human_approved": false,
+  "image_sha": "e29a656a82700ee07cf8d7b34b60cc68e529aa248622fe278cbcd7fe50590bcb",
+  "pose_id": "pose_0002",
+  "repair_reason": "",
+  "technical_quality": {
+    "average_change": 0.0860064343639048,
+    "brightness": 0.775583394369884,
+    "issues": [],
+    "ok": true,
+    "variance": 0.0245447858521114
+  }
+}

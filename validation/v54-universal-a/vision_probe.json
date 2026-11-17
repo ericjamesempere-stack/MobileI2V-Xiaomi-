@@ -1,0 +1,14 @@
+{
+  "provider": "https://qwen-qwen3-vl-demo.hf.space",
+  "configuration_http": 200,
+  "upload_public_fixture_http": 200,
+  "queue_http": 200,
+  "result_stream_http": 200,
+  "result_event": "error",
+  "result_payload": null,
+  "semantic_model_output_received": false,
+  "private_images_sent": false,
+  "public_fixture_git_blob": "2829bd752b8a17d1ebf42041663e487aae0930f0",
+  "root_cause": "not_exposed_by_the_interface",
+  "no_more_automatic_probes": true
+}
