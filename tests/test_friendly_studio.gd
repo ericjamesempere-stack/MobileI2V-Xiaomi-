@@ -70,13 +70,17 @@ class FakeImageWorker extends Node:
         observer.requested_ideas.append(description)
         if observer.fail_creation:
             return {"ok": false, "error": "SIMULATED unavailable"}
-        var image := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+        if observer.image_mode == "missing":
+            return {"ok": true, "model": "SIMULATED missing pixels"}
+        var side: int = 64 if observer.image_mode == "tiny" else 512
+        var image := Image.create(side, side, false, Image.FORMAT_RGBA8)
         image.fill(Color.SKY_BLUE)
         return {"ok": true, "image": image, "model": "SIMULATED"}
 class IdeaBoard extends "res://scripts/storyboard.gd":
     var requested_ideas: Array[String] = []
     var received_stories: Array[String] = []
     var fail_creation: bool = false
+    var image_mode: String = "valid"
     func _make_drawing_worker() -> Node:
         var worker := FakeImageWorker.new()
         worker.observer = self
@@ -106,6 +110,14 @@ func test_idea_entry() -> void:
     await board._friendly_generate()
     assert(board.requested_ideas.size() == 1, "Reuse an imported or created reference")
     assert(board.imported_path == saved and FileAccess.get_sha256(saved) == digest)
+    for invalid_mode in ["missing", "tiny"]:
+        board.image_mode = invalid_mode
+        var routed_before: int = board.received_stories.size()
+        await board._create_remote_reference("Invalid fixture must preserve original")
+        assert(board.imported_path == saved and FileAccess.get_sha256(saved) == digest)
+        assert(board.received_stories.size() == routed_before)
+        assert(board.status.text.contains("conservé"))
+    board.image_mode = "valid"
     board.fail_creation = true
     await board._create_remote_reference("Un bateau")
     assert(board.imported_path == saved and FileAccess.get_sha256(saved) == digest)

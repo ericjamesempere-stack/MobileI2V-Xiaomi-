@@ -21,3 +21,9 @@ Branch: karma/universal-text-entry-v55-20261117
 1. GitHub Actions V55: Godot parsing, regression contracts, Android build and signature.
 2. Real inference on distinct subject categories, with visual inspection and preservation of subject identity.
 3. User review of every image, then physical Xiaomi MP4 export and playback.
+
+## V55 finalisation — 17 novembre 2026
+- Correction de la fixture 64px devenue incompatible avec le garde V55 ; ajout de vérifications comportementales des résultats sans image et sous-dimensionnés.
+- Version ARM64 10 / 1.5.5, build et audit nommés V55, en conservant le stockage et le parcours existants.
+- Ajout du harnais opt-in des trois cas réels, cache lié aux entrées, sans génération GPU automatique en CI.
+- Vraies images Z-Image/Qwen obtenues ; fidélité humaine et mouvement de la banane refusés après examen, scène complexe bloquée par quota. Aucun succès universel annoncé.

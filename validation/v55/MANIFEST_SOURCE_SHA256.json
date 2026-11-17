@@ -1,0 +1,17 @@
+{
+  "delivery": "KARMA_ONE_V55_20261117_0430",
+  "base_commit": "7c791dc02ea6fcdb3621aa4b548d07ad1b6fd9b2",
+  "retained_autopilot_commit": "3444b7c1d07bbd1815e2e98d79e919602e2f1842",
+  "files_sha256": {
+    ".github/workflows/build-apk.yml": "c571a3b2d933588bbc1e5b5fb092785a3f82d60c71fc9d0609a8e40ec8fe3d92",
+    "autopilot/audit.py": "597215c23d54ffb850b54bb8c3dbb2f8ef0fdf854c9f5fbfcbae2877776045e0",
+    "export_presets.cfg": "ab2a7a623c7d4ef979f976d4bad7540170d719336a0ed32c4b7873b0e1882fd4",
+    "project.godot": "5b6a998175502dd651a95877fc5c2057508ac5e45bb86db6913a46e42adf5aa7",
+    "scripts/studio_friendly_ui.gd": "9ddf5c5707c9d07c37902e4d012197c744c4cd28eae3f1130335743721e11141",
+    "tests/test_friendly_studio.gd": "eb423516592f247abf1a3edebf1189c86ea8ad05e0ad7d9654d53df0c666b81f",
+    "tools/test_v55_real_cases.gd": "3d674f36e970192826c35ad7198dfa4a04f109b43dc20f231e76db821d3c01e8",
+    "validation/v55/CHANGELOG.md": "720de8f2bf3f9bd85a456b74c27db8fe2f020c1153eb669524f5e8a3163584f2",
+    "validation/v55/FINALISATION_20261117.md": "da3207b9b63ae811b8212de7e691a24dd05218d185007c293feba41fb3433706"
+  },
+  "scope": "Changed source only; manifest excludes itself; no images, secrets or build artifacts included."
+}
