@@ -19,12 +19,12 @@ MobileI2V export: MP4 poses distinctes : 121 / 150
 MobileI2V export: MP4 poses distinctes : 129 / 150
 MobileI2V export: MP4 poses distinctes : 137 / 150
 MobileI2V export: MP4 poses distinctes : 145 / 150
-MobileI2V export: MP4 : /tmp/tmphz46b5s_/godot/app_userdata/KARMA ONE AUTOPILOT V2/android_integration_2728368/integration.mp4
+MobileI2V export: MP4 : /tmp/tmpge53jj1q/godot/app_userdata/KARMA ONE AUTOPILOT V2/android_integration_2222114/integration.mp4
 MP4_EXPORT_VERIFIED: H264 yuv420p 96x160 30fps 150 frames 5s; full decode PASS; simulated drawings and MediaCodec
 UNIVERSAL_ANDROID_INTEGRATION_OK: production screen -> SIMULATED vision -> strict plan -> poses and all four in-betweens -> chronological contact sheet -> keep/reject/targeted redo -> mandatory approval -> real ffmpeg MP4 150 frames / 5s, exact timeline including in-betweens; missing/unreviewed in-between blocks export; restore and outage block; no Xiaomi/MediaCodec test
 WARNING: Loaded resource as image file, this will not work on export: 'res://validation/v54-poses/reference.png'. Instead, import the image file as an Image resource and load it normally as a resource.
      at: load (core/io/image.cpp:2540)
      GDScript backtrace (most recent call first):
          [0] read_image (res://scripts/android_image_reader.gd:14)
-         [1] _image_chosen (res://scripts/storyboard.gd:813)
+         [1] _image_chosen (res://scripts/storyboard.gd:817)
          [2] run (res://tests/test_universal_android_integration.gd:113)

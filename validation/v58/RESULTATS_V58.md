@@ -48,3 +48,7 @@ La compilation Java locale est bloquée par la résolution du plugin Gradle Andr
 6. En mode distant, le choix implique transfert d'image/histoire aux services annoncés ; quotas et disponibilité variables, aucun abonnement automatique, aucune promesse d'illimité.
 
 Sources primaires vérifiées : code Godot tag 4.5.2-stable (GodotActivity.kt, GodotFragment.java, Godot.kt) ; https://ld.chino.icu/features/http-api ; manifests/build.gradle officiels alibaba/MNN et xororz/local-dream.
+
+## Régression détectée pendant la validation V58
+
+La suite complète a bloqué le candidat c8d7abd sur le rejet des anciens résultats déjà traités. Le garde est restauré : seule la lecture de la boîte native persistante autorise une récupération hors import actif. Les rappels ordinaires en double restent ignorés. Le délai du chemin sans résultat natif conserve son contrat et indique désormais l’étape en échec. Les deux tests, ancien garde et nouvelle récupération, sont exécutés avant la recompilation. Le candidat en échec n’a pas été livré.

@@ -2499,8 +2499,8 @@ func _cancel_photo_import() -> void:
     _native_image_cancelled()
     _sync_friendly_ui()
 
-func _consume_photo_result(encoded: String) -> void:
-    if encoded.is_empty():
+func _consume_photo_result(encoded: String, recover_pending: bool = false) -> void:
+    if encoded.is_empty() or (not photo_importing and not recover_pending):
         return
     var result: Variant = JSON.parse_string(encoded)
     if not result is Dictionary:
@@ -2529,7 +2529,7 @@ func _poll_photo_import(delta: float) -> void:
             # Also recover a pending result after Android recreated Godot.
             var result: String = str(native.call("consume_reference_image_result"))
             if not result.is_empty():
-                _consume_photo_result(result)
+                _consume_photo_result(result, true)
                 return
         if photo_importing and native.has_method("reference_image_import_status"):
             phase = str(native.call("reference_image_import_status"))
@@ -2548,12 +2548,12 @@ func _poll_photo_import(delta: float) -> void:
         status.text = "Photo décodée : sauvegarde privée en cours…"
     if not photo_app_focused and phase not in ["decoding", "saving"]:
         return
-    photo_import_clock += minf(delta, 0.25)
+    photo_import_clock += delta
     var limit_seconds: float = 120.0 if phase in ["decoding", "saving"] else PHOTO_IMPORT_TIMEOUT
     if photo_import_clock >= limit_seconds:
         var failed_stage: String = phase if not phase.is_empty() else "retour du sélecteur / résultat natif absent"
         _cancel_photo_import()
-        status.text = "Import interrompu à l'étape : " + failed_stage + ". Projet précédent conservé. Réessaie une image locale."
+        status.text = "Le chargement ne répond pas à l'étape : " + failed_stage + ". Projet précédent conservé. Réessaie une image locale."
 
 func _native_image_error(message: String) -> void:
     photo_importing = false

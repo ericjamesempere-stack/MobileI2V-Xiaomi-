@@ -14,7 +14,7 @@ func run() -> void:
     assert(image.save_webp(source, true) == OK)
     # Recover a mailbox result even when Android recreated the Godot screen.
     board.photo_importing = false
-    board._consume_photo_result(JSON.stringify({"state": "selected", "role": "reference", "value": source}))
+    board._consume_photo_result(JSON.stringify({"state": "selected", "role": "reference", "value": source}), true)
     await process_frame
     assert(board.preview.texture != null)
     assert(board.preview.texture.get_width() == 320)
@@ -24,8 +24,10 @@ func run() -> void:
     board._save()
     var snapshot: String = original.get_base_dir().path_join("project.json")
     assert(FileAccess.file_exists(snapshot))
+    board.photo_importing = true
     board._consume_photo_result(JSON.stringify({"state": "cancelled", "value": ""}))
     assert(board.imported_path == original)
+    board.photo_importing = true
     board._consume_photo_result(JSON.stringify({"state": "error", "value": "SIMULATED Android decode failure"}))
     assert(board.imported_path == original)
     board._image_chosen(source)
