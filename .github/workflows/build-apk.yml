@@ -246,6 +246,12 @@ jobs:
           KARMA_INTEGRATION_EVIDENCE_DIR="$PWD/build/integration-proof" timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_universal_android_integration.gd 2>&1 | tee universal-android-integration.log
           grep -q 'UNIVERSAL_ANDROID_INTEGRATION_OK' universal-android-integration.log
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' universal-android-integration.log; then exit 1; fi
+      - name: Test KARMA LYRICS SYNC V6 bridge approval and timeline
+        run: |
+          set -euo pipefail
+          timeout 45s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_karma_lyrics_bridge_v6.gd 2>&1 | tee lyrics-bridge-v6.log
+          grep -q 'KARMA_LYRICS_BRIDGE_V6_SMOKE_OK' lyrics-bridge-v6.log
+          if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' lyrics-bridge-v6.log; then exit 1; fi
       - name: Smoke-test KARMA ONE startup before APK export
         run: |
           set -euo pipefail
