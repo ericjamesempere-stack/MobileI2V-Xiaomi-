@@ -68,3 +68,37 @@ MediaPipe n'a pas été exécuté et n'est pas déclaré validé.
 L'environnement local d'exécution est indisponible. Le fichier joint local et l'archive ZIP n'ont donc pas pu être ouverts ici ; leur lecture n'est pas affirmée. Le travail a utilisé les instructions du message, le code et les preuves consultables sur GitHub. Les compilations et contrôles décrits sont ceux effectivement constatés dans les workflows.
 
 Statut : export technique vérifié et recette préparée ; finalisation universelle de bout en bout NON acquise.
+
+## Livraison retenue après correction du transport — 17 novembre 2026
+
+Commit applicatif compilé : 1063ff26a764de3bb8eff515d0e371fcb1d2dddc.
+Tous les acquis V53/V54, le parcours idée seule, les projets, le contrôle individuel et les gardes de validation sont conservés.
+
+La lecture des réponses vision utilise désormais la file de la session réellement soumise, avec filtrage de l'identifiant de tâche et refus des résultats d'un autre travail. Les événements vides ou malformés sont ignorés sans produire de faux résultat ni d'erreur de parseur dans les journaux. Les tests couvrent résultat exact, tâche étrangère, absence de résultat, erreur du fournisseur et sortie invalide.
+
+Le passage temporaire à des chemins de fichiers a été retiré : le composant ModelScope attend FileData sur le réseau et effectue son propre prétraitement. Source vérifiée : https://github.com/modelscope/modelscope-studio/blob/main/backend/modelscope_studio/components/pro/multimodal_input/__init__.py
+La correction conservée concerne la session et son flux de réponse ; elle ne remplace aucun moteur.
+
+Build Android SUCCESS :
+https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/43984469732
+Archive APK :
+https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/43984469732/artifacts/14284193252
+SHA256 de l'APK :
+44ca1f49b171ce079cd8b271464f81e55f60476decbff222d36aa69211618f6e
+
+Résultats constatés dans ce build :
+- HF_STUDIO_PROTOCOL_TESTS_OK.
+- UNIVERSAL_IDEA_ENTRY_WIRING_OK : création initiale SIMULÉE, raccordement réel de l'écran.
+- UNIVERSAL_ANDROID_INTEGRATION_OK : vision et MediaCodec SIMULÉS.
+- MP4_EXPORT_VERIFIED : H264, yuv420p, 96x160, 30 FPS, 150 images, 5 secondes, décodage complet réussi avec ffmpeg.
+- Compilation, signature et contrôles du paquet ARM64 réussis.
+Les workflows Godot, storyboard et API de ce même commit sont réussis.
+
+Essai réel après correction :
+https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/43984469671
+Preuves conservées :
+https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/43984469671/artifacts/14284148070
+
+La lecture de session récupère un message terminal process_completed correspondant à la demande ; il indique success:false et output:{error:null}. L'erreur de session masquée par la fermeture du flux est corrigée. La cause du refus restant n'est pas exposée par le service et n'est pas attribuée avec certitude au modèle, au quota ou à un paramètre précis. Aucune nouvelle génération de dessin n'a réussi : zéro PNG, zéro planche validée, aucune fidélité réelle confirmée.
+
+Ne pas déclarer la finalisation universelle acquise. Prochaine étape utile : obtenir une analyse sémantique réelle réussie avec ce contrat ou un adaptateur réellement compatible, puis seulement tester les dessins et corriger les défauts visuels. Aucun appareil Xiaomi ni moteur local n'est accessible dans cette session.
