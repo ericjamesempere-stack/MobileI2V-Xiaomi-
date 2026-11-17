@@ -70,7 +70,7 @@ class FakeImageWorker extends Node:
         observer.requested_ideas.append(description)
         if observer.fail_creation:
             return {"ok": false, "error": "SIMULATED unavailable"}
-        var image := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+        var image := Image.create(256, 256, false, Image.FORMAT_RGBA8)
         image.fill(Color.SKY_BLUE)
         return {"ok": true, "image": image, "model": "SIMULATED"}
 class IdeaBoard extends "res://scripts/storyboard.gd":
