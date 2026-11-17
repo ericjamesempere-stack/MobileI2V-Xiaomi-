@@ -2165,18 +2165,22 @@ func _draw_remote_story() -> void:
     plan.clear()
     session_agent = load("res://scripts/karma_studio_session.gd").new()
     session_agent.state = {"version": 2, "story": story, "duration": duration_input.value, "count": universal_plan["keyposes"], "frames": {}, "semantic_analysis": universal_plan["semantic_analysis"], "identity_verified": false, "agents": {"scenario": "live_vision_model", "pose": "universal_physical_phases", "image": "running", "quality": "pending", "recovery": "saving", "video": "waiting_for_user"}}
-    for path in generated_paths:
-        var texture: Texture2D = _drawing_thumbnail(str(path))
+    # Review and export share the same chronological set of actual drawings.
+    # A generated in-between must never be silently discarded or bypass review.
+    var entries: Array = _universal_drawing_entries()
+    for entry in entries:
+        var path: String = entry["path"]
+        var texture: Texture2D = _drawing_thumbnail(path)
         if texture == null:
             break
         sources.append(texture)
         paths.append(str(path))
         accepted.append(false)
         session_agent.record_frame(paths.size() - 1, str(path), {"identity_verified": false})
-    required_drawing_count = int(universal_plan["keyposes"])
+    required_drawing_count = int(universal_plan["keyposes"]) + int(universal_plan.get("intermediate_drawings", 0))
     var cursor: int = 0
     for frame in range(int(universal_plan["video_frames"])):
-        while cursor + 1 < universal_plan["boards"].size() and int(universal_plan["boards"][cursor + 1]["video_frame"]) <= frame:
+        while cursor + 1 < paths.size() and int(entries[cursor + 1]["video_frame"]) <= frame:
             cursor += 1
         plan.append(cursor)
     explicit_rejections.clear()
@@ -2194,22 +2198,78 @@ func _draw_remote_story() -> void:
     _build_contact_sheet()
     _save()
     if not last_ai_sequence_ok:
-        status.text = "%d/%d poses conservées. Relance avec les mêmes paramètres pour reprendre. %s" % [paths.size(), required_drawing_count, failure]
+        status.text = "%d/%d dessins conservés, poses et intermédiaires. Relance avec les mêmes paramètres pour reprendre la génération et les contrôles. %s" % [paths.size(), required_drawing_count, failure]
     elif not universal_quality.get("fidelity_verified", false):
         status.text = "%d poses affichées ; fidélité non validée. Examine les dessins et refais les poses signalées. %s" % [paths.size(), str(universal_quality.get("error", ""))]
     else:
-        status.text = "%d poses contrôlées. Agrandis-les, garde ou refuse chaque dessin, puis confirme la planche. Les intermédiaires restent à produire." % paths.size()
+        status.text = "%d dessins, poses et intermédiaires. Agrandis-les, garde ou refuse chaque dessin, puis confirme la planche après les contrôles de fidélité." % paths.size()
+
+func _universal_drawing_entries() -> Array:
+    var entries: Array = []
+    for board in universal_plan.get("boards", []):
+        var path: String = universal_folder.path_join("pose_%04d.png" % int(board["index"]))
+        if FileAccess.file_exists(path):
+            entries.append({"path": path, "video_frame": int(board["video_frame"]), "keypose_index": int(board["index"])})
+    var schedule: Dictionary = load("res://scripts/karma_intermediate_agent.gd").new().schedule(universal_plan)
+    for task in schedule.get("tasks", []):
+        var path: String = universal_folder.path_join(str(task["id"]) + ".png")
+        if FileAccess.file_exists(path):
+            entries.append({"path": path, "video_frame": int(task["target_frame"]), "task": task})
+    entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["video_frame"]) < int(b["video_frame"]))
+    return entries
+
+func _universal_intermediate_ready(entry: Dictionary, reference_hash: String) -> bool:
+    var path: String = entry["path"]
+    var meta_path: String = path.get_basename() + ".json"
+    var meta: Variant = JSON.parse_string(FileAccess.get_file_as_string(meta_path)) if FileAccess.file_exists(meta_path) else null
+    if not meta is Dictionary or not meta.get("fidelity_verified", false) or not meta.get("reference_fidelity_verified", false) or not meta.get("motion_continuity_verified", false) or meta.get("review_origin", "") != "live_vision_model" or meta.get("original_reference_hash", "") != reference_hash or meta.get("image_sha", "") != FileAccess.get_sha256(path):
+        return false
+    var task: Dictionary = entry["task"]
+    var neighbors: Dictionary = {}
+    for board in universal_plan.get("boards", []):
+        neighbors[str(board["id"])] = universal_folder.path_join("pose_%04d.png" % int(board["index"]))
+    var left: String = neighbors.get(str(task["from_pose"]), "")
+    var right: String = neighbors.get(str(task["to_pose"]), "")
+    if not FileAccess.file_exists(left) or not FileAccess.file_exists(right):
+        return false
+    var wanted: String = ("intermediate-review-v3-reference-locked" + reference_hash + str(meta.get("binding", "")) + str(meta["image_sha"]) + FileAccess.get_sha256(left) + FileAccess.get_sha256(right) + universal_pipeline.worker.vision_provider_id()).sha256_text()
+    return meta.get("review_binding", "") == wanted
 
 func _universal_ready_for_review() -> bool:
     if universal_folder.is_empty():
         return true # Existing imported V53/V54 projects retain their review flow.
-    if not universal_plan.get("semantic_analysis", false) or not universal_quality.get("fidelity_verified", false) or universal_input_signature != _universal_signature() or sources.size() != int(universal_plan.get("keyposes", -1)) or not is_instance_valid(universal_pipeline):
+    var required: int = int(universal_plan.get("keyposes", -1)) + int(universal_plan.get("intermediate_drawings", 0))
+    if not universal_plan.get("semantic_analysis", false) or not universal_quality.get("fidelity_verified", false) or universal_input_signature != _universal_signature() or sources.size() != required or paths.size() != required or not is_instance_valid(universal_pipeline):
         return false
-    for i in range(paths.size()):
-        if paths[i] != universal_folder.path_join("pose_%04d.png" % i) or not universal_pipeline._cached(universal_plan, i, universal_style, universal_folder):
+    var entries: Array = _universal_drawing_entries()
+    if entries.size() != required:
+        return false
+    var reference: Image = load("res://scripts/android_image_reader.gd").read_image(imported_path)
+    if reference == null:
+        return false
+    var reference_hash: String = reference.save_png_to_buffer().hex_encode().sha256_text()
+    for i in range(entries.size()):
+        var entry: Dictionary = entries[i]
+        if paths[i] != entry["path"]:
             return false
-        var meta: Variant = JSON.parse_string(FileAccess.get_file_as_string(universal_folder.path_join("pose_%04d.json" % i)))
-        if not meta is Dictionary or not meta.get("fidelity_verified", false) or meta.get("review_binding", "") != universal_pipeline._review_binding(universal_plan, i, universal_style, str(meta.get("image_sha", ""))):
+        if entry.has("task"):
+            if not _universal_intermediate_ready(entry, reference_hash):
+                return false
+            continue
+        var pose: int = int(entry["keypose_index"])
+        if not universal_pipeline._cached(universal_plan, pose, universal_style, universal_folder):
+            return false
+        var meta: Variant = JSON.parse_string(FileAccess.get_file_as_string(paths[i].get_basename() + ".json"))
+        if not meta is Dictionary or not meta.get("fidelity_verified", false) or meta.get("review_binding", "") != universal_pipeline._review_binding(universal_plan, pose, universal_style, str(meta.get("image_sha", ""))):
+            return false
+    # Bind timing too: restoring/reordering cannot change the approved action.
+    var cursor: int = 0
+    if plan.size() != int(universal_plan.get("video_frames", 0)):
+        return false
+    for frame in range(plan.size()):
+        while cursor + 1 < entries.size() and int(entries[cursor + 1]["video_frame"]) <= frame:
+            cursor += 1
+        if int(plan[frame]) != cursor:
             return false
     return true
 
@@ -2514,7 +2574,7 @@ func _refresh_review_dialog() -> void:
     var state: String = "Refusé" if explicit_rejections.has(review_index) else ("Gardé" if review_index < accepted.size() and accepted[review_index] else "À examiner")
     review_caption.text = "Dessin %d / %d · %s" % [review_index + 1, sources.size(), state]
     if not universal_folder.is_empty():
-        var meta_path: String = universal_folder.path_join("pose_%04d.json" % review_index)
+        var meta_path: String = paths[review_index].get_basename() + ".json"
         var meta: Variant = JSON.parse_string(FileAccess.get_file_as_string(meta_path)) if FileAccess.file_exists(meta_path) else null
         if meta is Dictionary and not meta.get("fidelity_verified", false):
             review_caption.text += " · Contrôle IA non confirmé : " + JSON.stringify(meta.get("model_review", {}).get("defects", []))
@@ -2621,10 +2681,21 @@ func _regenerate_universal_drawing() -> void:
         status.text = "Réimporte l'image de référence."
         return
     var index: int = review_index
-    if index < 0 or index >= paths.size() or not universal_pipeline._cached(universal_plan, index, universal_style, universal_folder):
+    var entries: Array = _universal_drawing_entries()
+    if index < 0 or index >= paths.size() or entries.size() != paths.size() or entries[index]["path"] != paths[index]:
         status.text = "Ce dessin est manquant ou a changé. Reprends la création pour le récupérer."
         return
-    var meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(universal_folder.path_join("pose_%04d.json" % index)))
+    var entry: Dictionary = entries[index]
+    var pose_index: int = int(entry.get("keypose_index", -1))
+    if pose_index >= 0 and not universal_pipeline._cached(universal_plan, pose_index, universal_style, universal_folder):
+        status.text = "Ce dessin est manquant ou a changé. Reprends la création pour le récupérer."
+        return
+    var meta_path: String = paths[index].get_basename() + ".json"
+    var stored: Variant = JSON.parse_string(FileAccess.get_file_as_string(meta_path)) if FileAccess.file_exists(meta_path) else null
+    if not stored is Dictionary:
+        status.text = "Les métadonnées du dessin sont manquantes. L'ancien dessin est conservé ; reprends la création."
+        return
+    var meta: Dictionary = stored
     var defect: String = JSON.stringify(meta.get("model_review", {}).get("defects", []))
     if defect == "[]":
         defect = "The user rejected this drawing. Faithfully match the original entity identities, requested physical state and contacts in the prepared plan."
@@ -2633,12 +2704,19 @@ func _regenerate_universal_drawing() -> void:
     review_check.set_pressed_no_signal(false)
     universal_pipeline.worker.vision_failed = false
     status.text = "Correction du dessin %d…" % (index + 1)
-    var result: Dictionary = await universal_pipeline.repair_keypose(reference, universal_plan, universal_style, universal_folder, index, defect)
+    var result: Dictionary
+    if entry.has("task"):
+        result = await _repair_universal_intermediate(reference, entry, meta, defect)
+    else:
+        result = await universal_pipeline.repair_keypose(reference, universal_plan, universal_style, universal_folder, pose_index, defect)
     if result.get("ok", false):
         sources[index] = _drawing_thumbnail(paths[index])
         accepted[index] = false
         explicit_rejections.erase(index)
         universal_quality = await universal_pipeline.review_keyposes(reference, universal_plan, universal_folder, universal_style)
+        # A corrected keypose invalidates the physical transition checks of its
+        # neighbors; recheck those cached pixels before any new approval.
+        await load("res://scripts/karma_intermediate_agent.gd").new().review_candidates(reference, universal_plan, universal_folder, universal_pipeline.worker, 240)
         if session_agent != null:
             session_agent.record_frame(index, paths[index], {"fidelity_verified": universal_quality.get("fidelity_verified", false)})
             session_agent.state["quality"] = universal_quality
@@ -2648,6 +2726,40 @@ func _regenerate_universal_drawing() -> void:
     _save()
     _refresh_review_dialog()
     status.text = ("Dessin refait. Examine-le et garde-le avant une nouvelle confirmation." if universal_quality.get("fidelity_verified", false) else "Dessin refait ; contrôle de fidélité encore non confirmé. " + str(universal_quality.get("error", ""))) if result.get("ok", false) else "L'ancien dessin est conservé. " + str(result.get("error", "Correction indisponible."))
+
+func _repair_universal_intermediate(reference: Image, entry: Dictionary, meta: Dictionary, defect: String) -> Dictionary:
+    var task: Dictionary = entry["task"]
+    var lookup: Dictionary = {}
+    for board in universal_plan.get("boards", []):
+        lookup[str(board["id"])] = board
+    var left: Dictionary = lookup.get(str(task["from_pose"]), {})
+    var right: Dictionary = lookup.get(str(task["to_pose"]), {})
+    if left.is_empty() or right.is_empty():
+        return {"ok": false, "error": "intermediate_neighbors_missing"}
+    var left_path: String = universal_folder.path_join("pose_%04d.png" % int(left["index"]))
+    var right_path: String = universal_folder.path_join("pose_%04d.png" % int(right["index"]))
+    var previous := Image.new()
+    var candidate := Image.new()
+    if previous.load(left_path) != OK or not FileAccess.file_exists(right_path) or candidate.load(entry["path"]) != OK:
+        return {"ok": false, "error": "intermediate_source_missing"}
+    var prompt: String = str(task["instruction"]) + " Earlier physical pose: " + str(left.get("pose", "")) + ". Later physical pose: " + str(right.get("pose", "")) + ". Intermediate fraction: %.3f. Keep all subjects and environmental landmarks." % float(task["fraction"])
+    universal_pipeline.worker.repair_target = candidate
+    var response: Dictionary = await universal_pipeline.worker.redraw(reference, prompt + " Correct this defect only: " + defect, universal_style, previous, true)
+    universal_pipeline.worker.repair_target = null
+    if not response.get("ok", false) or not response.get("image") is Image:
+        return {"ok": false, "error": response.get("error", "intermediate_repair_failed")}
+    var image: Image = response["image"]
+    var quality: Dictionary = load("res://scripts/karma_studio_session.gd").new().inspect_frame(image, previous)
+    if not quality.get("ok", false):
+        return {"ok": false, "error": "intermediate_technical_quality_failed_original_kept"}
+    if not universal_pipeline._store_image(image, entry["path"]):
+        return {"ok": false, "error": "intermediate_save_failed"}
+    var original_hash: String = reference.save_png_to_buffer().hex_encode().sha256_text()
+    var binding: String = (load("res://scripts/karma_intermediate_agent.gd").REVISION + original_hash + FileAccess.get_sha256(left_path) + FileAccess.get_sha256(right_path) + prompt + universal_style).sha256_text()
+    var record: Dictionary = {"binding": binding, "image_sha": FileAccess.get_sha256(entry["path"]), "from_pose": task["from_pose"], "to_pose": task["to_pose"], "target_frame": task["target_frame"], "identity_verified": false, "fidelity_verified": false, "human_approved": false, "status": "candidate_requires_review", "repair_reason": defect, "previous_image_sha": meta.get("image_sha", "")}
+    if not universal_pipeline._write(str(entry["path"]).get_basename() + ".json", record):
+        return {"ok": false, "error": "intermediate_metadata_save_failed"}
+    return {"ok": true}
 
 func _drawing_thumbnail(path: String) -> Texture2D:
     var image: Image = load("res://scripts/android_image_reader.gd").read_image(path)

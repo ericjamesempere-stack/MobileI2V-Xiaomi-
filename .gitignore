@@ -1,0 +1,7 @@
+/.godot/
+/build/
+*.gd.uid
+*.import
+__pycache__/
+/autopilot/state/
+/autopilot/reports/

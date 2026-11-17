@@ -1,0 +1,80 @@
+{
+  "tasks": [
+    {
+      "id": "inventory",
+      "agent": "inventory",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "SHA and branch inventory",
+        "V53/V54 diff",
+        "Claude files traced"
+      ]
+    },
+    {
+      "id": "integration",
+      "agent": "integration",
+      "dependencies": [
+        "inventory"
+      ],
+      "acceptance_criteria": [
+        "Existing components connected",
+        "No lost V53/V54 features"
+      ]
+    },
+    {
+      "id": "android",
+      "agent": "android",
+      "dependencies": [
+        "integration"
+      ],
+      "acceptance_criteria": [
+        "Gallery image visible and persisted",
+        "ARM64 APK built"
+      ]
+    },
+    {
+      "id": "redraw",
+      "agent": "redraw",
+      "dependencies": [
+        "integration"
+      ],
+      "acceptance_criteria": [
+        "Real generative model executed",
+        "Reference fidelity demonstrated"
+      ]
+    },
+    {
+      "id": "storyboard",
+      "agent": "storyboard",
+      "dependencies": [
+        "redraw"
+      ],
+      "acceptance_criteria": [
+        "Distinct successive images",
+        "Review and mandatory approval"
+      ]
+    },
+    {
+      "id": "video",
+      "agent": "video",
+      "dependencies": [
+        "storyboard",
+        "android"
+      ],
+      "acceptance_criteria": [
+        "Real MP4 H264 decoded",
+        "Duration FPS frame count verified"
+      ]
+    },
+    {
+      "id": "qa",
+      "agent": "qa",
+      "dependencies": [
+        "video"
+      ],
+      "acceptance_criteria": [
+        "End-to-end Android test and honest evidence report"
+      ]
+    }
+  ]
+}

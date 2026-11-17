@@ -1,7 +1,8 @@
 config_version=5
 
 [application]
-config/name="KARMA ONE V54"
+config/name="KARMA ONE AUTOPILOT V2"
+config/version="2.0.20261117"
 config/icon="res://assets/karma_icon.svg"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.5", "GL Compatibility")

@@ -4,12 +4,37 @@ var worker: Node
 var local_inference: bool = false
 signal stage_changed(stage: String, completed: int, total: int)
 const REVISION := "v54-registry-density-1"
+var invocation_running: bool = false
 
 func _ready() -> void:
     worker = load("res://scripts/local_studio_generator.gd" if local_inference else "res://scripts/hf_studio_generator.gd").new()
     add_child(worker)
 
 func build_boards(reference: Image, story: String, seconds: float, style: String, folder: String, maximum_keyposes: int = 24) -> Dictionary:
+    if invocation_running:
+        return {"ok": false, "stage": "supervision", "error": "autopilot_operation_already_running", "ready_for_animation": false}
+    var reference_sha: String = "empty"
+    if reference != null and not reference.is_empty():
+        reference_sha = load("res://scripts/reference_visual_analysis.gd").new().reference_sha(reference)
+    var guide_sha: String = ""
+    if worker.style_reference != null and not worker.style_reference.is_empty():
+        guide_sha = load("res://scripts/reference_visual_analysis.gd").new().reference_sha(worker.style_reference)
+    # Exported Godot scripts may be remapped to bytecode; do not read source
+    # paths with FileAccess to fingerprint a packaged Android application.
+    var implementation: String = "autopilot-v2-memory-1:" + str(ProjectSettings.get_setting("application/config/version", "2")) + ":" + worker.vision_provider_id()
+    var input_sha: String = (REVISION + implementation + reference_sha + story + str(seconds) + style + guide_sha + str(local_inference) + str(maximum_keyposes)).sha256_text()
+    var memory: RefCounted = load("res://scripts/karma_technical_memory.gd").new()
+    var ticket: Dictionary = memory.begin(input_sha)
+    if not ticket.get("ok", false):
+        return {"ok": false, "stage": "supervision", "error": ticket.get("error", "technical_memory_unavailable"), "drawings_unchanged": true, "ready_for_animation": false}
+    invocation_running = true
+    var result: Dictionary = await _build_boards(reference, story, seconds, style, folder, maximum_keyposes)
+    invocation_running = false
+    if not memory.finish(ticket, result):
+        return {"ok": false, "stage": "supervision", "error": "technical_memory_result_write_failed", "drawings_unchanged": true, "ready_for_animation": false}
+    return result
+
+func _build_boards(reference: Image, story: String, seconds: float, style: String, folder: String, maximum_keyposes: int = 24) -> Dictionary:
     worker.job_folder = folder.path_join("jobs")
     stage_changed.emit("analysis", 0, 0)
     var plan: Dictionary = await prepare(reference, story, seconds, folder)

@@ -1,0 +1,110 @@
+{
+  "schema_version": 2,
+  "tasks": [
+    {
+      "id": "inventory",
+      "agent": "inventory",
+      "executor": "inventory",
+      "dependencies": [],
+      "privacy_class": "synthetic",
+      "acceptance_criteria": [
+        "Actual git commit, refs and working source hashes"
+      ],
+      "objective": "Actual git commit, refs and working source hashes",
+      "inputs": {},
+      "max_attempts": 2
+    },
+    {
+      "id": "parse",
+      "agent": "integration",
+      "executor": "godot",
+      "test": "parse",
+      "dependencies": [
+        "inventory"
+      ],
+      "privacy_class": "synthetic",
+      "acceptance_criteria": [
+        "Actual Godot script parser and selected contracts"
+      ],
+      "objective": "Actual Godot script parser and selected contracts",
+      "inputs": {
+        "test": "parse"
+      },
+      "max_attempts": 2
+    },
+    {
+      "id": "approval",
+      "agent": "approval",
+      "executor": "godot",
+      "test": "approval",
+      "dependencies": [
+        "parse"
+      ],
+      "privacy_class": "synthetic",
+      "acceptance_criteria": [
+        "Production review guards with synthetic fixtures"
+      ],
+      "objective": "Production review guards with synthetic fixtures",
+      "inputs": {
+        "test": "approval"
+      },
+      "max_attempts": 2
+    },
+    {
+      "id": "universal_contract",
+      "agent": "motion",
+      "executor": "godot",
+      "test": "universal_contract",
+      "dependencies": [
+        "parse"
+      ],
+      "privacy_class": "synthetic",
+      "acceptance_criteria": [
+        "Universal scene and fidelity contracts; no real inference claim"
+      ],
+      "objective": "Universal scene and fidelity contracts; no real inference claim",
+      "inputs": {
+        "test": "universal_contract"
+      },
+      "max_attempts": 2
+    },
+    {
+      "id": "intermediate",
+      "agent": "storyboard",
+      "executor": "godot",
+      "test": "intermediate",
+      "dependencies": [
+        "parse"
+      ],
+      "privacy_class": "synthetic",
+      "acceptance_criteria": [
+        "Deterministic scheduling contract"
+      ],
+      "objective": "Deterministic scheduling contract",
+      "inputs": {
+        "test": "intermediate"
+      },
+      "max_attempts": 2
+    },
+    {
+      "id": "integration",
+      "agent": "qa",
+      "executor": "godot",
+      "test": "integration",
+      "dependencies": [
+        "approval",
+        "universal_contract",
+        "intermediate"
+      ],
+      "privacy_class": "synthetic",
+      "acceptance_criteria": [
+        "Production screen with simulated model and encoder plus real ffmpeg export"
+      ],
+      "objective": "Production screen with simulated model and encoder plus real ffmpeg export",
+      "inputs": {
+        "test": "integration"
+      },
+      "max_attempts": 2
+    }
+  ]
+}

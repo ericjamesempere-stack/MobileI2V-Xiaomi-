@@ -1,0 +1,281 @@
+{
+  "schema_version": 2,
+  "coordinator": "karmawan",
+  "agents": [
+    {
+      "id": "inventory",
+      "role": "Repository inventory",
+      "allowed_actions": [
+        "read",
+        "analyze",
+        "propose",
+        "test"
+      ],
+      "forbidden_actions": [
+        "force_push",
+        "merge_without_review",
+        "publish_private_media",
+        "spend_money"
+      ],
+      "connected_executors": [
+        "git_inventory",
+        "github_actions_read"
+      ],
+      "runtime_status": "connected_deterministic_tools",
+      "limitation": "No role-level product completion inferred from a tool PASS"
+    },
+    {
+      "id": "integration",
+      "role": "Existing module integration",
+      "allowed_actions": [
+        "read",
+        "analyze",
+        "propose",
+        "test"
+      ],
+      "forbidden_actions": [
+        "force_push",
+        "merge_without_review",
+        "publish_private_media",
+        "spend_money"
+      ],
+      "connected_executors": [
+        "godot_parse"
+      ],
+      "runtime_status": "connected_deterministic_tools",
+      "limitation": "No role-level product completion inferred from a tool PASS"
+    },
+    {
+      "id": "vision",
+      "role": "Subject and reference fidelity",
+      "allowed_actions": [
+        "read",
+        "analyze",
+        "propose",
+        "test"
+      ],
+      "forbidden_actions": [
+        "force_push",
+        "merge_without_review",
+        "publish_private_media",
+        "spend_money"
+      ],
+      "connected_executors": [],
+      "runtime_status": "unconnected_real_inference",
+      "limitation": "No role-level product completion inferred from a tool PASS"
+    },
+    {
+      "id": "redraw",
+      "role": "Actual generative redraw verification",
+      "allowed_actions": [
+        "read",
+        "analyze",
+        "propose",
+        "test"
+      ],
+      "forbidden_actions": [
+        "force_push",
+        "merge_without_review",
+        "publish_private_media",
+        "spend_money"
+      ],
+      "connected_executors": [],
+      "runtime_status": "unconnected_real_inference",
+      "limitation": "No role-level product completion inferred from a tool PASS"
+    },
+    {
+      "id": "motion",
+      "role": "Universal motion planning",
+      "allowed_actions": [
+        "read",
+        "analyze",
+        "propose",
+        "test"
+      ],
+      "forbidden_actions": [
+        "force_push",
+        "merge_without_review",
+        "publish_private_media",
+        "spend_money"
+      ],
+      "connected_executors": [
+        "godot_universal_contract"
+      ],
+      "runtime_status": "connected_deterministic_tools",
+      "limitation": "No role-level product completion inferred from a tool PASS"
+    },
+    {
+      "id": "storyboard",
+      "role": "Storyboard continuity",
+      "allowed_actions": [
+        "read",
+        "analyze",
+        "propose",
+        "test"
+      ],
+      "forbidden_actions": [
+        "force_push",
+        "merge_without_review",
+        "publish_private_media",
+        "spend_money"
+      ],
+      "connected_executors": [
+        "godot_intermediate_contract"
+      ],
+      "runtime_status": "connected_deterministic_tools",
+      "limitation": "No role-level product completion inferred from a tool PASS"
+    },
+    {
+      "id": "approval",
+      "role": "Mandatory human approval",
+      "allowed_actions": [
+        "read",
+        "analyze",
+        "propose",
+        "test"
+      ],
+      "forbidden_actions": [
+        "force_push",
+        "merge_without_review",
+        "publish_private_media",
+        "spend_money"
+      ],
+      "connected_executors": [
+        "godot_approval_guard"
+      ],
+      "runtime_status": "connected_deterministic_tools",
+      "limitation": "No role-level product completion inferred from a tool PASS"
+    },
+    {
+      "id": "android",
+      "role": "Android gallery and APK",
+      "allowed_actions": [
+        "read",
+        "analyze",
+        "propose",
+        "test"
+      ],
+      "forbidden_actions": [
+        "force_push",
+        "merge_without_review",
+        "publish_private_media",
+        "spend_money"
+      ],
+      "connected_executors": [
+        "apk_abi_plugin_signature_inspection"
+      ],
+      "runtime_status": "connected_deterministic_tools",
+      "limitation": "No role-level product completion inferred from a tool PASS"
+    },
+    {
+      "id": "video",
+      "role": "H264 MP4 validation",
+      "allowed_actions": [
+        "read",
+        "analyze",
+        "propose",
+        "test"
+      ],
+      "forbidden_actions": [
+        "force_push",
+        "merge_without_review",
+        "publish_private_media",
+        "spend_money"
+      ],
+      "connected_executors": [
+        "ffprobe_metadata",
+        "ffmpeg_decode"
+      ],
+      "runtime_status": "connected_deterministic_tools",
+      "limitation": "No role-level product completion inferred from a tool PASS"
+    },
+    {
+      "id": "qa",
+      "role": "Evidence-based testing",
+      "allowed_actions": [
+        "read",
+        "analyze",
+        "propose",
+        "test"
+      ],
+      "forbidden_actions": [
+        "force_push",
+        "merge_without_review",
+        "publish_private_media",
+        "spend_money"
+      ],
+      "connected_executors": [
+        "godot_synthetic_integration",
+        "github_actions_read"
+      ],
+      "runtime_status": "connected_deterministic_tools",
+      "limitation": "No role-level product completion inferred from a tool PASS"
+    },
+    {
+      "id": "debug",
+      "role": "Log triage and rollback",
+      "allowed_actions": [
+        "read",
+        "analyze",
+        "propose",
+        "test"
+      ],
+      "forbidden_actions": [
+        "force_push",
+        "merge_without_review",
+        "publish_private_media",
+        "spend_money"
+      ],
+      "connected_executors": [
+        "bounded_failure_classification"
+      ],
+      "runtime_status": "connected_deterministic_tools",
+      "limitation": "No role-level product completion inferred from a tool PASS"
+    },
+    {
+      "id": "security",
+      "role": "Privacy and permissions",
+      "allowed_actions": [
+        "read",
+        "analyze",
+        "propose",
+        "test"
+      ],
+      "forbidden_actions": [
+        "force_push",
+        "merge_without_review",
+        "publish_private_media",
+        "spend_money"
+      ],
+      "connected_executors": [
+        "godot_approval_guard"
+      ],
+      "runtime_status": "connected_deterministic_tools",
+      "limitation": "No role-level product completion inferred from a tool PASS"
+    },
+    {
+      "id": "memory",
+      "role": "Persistent lessons",
+      "allowed_actions": [
+        "read",
+        "analyze",
+        "propose",
+        "test"
+      ],
+      "forbidden_actions": [
+        "force_push",
+        "merge_without_review",
+        "publish_private_media",
+        "spend_money"
+      ],
+      "connected_executors": [
+        "sqlite_append_only_technical_memory"
+      ],
+      "runtime_status": "connected_deterministic_tools",
+      "limitation": "No role-level product completion inferred from a tool PASS"
+    }
+  ],
+  "max_retries_per_failure_signature": 2,
+  "auto_merge": false,
+  "private_media_upload": false
+}

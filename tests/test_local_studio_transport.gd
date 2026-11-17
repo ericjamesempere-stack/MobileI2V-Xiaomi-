@@ -5,6 +5,17 @@ class LocalPipeline extends "res://scripts/universal_board_pipeline.gd":
         worker.vision_base = OS.get_environment("KARMA_LOCAL_TEST_SERVER")
         worker.drawing_base = worker.vision_base
         add_child(worker)
+    func prepare(reference: Image, story: String, seconds: float, folder: String) -> Dictionary:
+        var prepared: Dictionary = await super.prepare(reference, story, seconds, folder)
+        if prepared.get("ok", false):
+            # Four simulated in-betweens keep the HTTP fixture bounded while
+            # exercising review/export readiness of the whole drawing set.
+            for i in range(prepared["steps"].size()):
+                prepared["steps"][i]["intermediate_drawings"] = 2 if i == 0 else 1
+            prepared["intermediate_drawings"] = 4
+            prepared["intermediate_schedule"] = load("res://scripts/karma_intermediate_agent.gd").new().schedule(prepared)
+            assert(_write(folder.path_join("plan.json"), prepared))
+        return prepared
 class LocalBoard extends "res://scripts/storyboard.gd":
     func _make_universal_pipeline() -> Node:
         return LocalPipeline.new()
@@ -34,7 +45,7 @@ func run() -> void:
     board.ai_drawings_count.value = 2 # Local generation is not truncated by cloud batch budget.
     await board._friendly_generate()
     assert(board.universal_plan.get("semantic_analysis", false), board.status.text)
-    assert(board.paths.size() == 8 and board.required_drawing_count == 8, board.status.text)
+    assert(board.paths.size() == 12 and board.required_drawing_count == 12, board.status.text)
     assert(board.universal_quality["fidelity_verified"])
     assert(not board._has_current_review())
     assert(board.sources[0].get_width() <= 320, "UI keeps thumbnails instead of every full-resolution PNG")
@@ -52,12 +63,14 @@ func run() -> void:
     var hashes: Array = []
     for path in board.paths:
         hashes.append(FileAccess.get_sha256(path))
-    board.review_index = 3
+    var repair_index: int = board.paths.find(board.universal_folder.path_join("pose_0003.png"))
+    assert(repair_index >= 0)
+    board.review_index = repair_index
     board._review_choose(false)
     await board._regenerate_reviewed_drawing()
-    assert(not board.accepted[3] and not board._has_current_review())
-    for i in range(8):
-        assert((FileAccess.get_sha256(board.paths[i]) == hashes[i]) == (i != 3))
+    assert(not board.accepted[repair_index] and not board._has_current_review())
+    for i in range(board.paths.size()):
+        assert((FileAccess.get_sha256(board.paths[i]) == hashes[i]) == (i != repair_index))
         board.review_index = i
         board._review_choose(true)
     board.review_check.set_pressed(true)
@@ -70,5 +83,5 @@ func run() -> void:
     assert(board._universal_ready_for_review() and not board._has_current_review())
     board.queue_free()
     await process_frame
-    print("LOCAL_STUDIO_TRANSPORT_OK: real loopback HTTP; SIMULATED inference; shared screen/pipeline, eight poses with budget two, bounded thumbnails/full PNG review, selective redo, consent, restore; no remote request or model inference")
+    print("LOCAL_STUDIO_TRANSPORT_OK: real loopback HTTP; SIMULATED inference; shared screen/pipeline, eight poses and four in-betweens, local budget two, bounded thumbnails/full PNG review, selective redo, consent, restore; no remote request or model inference")
     quit(0)

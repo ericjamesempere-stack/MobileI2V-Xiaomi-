@@ -51,6 +51,17 @@ class Pipeline extends "res://scripts/universal_board_pipeline.gd":
     func _ready() -> void:
         worker = FixtureWorker.new()
         add_child(worker)
+    func prepare(reference: Image, story: String, seconds: float, folder: String) -> Dictionary:
+        var prepared: Dictionary = await super.prepare(reference, story, seconds, folder)
+        if prepared.get("ok", false):
+            # Bound the fixture to four in-betweens. Production density is not
+            # changed; this validates the full screen at zero remote quota.
+            for i in range(prepared["steps"].size()):
+                prepared["steps"][i]["intermediate_drawings"] = 2 if i == 0 else 1
+            prepared["intermediate_drawings"] = 4
+            prepared["intermediate_schedule"] = load("res://scripts/karma_intermediate_agent.gd").new().schedule(prepared)
+            assert(_write(folder.path_join("plan.json"), prepared))
+        return prepared
 
 class Recorder extends RefCounted:
     var folder: String
@@ -109,7 +120,8 @@ func run() -> void:
     board.ai_drawings_count.value = 24
     await board._friendly_generate()
     assert(board.universal_plan.get("semantic_analysis", false), board.status.text)
-    assert(board.sources.size() == 8 and board.required_drawing_count == 8)
+    assert(board.sources.size() == 12 and board.required_drawing_count == 12)
+    assert(board.paths.filter(func(path: String) -> bool: return path.get_file().begins_with("between_")).size() == 4)
     assert(board.universal_pipeline.worker.analysis_calls == 1)
     assert(board.universal_pipeline.worker.generated == 12)
     assert(board.plan.size() == 150 and board.wizard_step == 2)
@@ -117,12 +129,14 @@ func run() -> void:
     await board._friendly_export()
     assert(board.encoder_calls == 0)
     board._show_drawing_review()
-    for i in range(8):
+    for i in range(board.sources.size()):
         board.review_index = i
         board._review_choose(true)
     board.review_check.set_pressed(true)
     assert(board._has_current_review(), board.status.text)
-    board.review_index = 3
+    var repair_index: int = board.paths.find(board.universal_folder.path_join("pose_0003.png"))
+    assert(repair_index >= 0)
+    board.review_index = repair_index
     board._review_choose(false)
     board.review_check.set_pressed(true)
     assert(not board._has_current_review())
@@ -134,11 +148,44 @@ func run() -> void:
     var worker: FixtureWorker = board.universal_pipeline.worker
     var review_count: int = worker.reviews
     await board._regenerate_reviewed_drawing()
-    assert(worker.repairs == 1 and worker.reviews == review_count + 1)
-    assert(not board.accepted[3] and not board._has_current_review())
-    for i in range(8):
-        assert((FileAccess.get_sha256(board.paths[i]) == hashes[i]) == (i != 3))
+    assert(worker.repairs == 1 and worker.reviews > review_count)
+    assert(not board.accepted[repair_index] and not board._has_current_review())
+    for i in range(board.paths.size()):
+        assert((FileAccess.get_sha256(board.paths[i]) == hashes[i]) == (i != repair_index))
     board._review_choose(true)
+    # In-between drawings have their own Keep/Reject/Redo flow and history.
+    var intermediate_index: int = -1
+    for i in range(board.paths.size()):
+        if board.paths[i].get_file().begins_with("between_"):
+            intermediate_index = i
+            break
+    assert(intermediate_index >= 0)
+    hashes.clear()
+    for path in board.paths:
+        hashes.append(FileAccess.get_sha256(path))
+    board.review_index = intermediate_index
+    board._review_choose(false)
+    await board._regenerate_reviewed_drawing()
+    assert(worker.repairs == 2 and not board.accepted[intermediate_index])
+    for i in range(board.paths.size()):
+        assert((FileAccess.get_sha256(board.paths[i]) == hashes[i]) == (i != intermediate_index))
+    board._review_choose(true)
+    board.review_check.set_pressed(true)
+    assert(board._has_current_review(), board.status.text)
+    # A missing, changed or unreviewed in-between must block the whole export.
+    var intermediate_path: String = board.paths[intermediate_index]
+    assert(DirAccess.rename_absolute(intermediate_path, intermediate_path + ".held") == OK)
+    await board._friendly_export()
+    assert(board.encoder_calls == 0 and not board._has_current_review())
+    assert(DirAccess.rename_absolute(intermediate_path + ".held", intermediate_path) == OK)
+    var intermediate_meta_path: String = intermediate_path.get_basename() + ".json"
+    var intermediate_meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(intermediate_meta_path))
+    var pending_meta: Dictionary = intermediate_meta.duplicate(true)
+    pending_meta["fidelity_verified"] = false
+    assert(board.universal_pipeline._write(intermediate_meta_path, pending_meta))
+    await board._friendly_export()
+    assert(board.encoder_calls == 0 and not board._has_current_review())
+    assert(board.universal_pipeline._write(intermediate_meta_path, intermediate_meta))
     board.review_check.set_pressed(true)
     assert(board._has_current_review())
     # The approved physical timeline is passed unchanged to the real exporter.
@@ -176,6 +223,10 @@ func run() -> void:
         assert(proof != null)
         proof.store_string(JSON.stringify({"simulated_drawings": true, "simulated_mediacodec": true, "real_encoder": "ffmpeg libx264", "decoded_without_error": true, "device_test": false, "streams": video["streams"]}, "  "))
         proof.close()
+        assert(board.contact_sheet.texture.get_image().save_png(proof_dir.path_join("SIMULATED_DRAWINGS_CONTACT_SHEET.png")) == OK)
+        var approvals := FileAccess.open(proof_dir.path_join("approval_verification.json"), FileAccess.WRITE)
+        approvals.store_string(JSON.stringify({"simulated_inference": true, "simulated_user_actions": true, "device_test": false, "keyposes": 8, "intermediates": 4, "all_drawings_in_review_and_export": true, "unapproved_export_blocked": true, "rejected_export_blocked": true, "missing_intermediate_export_blocked": true, "unreviewed_intermediate_export_blocked": true, "targeted_keypose_and_intermediate_repair": true, "timeline_frames_checked": 150}, "  "))
+        approvals.close()
     print("MP4_EXPORT_VERIFIED: H264 yuv420p 96x160 30fps 150 frames 5s; full decode PASS; simulated drawings and MediaCodec")
 
     # Reopening preserves bindings and timing, but requires fresh confirmation.
@@ -199,7 +250,7 @@ func run() -> void:
     failing.action_input.text += " analysis outage"
     await failing._friendly_generate()
     assert(not failing.last_ai_sequence_ok and failing.universal_pipeline.worker.generated == 0)
-    for i in range(8):
+    for i in range(board.paths.size()):
         assert(FileAccess.get_sha256(failing.paths[i]) == hashes[i])
     assert(not failing._has_current_review())
     failing.free()
@@ -208,9 +259,34 @@ func run() -> void:
     board.action_input.text += " budget"
     await board._friendly_generate()
     assert(board.status.text.contains("limite") and board.universal_pipeline.worker.generated == 0)
-    assert(board.sources.size() == 8 and not board._has_current_review())
+    assert(board.sources.size() == 12 and not board._has_current_review())
     board.ai_drawings_count.value = 24
     board._save()
+    # With eight required in-betweens, each pass still creates at most four.
+    # The first partial set cannot inherit approval; the second reuses pixels.
+    var staged := StagedBoard.new()
+    root.add_child(staged)
+    staged.action_input.text += " staged-in-betweens"
+    await staged._friendly_generate()
+    assert(staged.sources.size() == 12 and staged.required_drawing_count == 16)
+    assert(staged.universal_pipeline.worker.generated == 12)
+    var first_paths: Array = staged.paths.duplicate()
+    var first_hashes: Dictionary = {}
+    for path in first_paths:
+        first_hashes[path] = FileAccess.get_sha256(path)
+    staged._show_drawing_review()
+    for i in range(staged.sources.size()):
+        staged.review_index = i
+        staged._review_choose(true)
+    staged.review_check.set_pressed(true)
+    await staged._friendly_export()
+    assert(not staged._has_current_review() and staged.encoder_calls == 0)
+    await staged._friendly_generate()
+    assert(staged.sources.size() == 16 and staged.universal_pipeline.worker.generated == 4)
+    for path in first_paths:
+        assert(FileAccess.get_sha256(path) == first_hashes[path])
+    assert(staged._universal_ready_for_review() and not staged._has_current_review())
+    staged.free()
     var partial := PartialBoard.new()
     root.add_child(partial)
     partial.action_input.text += " partial"
@@ -256,7 +332,7 @@ func run() -> void:
         file.close()
     else:
         DirAccess.remove_absolute(save)
-    print("UNIVERSAL_ANDROID_INTEGRATION_OK: production screen -> SIMULATED vision -> strict plan -> poses -> contact sheet -> keep/reject/targeted redo -> mandatory approval -> real ffmpeg MP4 150 frames / 5s, exact timeline; restore and outage block; no Xiaomi/MediaCodec test")
+    print("UNIVERSAL_ANDROID_INTEGRATION_OK: production screen -> SIMULATED vision -> strict plan -> poses and all four in-betweens -> chronological contact sheet -> keep/reject/targeted redo -> mandatory approval -> real ffmpeg MP4 150 frames / 5s, exact timeline including in-betweens; missing/unreviewed in-between blocks export; restore and outage block; no Xiaomi/MediaCodec test")
     quit(0)
 
 class FailingPipeline extends Pipeline:
@@ -281,3 +357,17 @@ class ReviewOutagePipeline extends Pipeline:
 class ReviewOutageBoard extends Board:
     func _make_universal_pipeline() -> Node:
         return ReviewOutagePipeline.new()
+
+class StagedPipeline extends Pipeline:
+    func prepare(reference: Image, story: String, seconds: float, folder: String) -> Dictionary:
+        var prepared: Dictionary = await super.prepare(reference, story, seconds, folder)
+        if prepared.get("ok", false):
+            for i in range(prepared["steps"].size()):
+                prepared["steps"][i]["intermediate_drawings"] = 4 if i == 0 else 2
+            prepared["intermediate_drawings"] = 8
+            prepared["intermediate_schedule"] = load("res://scripts/karma_intermediate_agent.gd").new().schedule(prepared)
+            assert(_write(folder.path_join("plan.json"), prepared))
+        return prepared
+class StagedBoard extends Board:
+    func _make_universal_pipeline() -> Node:
+        return StagedPipeline.new()

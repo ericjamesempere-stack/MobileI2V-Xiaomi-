@@ -1,0 +1,69 @@
+{
+  "checked_at": "2026-11-17",
+  "runs": [
+    {
+      "id": 43805059374,
+      "name": "Validate KARMA ONE Godot scripts",
+      "sha": "769614a5913ba9e83e1a040c0e21422f3d51125d",
+      "conclusion": "success",
+      "url": "https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/43805059374",
+      "created_at": "2026-11-16T04:35:49Z"
+    },
+    {
+      "id": 43805059351,
+      "name": "Verify Visual Backend API",
+      "sha": "769614a5913ba9e83e1a040c0e21422f3d51125d",
+      "conclusion": "success",
+      "url": "https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/43805059351",
+      "created_at": "2026-11-16T04:35:49Z"
+    },
+    {
+      "id": 43805059403,
+      "name": "Verify 2D Storyboard Godot",
+      "sha": "769614a5913ba9e83e1a040c0e21422f3d51125d",
+      "conclusion": "success",
+      "url": "https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/43805059403",
+      "created_at": "2026-11-16T04:35:49Z"
+    },
+    {
+      "id": 43805059322,
+      "name": "Build Android APK MobileI2V V50",
+      "sha": "769614a5913ba9e83e1a040c0e21422f3d51125d",
+      "conclusion": "success",
+      "url": "https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/43805059322",
+      "created_at": "2026-11-16T04:35:49Z"
+    },
+    {
+      "id": 43821742737,
+      "name": "Build Android APK KARMA ONE V54",
+      "sha": "1276cebd00d6cad352319ad5dda2a301edafe8bf",
+      "conclusion": "success",
+      "url": "https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/43821742737",
+      "created_at": "2026-11-16T07:08:59Z"
+    },
+    {
+      "id": 43821742756,
+      "name": "Verify 2D Storyboard Godot",
+      "sha": "1276cebd00d6cad352319ad5dda2a301edafe8bf",
+      "conclusion": "success",
+      "url": "https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/43821742756",
+      "created_at": "2026-11-16T07:08:59Z"
+    },
+    {
+      "id": 43984469732,
+      "name": "Build Android APK KARMA ONE V54",
+      "sha": "1063ff26a764de3bb8eff515d0e371fcb1d2dddc",
+      "conclusion": "success",
+      "url": "https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/43984469732",
+      "created_at": "2026-11-17T00:03:26Z"
+    },
+    {
+      "id": 43984469671,
+      "name": "Validate universal board real inference",
+      "sha": "1063ff26a764de3bb8eff515d0e371fcb1d2dddc",
+      "conclusion": "failure",
+      "url": "https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/43984469671",
+      "created_at": "2026-11-17T00:03:26Z"
+    }
+  ]
+}

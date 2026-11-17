@@ -1,0 +1,37 @@
+{
+  "schema_version": 2,
+  "tasks": [
+    {
+      "id": "video",
+      "agent": "video",
+      "executor": "video",
+      "artifact": "mp4",
+      "dependencies": [],
+      "privacy_class": "synthetic",
+      "acceptance_criteria": [
+        "H264 metadata, nonzero frames and complete decode"
+      ],
+      "objective": "H264 metadata, nonzero frames and complete decode",
+      "inputs": {
+        "artifact": "mp4"
+      },
+      "max_attempts": 2
+    },
+    {
+      "id": "android",
+      "agent": "android",
+      "executor": "apk",
+      "artifact": "apk",
+      "dependencies": [],
+      "privacy_class": "synthetic",
+      "acceptance_criteria": [
+        "APK archive, ARM64 only, native plugins, apksigner verify"
+      ],
+      "objective": "APK archive, ARM64 only, native plugins, apksigner verify",
+      "inputs": {
+        "artifact": "apk"
+      },
+      "max_attempts": 2
+    }
+  ]
+}

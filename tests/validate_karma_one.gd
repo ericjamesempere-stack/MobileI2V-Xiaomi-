@@ -79,7 +79,13 @@ func _test_merge_resume() -> int:
  broken.store_string("not a png")
  broken.close()
  var broken_paths: Array[String] = [bad_path]
+ # This fixture deliberately invokes the PNG decoder on corrupt bytes.
+ # Keep its expected engine diagnostics out of generic CI error detection;
+ # the recovery result is still asserted immediately below.
+ var previous_error_output: bool = Engine.print_error_messages
+ Engine.print_error_messages = false
  var replacement: Dictionary = merger.merge(folder, broken_paths, 240, 4)
+ Engine.print_error_messages = previous_error_output
  if not bool(replacement.get("ok", false)) or not replacement.get("indices", []).has(1):
   printerr("FAILED: damaged existing frame was not replaced ", replacement)
   return 1
