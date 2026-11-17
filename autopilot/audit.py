@@ -11,10 +11,10 @@ from urllib.parse import quote
 from datetime import datetime, timezone
 
 REPO = os.environ.get('GITHUB_REPOSITORY', 'ericjamesempere-stack/MobileI2V-Xiaomi-')
-BRANCH = os.environ.get('KARMA_TARGET_BRANCH', 'karma/v55-finalisation-20261117')
+BRANCH = os.environ.get('KARMA_TARGET_BRANCH', 'karma/v56-local-engines-20261117')
 # This version's Android workflow includes parser, native, approval and MP4 checks.
 # Historical V53/V54 evidence is preserved separately in validation/autopilot-v2.
-WORKFLOWS = [os.environ.get('KARMA_BUILD_WORKFLOW', 'Build Android APK KARMA ONE V55')]
+WORKFLOWS = [os.environ.get('KARMA_BUILD_WORKFLOW', 'Build Android APK KARMA ONE V56 Local')]
 
 def get(path):
     if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', REPO):

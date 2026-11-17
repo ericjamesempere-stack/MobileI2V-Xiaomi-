@@ -59,7 +59,8 @@ func build_boards(reference: Image, story: String, seconds: float, style: String
         guide_sha = load("res://scripts/reference_visual_analysis.gd").new().reference_sha(worker.style_reference)
     # Exported Godot scripts may be remapped to bytecode; do not read source
     # paths with FileAccess to fingerprint a packaged Android application.
-    var implementation: String = "autopilot-v2-memory-1:" + str(ProjectSettings.get_setting("application/config/version", "2")) + ":" + worker.vision_provider_id()
+    var context: String = worker.inference_context_id() if worker.has_method("inference_context_id") else worker.vision_provider_id()
+    var implementation: String = "autopilot-v2-memory-1:" + str(ProjectSettings.get_setting("application/config/version", "2")) + ":" + context
     var input_sha: String = (REVISION + implementation + reference_sha + story + str(seconds) + style + guide_sha + str(local_inference) + str(maximum_keyposes)).sha256_text()
     var memory: RefCounted = load("res://scripts/karma_technical_memory.gd").new()
     var ticket: Dictionary = memory.begin(input_sha)

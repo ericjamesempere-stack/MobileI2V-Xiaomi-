@@ -14,6 +14,8 @@ var ai_endpoint: LineEdit
 var ai_token_input: LineEdit
 var local_mode: CheckBox
 var local_auth_input: LineEdit
+var local_engine_status: Label
+var last_local_probe: Dictionary = {}
 var ai_http: HTTPRequest
 var ai_running: bool = false
 var pose_http: HTTPRequest
@@ -2035,6 +2037,14 @@ func _create_remote_reference(description_override: String = "") -> void:
     var worker: Node = _make_drawing_worker()
     worker.hf_token = ai_token_input.text.strip_edges()
     add_child(worker)
+    if worker.has_method("inspect_local_engines"):
+        var probe: Dictionary = await worker.inspect_local_engines(false, true)
+        _remember_local_probe(probe)
+        if not probe.get("ok", false):
+            worker.queue_free()
+            ai_running = false
+            status.text = probe["message"] + " Ton projet est conservé."
+            return
     var result: Dictionary = await worker.create_reference(description, _selected_drawing_style())
     worker.queue_free()
     ai_running = false
@@ -2101,6 +2111,35 @@ func _configure_universal_pipeline(style_image: Image = null) -> void:
     universal_pipeline.worker.remote_vision_consent = true
     universal_pipeline.stage_changed.connect(_universal_progress)
 
+func _remember_local_probe(report: Dictionary) -> void:
+    last_local_probe = report.duplicate(true)
+    if local_engine_status != null:
+        local_engine_status.text = str(report.get("message", "Connexion locale non vérifiée."))
+
+func _check_local_engines() -> void:
+    if ai_running or disk_drawing_running or exporting_video or photo_importing:
+        return
+    if not local_mode.button_pressed:
+        status.text = "Active le mode moteurs du téléphone pour vérifier la connexion locale."
+        return
+    ai_running = true
+    status.text = "Vérification des moteurs du téléphone, sans envoyer de photo…"
+    var worker: Node = _make_drawing_worker()
+    add_child(worker)
+    var report: Dictionary = await worker.inspect_local_engines()
+    _remember_local_probe(report)
+    worker.queue_free()
+    ai_running = false
+    status.text = report["message"]
+    _sync_friendly_ui()
+
+func _copy_local_diagnostic() -> void:
+    if last_local_probe.is_empty():
+        status.text = "Vérifie d'abord les moteurs du téléphone."
+        return
+    DisplayServer.clipboard_set(JSON.stringify(last_local_probe, "  "))
+    status.text = "Diagnostic copié : connexion uniquement, sans photo ni jeton."
+
 func _universal_progress(stage: String, completed: int, total: int) -> void:
     match stage:
         "reference_generation":
@@ -2123,7 +2162,7 @@ func _universal_signature() -> String:
     var guide: String = FileAccess.get_sha256(style_reference_path) if not style_reference_path.is_empty() and FileAccess.file_exists(style_reference_path) else style_reference_path
     var signature: Array = [identity, action_input.text.strip_edges(), float(duration_input.value), _selected_drawing_style(), guide]
     if local_mode.button_pressed:
-        signature.append("mnn-localdream-v1")
+        signature.append("mnn-localdream-v1") # Keep existing project/cache folders.
     return JSON.stringify(signature).sha256_text()
 
 func _clear_universal_state() -> void:
@@ -2159,6 +2198,15 @@ func _draw_remote_story() -> void:
     _configure_universal_pipeline(style_image)
     ai_running = true
     last_ai_sequence_ok = false
+    if universal_pipeline.worker.has_method("inspect_local_engines"):
+        # Connectivity/setup failures occur before inference reservations;
+        # starting a missing engine must not exhaust the correction budget.
+        var probe: Dictionary = await universal_pipeline.worker.inspect_local_engines()
+        _remember_local_probe(probe)
+        if not probe.get("ok", false):
+            ai_running = false
+            status.text = probe["message"] + " Tes dessins sont conservés."
+            return
     var result: Dictionary = await universal_pipeline.build_boards(reference, story, float(duration_input.value), _selected_drawing_style(), folder, 2147483647 if local_mode.button_pressed else int(ai_drawings_count.value))
     ai_running = false
     if result.get("stage", "") == "budget":

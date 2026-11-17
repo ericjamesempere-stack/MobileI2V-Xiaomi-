@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ROOT = Path(__file__).resolve().parents[1]
 
 def main():
-    counts = {"models": 0, "analysis": 0, "review": 0, "generate": 0}
+    counts = {"models": 0, "health": 0, "analysis": 0, "review": 0, "generate": 0}
     scene = json.loads((ROOT / "tests/fixtures/universal_a_annotation.json").read_text())
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -28,6 +28,13 @@ def main():
             self.end_headers()
             self.wfile.write(body)
         def do_GET(self):
+            if self.path == "/health":
+                assert self.headers.get("Authorization") is None
+                counts["health"] += 1
+                self.send_response(200)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             assert self.path == "/v1/models"
             assert self.headers.get("Authorization") == "Bearer test-local-secret"
             counts["models"] += 1
@@ -50,6 +57,7 @@ def main():
                     result = {"frames": [dict(index=i, identity_match=True, count_match=True, action_match=True, environment_match=True, perspective_match=True, uncertain=False, defects=[]) for i in range(len(expected))]}
                 self.send({"choices": [{"finish_reason": "stop", "message": {"content": json.dumps(result)}}]})
             elif self.path == "/generate":
+                assert self.headers.get("Authorization") is None
                 assert data["use_opencl"] is False
                 if "image" in data:
                     encoded = base64.b64decode(data["image"])
@@ -75,13 +83,18 @@ def main():
         env["HTTPS_PROXY"] = "http://127.0.0.1:1"
         godot = env.get("GODOT_BIN") or shutil.which("godot")
         assert godot
-        result = subprocess.run([godot, "--headless", "--path", str(ROOT), "--script", "res://tests/test_local_studio_transport.gd"], env=env, capture_output=True, text=True, timeout=45)
+        try:
+            result = subprocess.run([godot, "--headless", "--path", str(ROOT), "--script", "res://tests/test_local_studio_transport.gd"], env=env, capture_output=True, text=True, timeout=45)
+        except subprocess.TimeoutExpired as error:
+            print((error.stdout or b'').decode(errors='replace') if isinstance(error.stdout, bytes) else error.stdout)
+            print((error.stderr or b'').decode(errors='replace') if isinstance(error.stderr, bytes) else error.stderr)
+            raise
         server.shutdown()
         print(result.stdout)
         assert result.returncode == 0 and "LOCAL_STUDIO_TRANSPORT_OK" in result.stdout and "SCRIPT ERROR" not in result.stderr, result.stdout + result.stderr
         # Initial keypose checks: 8. In-betweens: 4 * (1 + 3) = 16.
         # One repaired keypose: 1. Its changed neighbor transition: 1 + 3 = 4.
-        assert counts == {"models": 1, "analysis": 1, "review": 29, "generate": 14}, counts
+        assert counts == {"models": 1, "health": 2, "analysis": 1, "review": 29, "generate": 14}, counts
         print("LOCAL_HTTP_NO_CLOUD_COUNTS_OK", counts)
 if __name__ == "__main__":
     main()

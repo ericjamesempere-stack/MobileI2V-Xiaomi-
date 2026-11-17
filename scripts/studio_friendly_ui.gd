@@ -91,7 +91,7 @@ func build(board: Control) -> void:
     shell.add_theme_constant_override("separation", 12)
     margin.add_child(shell)
     text(shell, "KARMA ONE", 36, PURPLE)
-    text(shell, "Imagine. Dessine. Anime. · V55", 21, MUTED)
+    text(shell, "Imagine. Dessine. Anime. · V56", 21, MUTED)
     var tabs := HBoxContainer.new()
     tabs.add_theme_constant_override("separation", 8)
     shell.add_child(tabs)
@@ -265,13 +265,18 @@ func build(board: Control) -> void:
     board.ai_drawings_count.value = 24
     advanced.add_child(board.ai_drawings_count)
     text(advanced, "Installation des moteurs locaux", 20)
-    text(advanced, "MNN Chat : charge un modèle vision et active l'API sur le port 8080. Local Dream : charge un modèle SD1.5 CPU avec prise en charge img2img ; son moteur écoute sur le port 8081. Le GPU MediaTek reste à vérifier. Les modèles se téléchargent séparément.", 18, MUTED)
+    text(advanced, "À installer une seule fois : MNN Chat avec un modèle vision et Local Dream avec un modèle SD1.5 CPU prenant en charge img2img. Ouvre les moteurs et garde leurs services actifs. Télécharge les modèles en Wi-Fi. Aucun abonnement ni appel en ligne automatique dans ce mode ; le calcul utilise ton téléphone.", 18, MUTED)
+    text(advanced, "Sur Xiaomi MediaTek : commence par CPU. Les modèles DiT et NPU réservés aux Snapdragon ne sont pas sélectionnés par KARMA ONE. La qualité et la vitesse restent à vérifier avec tes images.", 18, MUTED)
+    button(board, advanced, "Vérifier les moteurs du téléphone", board._check_local_engines).name = "CheckLocalEngines"
+    board.local_engine_status = text(advanced, "Connexion locale non vérifiée. Ce contrôle ne génère aucune image.", 18, MUTED)
+    button(board, advanced, "Copier le diagnostic local", board._copy_local_diagnostic).name = "CopyLocalDiagnostic"
     button(board, advanced, "Télécharger MNN Chat", func() -> void: OS.shell_open("https://github.com/alibaba/MNN/releases"))
     button(board, advanced, "Télécharger Local Dream", func() -> void: OS.shell_open("https://github.com/xororz/local-dream/releases"))
     board.local_auth_input = LineEdit.new()
     board.local_auth_input.secret = true
-    board.local_auth_input.placeholder_text = "Jeton de l'API locale MNN Chat, si elle en exige un"
+    board.local_auth_input.placeholder_text = "Clé locale générée dans les réglages API de MNN Chat"
     advanced.add_child(board.local_auth_input)
+    text(advanced, "MNN Chat protège son API locale par une clé. Copie-la dans ce champ privé ; elle n'est pas enregistrée dans tes projets et ne sert à aucun abonnement.", 18, MUTED)
     text(advanced, "Compte Hugging Face : jeton facultatif", 20)
     board.ai_token_input = LineEdit.new()
     board.ai_token_input.secret = true

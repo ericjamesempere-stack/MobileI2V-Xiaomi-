@@ -1,0 +1,31 @@
+{
+  "checked_on": "2026-11-17",
+  "localdream_source": "https://github.com/xororz/local-dream",
+  "mnn_source": "https://github.com/alibaba/MNN",
+  "source_files_sha256": {
+    "main.cpp": "e8a973f834a579c94ded02d14c3a2b5fec46aee733e121bb02b0b285cd78060f",
+    "RequestParser.hpp": "dccc04fb73372dc3e8449d4848be57c15db56537ca256663e56826d7a2641d51",
+    "MNNModelsService.kt": "f4a0ad067456cddc4681216689a1fe4395da2aa5abe21be73ae9c9cd20709f9d",
+    "RemoteProtocol.kt": "8dce096874140ac4f67f687da9d0de59f95cb24d97c12a2f27308d7f2a94f401",
+    "DitEngine.kt": "2777e67d99fab1524e74fc14dd49f51972084424ab1f88f16b41b097925bdaab"
+  },
+  "observations": [
+    "MNN /v1/models returns the active model, not a vision-capability certificate",
+    "MNN API defaults to 127.0.0.1:8080 with authentication",
+    "Local Dream generation port 8081; /health returns empty HTTP 200",
+    "Local Dream image payload accepts base64 encoded images; output_format png and raw supported",
+    "Current Local Dream DiT optimized path checks Qualcomm SM8750 or newer, not MediaTek"
+  ],
+  "not_validated": [
+    "Xiaomi runtime",
+    "Actual loaded local model",
+    "Actual identity or motion quality"
+  ],
+  "recommended_vision_model": {
+    "catalog_name": "Qwen2.5-VL-3B-Instruct-MNN",
+    "huggingface": "taobao-mnn/Qwen2.5-VL-3B-Instruct-MNN",
+    "catalog_file_bytes": 2736203723,
+    "catalog_sha256": "4a9f2f1d86a47becd8c061dfe608f81b392ac2ab50560ec48ddc28d08dfd922b",
+    "device_inference_validated": false
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "delivery": "KARMA_ONE_V56_LOCAL_20261117_0521",
+  "base_commit": "75af13f1f714b2e0edbe94fc0574a661c303942e",
+  "files_sha256": {
+    ".github/workflows/build-apk.yml": "25bf0d6464a56025e5b1069e390d0b7216f5b0f65c415125c235b07a24416d71",
+    "autopilot/audit.py": "8d97abef8bfe5451145077a567c4e29592f4079dbf9eb37b48ad21c67435c86d",
+    "export_presets.cfg": "627a42493be97ac35a12847750ffadc8fd0dd4df1c14297873a00ecaba1d5fd1",
+    "project.godot": "195d4154ec47ac25bfa7a165709ddcf937a32770e17802207488487ba07d5195",
+    "scripts/local_studio_generator.gd": "ece1d900272ecfbb1962518e56e4ce067f9f45035ecf3cb6f9521210ecf5ea71",
+    "scripts/storyboard.gd": "5e56d66a714e2a340d6d4789c78178418d9810fd1515397e66fafb5a192a02d2",
+    "scripts/studio_friendly_ui.gd": "7e2a8882b6e42f032f02637660486ba5e48cd75aa4a15e62ac01f1dfe9ad7eb5",
+    "scripts/universal_board_pipeline.gd": "772a15c9aacd897a5b9d1e6cfb9d5ba411070a1c6069ac081129395f3bb5e678",
+    "tests/test_autopilot_pipeline_budget.gd": "ce26154dad8beeaf459034f3b87c46b8379a65a2b68902c9e74d77da0d5f2b42",
+    "tests/test_local_engine_probe.gd": "6342dc69a62a9275aab7c91ec52ca8789f5b30e42cedda142d2a86b8d5ed9c32",
+    "tests/test_local_engine_probe.py": "affe1cf760d63758a5cbf313f5af56164b1f14e52b001da203d6ff7e301c91d3",
+    "tests/test_local_studio_transport.py": "790b2f6edde078116e4f628aa05334fbbdd864a91c11882a152a47e24240a57a",
+    "validation/v56/CHANGELOG.md": "a1d2a6bc25852689726c030c92e7d2a1ab8273d40f4d627403bd5ec6d4ea6a52",
+    "validation/v56/INSTALLATION_XIAOMI.md": "5c610c8fc0274a3db580657d53c8e64119721be6f1df098d36e532e52443ea44",
+    "validation/v56/UPSTREAM_API_EVIDENCE.json": "76d2e2a6694d0f3c9cc727df4e72ac22c56b22009d5e25dad0683742e12d6144"
+  },
+  "scope": "Changed source; excludes this manifest, private images, engine weights and test outputs"
+}
