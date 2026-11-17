@@ -8,17 +8,19 @@ class LocalPipeline extends "res://scripts/universal_board_pipeline.gd":
     func prepare(reference: Image, story: String, seconds: float, folder: String) -> Dictionary:
         var prepared: Dictionary = await super.prepare(reference, story, seconds, folder)
         if prepared.get("ok", false):
-            # Four simulated in-betweens keep the HTTP fixture bounded while
-            # exercising review/export readiness of the whole drawing set.
+            # Nine simulated in-betweens require three bounded batches,
+            # exercising automatic continuation in the real local pipeline.
             for i in range(prepared["steps"].size()):
-                prepared["steps"][i]["intermediate_drawings"] = 2 if i == 0 else 1
-            prepared["intermediate_drawings"] = 4
+                prepared["steps"][i]["intermediate_drawings"] = 7 if i == 0 else 1
+            prepared["intermediate_drawings"] = 9
             prepared["intermediate_schedule"] = load("res://scripts/karma_intermediate_agent.gd").new().schedule(prepared)
             assert(_write(folder.path_join("plan.json"), prepared))
         return prepared
 class LocalBoard extends "res://scripts/storyboard.gd":
     func _make_universal_pipeline() -> Node:
-        return LocalPipeline.new()
+        var pipeline := LocalPipeline.new()
+        pipeline.local_inference = true
+        return pipeline
     func _make_drawing_worker() -> Node:
         var worker: Node = super._make_drawing_worker()
         worker.vision_base = OS.get_environment("KARMA_LOCAL_TEST_SERVER")
@@ -44,8 +46,18 @@ func run() -> void:
     board.duration_input.value = 5
     board.ai_drawings_count.value = 2 # Local generation is not truncated by cloud batch budget.
     await board._friendly_generate()
+    if OS.get_environment("KARMA_LOCAL_TEST_SCENARIO") == "outage":
+        assert(not board.ai_running and not board._has_current_review())
+        assert(board.status.text.contains("SIMULATED engine interruption"), "Show the useful engine error: " + board.status.text)
+        assert(board.paths.size() == 12, "Eight keyposes and first four in-betweens survive engine interruption: " + board.status.text)
+        var preserved: Dictionary = {}
+        for path in board.paths:
+            preserved[path] = FileAccess.get_sha256(path)
+        await board._friendly_generate()
+        for path in preserved:
+            assert(FileAccess.get_sha256(path) == preserved[path], "Resume must not regenerate saved drawings")
     assert(board.universal_plan.get("semantic_analysis", false), board.status.text)
-    assert(board.paths.size() == 12 and board.required_drawing_count == 12, board.status.text)
+    assert(board.paths.size() == 17 and board.required_drawing_count == 17, board.status.text)
     assert(board.universal_quality["fidelity_verified"])
     assert(not board._has_current_review())
     assert(board.sources[0].get_width() <= 320, "UI keeps thumbnails instead of every full-resolution PNG")
@@ -83,5 +95,5 @@ func run() -> void:
     assert(board._universal_ready_for_review() and not board._has_current_review())
     board.queue_free()
     await process_frame
-    print("LOCAL_STUDIO_TRANSPORT_OK: real loopback HTTP; SIMULATED inference; shared screen/pipeline, eight poses and four in-betweens, local budget two, bounded thumbnails/full PNG review, selective redo, consent, restore; no remote request or model inference")
+    print("LOCAL_STUDIO_TRANSPORT_OK: real loopback HTTP; SIMULATED inference; shared screen/pipeline, eight poses and nine in-betweens in three automatic batches, local budget two, bounded thumbnails/full PNG review, selective redo, consent, restore; no remote request or model inference")
     quit(0)

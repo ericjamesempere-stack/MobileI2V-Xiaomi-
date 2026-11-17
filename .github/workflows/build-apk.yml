@@ -1,8 +1,8 @@
-name: Build Android APK KARMA ONE V56 Local
+name: Build Android APK KARMA ONE V57 Local
 
 on:
   push:
-    branches: [main, karma/storyboard-story-sequence-20261113, karma/v54-approval-safety-20261116, karma/autopilot-v2-20261117, karma/universal-text-entry-v55-20261117, karma/v55-finalisation-20261117, karma/v56-local-engines-20261117]
+    branches: [main, karma/storyboard-story-sequence-20261113, karma/v54-approval-safety-20261116, karma/autopilot-v2-20261117, karma/universal-text-entry-v55-20261117, karma/v55-finalisation-20261117, karma/v56-local-engines-20261117, karma/v57-local-continuation-20261117]
     paths-ignore:
       - '**.md'
       - '.github/workflows/validate-universal-live.yml'
@@ -242,6 +242,9 @@ jobs:
           grep -q 'LOCAL_HTTP_NO_CLOUD_COUNTS_OK' local-studio.log
           GODOT_BIN="$PWD/Godot_v4.5.2-stable_linux.x86_64" python3 tests/test_local_engine_probe.py 2>&1 | tee local-engine-probe.log
           grep -q 'LOCAL_ENGINE_PROBE_HTTP_OK' local-engine-probe.log
+          timeout 30s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_local_prompt.gd 2>&1 | tee local-prompt.log
+          grep -q 'LOCAL_PROMPT_BUDGET_OK' local-prompt.log
+          if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' local-prompt.log; then exit 1; fi
       - name: Test integrated universal Android screen through MP4
         timeout-minutes: 3
         run: |
@@ -296,25 +299,25 @@ jobs:
           set -euo pipefail
           mkdir -p build
           timeout 300s ./Godot_v4.5.2-stable_linux.x86_64 --headless --verbose --path . \
-            --export-debug Android build/KARMA_ONE_V56_LOCAL_20261117_ARM64.apk 2>&1 | tee export.log
-          test -s build/KARMA_ONE_V56_LOCAL_20261117_ARM64.apk
-          unzip -t build/KARMA_ONE_V56_LOCAL_20261117_ARM64.apk | tail -2
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs build/KARMA_ONE_V56_LOCAL_20261117_ARM64.apk | tee signing-check.log
-          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging build/KARMA_ONE_V56_LOCAL_20261117_ARM64.apk | tee apk-badging.txt
+            --export-debug Android build/KARMA_ONE_V57_LOCAL_20261117_ARM64.apk 2>&1 | tee export.log
+          test -s build/KARMA_ONE_V57_LOCAL_20261117_ARM64.apk
+          unzip -t build/KARMA_ONE_V57_LOCAL_20261117_ARM64.apk | tail -2
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs build/KARMA_ONE_V57_LOCAL_20261117_ARM64.apk | tee signing-check.log
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging build/KARMA_ONE_V57_LOCAL_20261117_ARM64.apk | tee apk-badging.txt
           grep -q "package: name='com.ericjamesempere.mobilei2v'" apk-badging.txt
           grep -q 'launchable-activity:' apk-badging.txt
-          unzip -l build/KARMA_ONE_V56_LOCAL_20261117_ARM64.apk | grep -q 'lib/arm64-v8a/libgodot_android.so'
-          if unzip -l build/KARMA_ONE_V56_LOCAL_20261117_ARM64.apk | grep -q 'lib/armeabi-v7a/'; then
+          unzip -l build/KARMA_ONE_V57_LOCAL_20261117_ARM64.apk | grep -q 'lib/arm64-v8a/libgodot_android.so'
+          if unzip -l build/KARMA_ONE_V57_LOCAL_20261117_ARM64.apk | grep -q 'lib/armeabi-v7a/'; then
             echo 'Unexpected 32-bit ARM libraries in ARM64-only APK' >&2
             exit 1
           fi
-          stat -c 'APK size: %s bytes' build/KARMA_ONE_V56_LOCAL_20261117_ARM64.apk
-          sha256sum build/KARMA_ONE_V56_LOCAL_20261117_ARM64.apk
+          stat -c 'APK size: %s bytes' build/KARMA_ONE_V57_LOCAL_20261117_ARM64.apk
+          sha256sum build/KARMA_ONE_V57_LOCAL_20261117_ARM64.apk
 
       - name: Verify native MP4 class and Android plugin registration
         run: |
           set -euo pipefail
-          APK=build/KARMA_ONE_V56_LOCAL_20261117_ARM64.apk
+          APK=build/KARMA_ONE_V57_LOCAL_20261117_ARM64.apk
           "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$APK" | grep -E "^(package:|launchable-activity:|native-code:)" | tee build/apk-runtime-metadata.txt
           "$ANDROID_HOME/build-tools/34.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml > build/apk-manifest.txt
           grep -q 'org.godotengine.plugin.v2.MP4Exporter' build/apk-manifest.txt
@@ -323,7 +326,7 @@ jobs:
           grep -q '127.0.0.1' build/apk-local-network.txt
           python3 - <<'PY'
           import zipfile
-          with zipfile.ZipFile('build/KARMA_ONE_V56_LOCAL_20261117_ARM64.apk') as z:
+          with zipfile.ZipFile('build/KARMA_ONE_V57_LOCAL_20261117_ARM64.apk') as z:
               dex = [z.read(n) for n in z.namelist() if n.endswith('.dex')]
               assert any(b'Lcom/mobilei2v/encoder/MP4Exporter;' in data for data in dex), 'MP4 native class absent'
               assert any(b'share_last_export' in data for data in dex), 'MP4 share method absent'
@@ -336,7 +339,7 @@ jobs:
       - name: Publish verified APK checksum and build evidence
         run: |
           set -euo pipefail
-          sha256sum build/KARMA_ONE_V56_LOCAL_20261117_ARM64.apk | tee build/SHA256SUMS.txt
+          sha256sum build/KARMA_ONE_V57_LOCAL_20261117_ARM64.apk | tee build/SHA256SUMS.txt
           {
             echo "## MobileI2V Android build"
             echo "- Commit: \`$GITHUB_SHA\`"
@@ -352,9 +355,9 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: KARMA_ONE_V56_LOCAL_20261117_ARM64
+          name: KARMA_ONE_V57_LOCAL_20261117_ARM64
           path: |
-            build/KARMA_ONE_V56_LOCAL_20261117_ARM64.apk
+            build/KARMA_ONE_V57_LOCAL_20261117_ARM64.apk
             build/SHA256SUMS.txt
             build/apk-runtime-metadata.txt
             signing-check.log
@@ -363,11 +366,13 @@ jobs:
             autopilot-pipeline.log
             import-individual-review.log
             local-engine-probe.log
+            local-prompt.log
             local-studio.log
             universal-android-integration.log
             validation/autopilot-v2/
             validation/v55/
             validation/v56/
+            validation/v57/
             build/integration-proof/
           if-no-files-found: error
           retention-days: 30

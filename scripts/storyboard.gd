@@ -2255,6 +2255,12 @@ func _draw_remote_story() -> void:
     frame_index = 0
     v5_sheet_loaded = true
     var failure: String = str(generation.get("error", ""))
+    if result.get("stage", "") == "intermediate_generation":
+        var intermediate_failure: Dictionary = result.get("intermediates", {})
+        failure = str(intermediate_failure.get("detail", intermediate_failure.get("error", "")))
+    elif result.get("stage", "") == "intermediate_fidelity_review" and not result.get("intermediate_review", {}).get("ok", false):
+        var intermediate_failure: Dictionary = result.get("intermediate_review", {})
+        failure = str(intermediate_failure.get("detail", intermediate_failure.get("error", result.get("error", ""))))
     session_agent.finish_drawings(failure)
     session_agent.state["quality"] = universal_quality
     session_agent.state["agents"]["quality"] = "model_review_passed" if universal_quality.get("fidelity_verified", false) else "unverified_or_rejected"

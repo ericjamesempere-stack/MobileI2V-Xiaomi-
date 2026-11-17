@@ -1,0 +1,13 @@
+{
+  ".github/workflows/build-apk.yml": "65ded232b7357a6a03536547cacc2d059151364fa84f82e1a95e542b3967d099",
+  "autopilot/audit.py": "e053f812acb4a80ba8d1ca9cdb5c992cad6cb52a113bdca6140f9d09b14c9704",
+  "export_presets.cfg": "3930941c962f5c113f91dd6e28f48d20bac02fc427f71efe78239258dfcaac9d",
+  "project.godot": "060195129a4e0daf7693fb4a71bc05fa6c42923b2428763990d2c75b6aa8092f",
+  "scripts/local_studio_generator.gd": "55fc6df9c432fbd86f2886f3ed61dd0dc66602436c2ef913bd740629e6744ec0",
+  "scripts/storyboard.gd": "1bc125097bcee9666863e144999d84db935935e304626bb722205fc47f044fef",
+  "scripts/studio_friendly_ui.gd": "7312ac8aaaacd9b9762bbf19f790c01ce3a190a2739ac5f97b71563961ca5fa6",
+  "scripts/universal_board_pipeline.gd": "3f373dcbb1ec86281474a9d8abf089edc9edab567663b843b4f5478ea2d91450",
+  "tests/test_local_prompt.gd": "c3ce61cb1d3e24993d767e56a58b0b499130942eb0e97cc3cf12367c71cf1c93",
+  "tests/test_local_studio_transport.gd": "69c6fc420efc1a7401381f2775b9b3b06aff1c9fa0f3778ac827d10857c97cde",
+  "tests/test_local_studio_transport.py": "b021371e74ee08acbe69c73af587e278bbee8c92ab4d3c1cd9097abe4c755330"
+}

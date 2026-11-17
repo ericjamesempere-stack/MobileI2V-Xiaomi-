@@ -96,7 +96,24 @@ func _build_boards(reference: Image, story: String, seconds: float, style: Strin
         return {"ok": false, "stage": "intermediate_generation", "plan": plan, "generation": generation, "quality": review, "intermediates": intermediate_result, "human_approved": false, "ready_for_animation": false}
     stage_changed.emit("intermediate_fidelity_review", 0, int(plan.get("intermediate_drawings", 0)))
     var intermediate_review: Dictionary = await intermediate_agent.review_candidates(reference, plan, folder, worker, 4)
-    return {"ok": intermediate_review.get("ok", false), "stage": "intermediate_fidelity_review", "plan": plan, "generation": generation, "quality": review, "intermediates": intermediate_result, "intermediate_review": intermediate_review, "human_approved": false, "ready_for_animation": false, "intermediates_generated_this_pass": intermediate_result.get("generated", 0)}
+    var generated_total: int = int(intermediate_result.get("generated", 0))
+    # Remote calls retain their small quota budget. On-device work continues
+    # sequentially in bounded batches; each saved batch remains resumable.
+    # Stop immediately on rejection, engine failure or lack of progress.
+    var remaining: int = intermediate_review.get("pending", []).size()
+    while local_inference and intermediate_review.get("ok", false) and intermediate_review.get("failed", []).is_empty() and remaining > 0:
+        stage_changed.emit("intermediate_generation", int(plan.get("intermediate_drawings", 0)) - remaining, int(plan.get("intermediate_drawings", 0)))
+        intermediate_result = await intermediate_agent.render_pending(plan, folder, worker, style, 4, reference)
+        generated_total += int(intermediate_result.get("generated", 0))
+        if not intermediate_result.get("ok", false):
+            return {"ok": false, "stage": "intermediate_generation", "plan": plan, "generation": generation, "quality": review, "intermediates": intermediate_result, "human_approved": false, "ready_for_animation": false}
+        stage_changed.emit("intermediate_fidelity_review", int(plan.get("intermediate_drawings", 0)) - remaining, int(plan.get("intermediate_drawings", 0)))
+        intermediate_review = await intermediate_agent.review_candidates(reference, plan, folder, worker, 4)
+        var next_remaining: int = intermediate_review.get("pending", []).size()
+        if intermediate_review.get("ok", false) and intermediate_review.get("failed", []).is_empty() and next_remaining >= remaining:
+            return {"ok": false, "stage": "intermediate_fidelity_review", "error": "local_intermediate_no_progress", "plan": plan, "generation": generation, "quality": review, "intermediates": intermediate_result, "intermediate_review": intermediate_review, "human_approved": false, "ready_for_animation": false}
+        remaining = next_remaining
+    return {"ok": intermediate_review.get("ok", false), "stage": "intermediate_fidelity_review", "plan": plan, "generation": generation, "quality": review, "intermediates": intermediate_result, "intermediate_review": intermediate_review, "human_approved": false, "ready_for_animation": false, "intermediates_generated_this_pass": generated_total}
 
 func _write(path: String, value: Dictionary) -> bool:
     var file := FileAccess.open(path + ".part", FileAccess.WRITE)

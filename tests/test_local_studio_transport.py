@@ -14,8 +14,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(__file__).resolve().parents[1]
 
-def main():
-    counts = {"models": 0, "health": 0, "analysis": 0, "review": 0, "generate": 0}
+def main(scenario="ready"):
+    counts = {"models": 0, "health": 0, "analysis": 0, "review": 0, "generate": 0, "compile": 0, "tokenize": 0}
     scene = json.loads((ROOT / "tests/fixtures/universal_a_annotation.json").read_text())
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -48,7 +48,10 @@ def main():
                 for item in content[1:]:
                     assert item["image_url"]["url"].startswith("data:image/png;base64,")
                 prompt = content[0]["text"]
-                if prompt.startswith("Inspect the supplied"):
+                if prompt.startswith("Compile a Stable Diffusion CLIP prompt"):
+                    counts["compile"] += 1
+                    result = {"prompt": "A curved yellow banana running on a level floor, existing thin arms and legs, consistent cartoon style"}
+                elif prompt.startswith("Inspect the supplied"):
                     counts["analysis"] += 1
                     result = scene
                 else:
@@ -56,6 +59,10 @@ def main():
                     counts["review"] += len(expected)
                     result = {"frames": [dict(index=i, identity_match=True, count_match=True, action_match=True, environment_match=True, perspective_match=True, uncertain=False, defects=[]) for i in range(len(expected))]}
                 self.send({"choices": [{"finish_reason": "stop", "message": {"content": json.dumps(result)}}]})
+            elif self.path == "/tokenize":
+                assert self.headers.get("Authorization") is None
+                counts["tokenize"] += 1
+                self.send({"count": 24, "max_length": 77})
             elif self.path == "/generate":
                 assert self.headers.get("Authorization") is None
                 assert data["use_opencl"] is False
@@ -63,11 +70,14 @@ def main():
                     encoded = base64.b64decode(data["image"])
                     assert encoded.startswith(b"\x89PNG")
                     assert struct.unpack(">II", encoded[16:24]) == (512, 512)
-                    assert "Preserve the reference" in data["prompt"]
+                    assert data["prompt"].startswith("A curved yellow banana")
                 else:
-                    assert "User subject description" in data["prompt"]
+                    assert data["prompt"].startswith("A curved yellow banana")
                 index = counts["generate"]
                 counts["generate"] += 1
+                if scenario == "outage" and counts["generate"] == 14:
+                    self.send({"type": "error", "message": "SIMULATED engine interruption"}, sse=True)
+                    return
                 pixels = bytearray(b"\xff\xff\xff" * 512 * 512)
                 for y in range(150, 350):
                     a = (y * 512 + 16 + index * 25) * 3
@@ -78,7 +88,7 @@ def main():
     with tempfile.TemporaryDirectory() as folder, ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
-        env = dict(os.environ, XDG_DATA_HOME=folder, KARMA_LOCAL_TEST_SERVER=f"http://127.0.0.1:{server.server_port}")
+        env = dict(os.environ, XDG_DATA_HOME=folder, KARMA_LOCAL_TEST_SERVER=f"http://127.0.0.1:{server.server_port}", KARMA_LOCAL_TEST_SCENARIO=scenario)
         # Keep a broken proxy to verify production loopback never uses it.
         env["HTTPS_PROXY"] = "http://127.0.0.1:1"
         godot = env.get("GODOT_BIN") or shutil.which("godot")
@@ -92,9 +102,11 @@ def main():
         server.shutdown()
         print(result.stdout)
         assert result.returncode == 0 and "LOCAL_STUDIO_TRANSPORT_OK" in result.stdout and "SCRIPT ERROR" not in result.stderr, result.stdout + result.stderr
-        # Initial keypose checks: 8. In-betweens: 4 * (1 + 3) = 16.
+        # Initial keypose checks: 8. In-betweens: 9 * (1 + 3) = 36.
         # One repaired keypose: 1. Its changed neighbor transition: 1 + 3 = 4.
-        assert counts == {"models": 1, "health": 2, "analysis": 1, "review": 29, "generate": 14}, counts
-        print("LOCAL_HTTP_NO_CLOUD_COUNTS_OK", counts)
+        extra = 1 if scenario == "outage" else 0
+        assert counts == {"models": 2 + extra, "health": 2 + extra, "analysis": 1, "review": 49, "generate": 19 + extra, "compile": 19 + extra, "tokenize": 19 + extra}, counts
+        print("LOCAL_HTTP_NO_CLOUD_COUNTS_OK", scenario, counts)
 if __name__ == "__main__":
-    main()
+    for scenario in ("ready", "outage"):
+        main(scenario)

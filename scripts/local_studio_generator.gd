@@ -6,7 +6,7 @@ var drawing_base: String = "http://127.0.0.1:8081"
 var local_token: String = ""
 var local_model: String = ""
 var use_opencl: bool = false
-const LOCAL_REVISION := "mnn-localdream-v2"
+const LOCAL_REVISION := "mnn-localdream-v3-clip-prompts"
 var drawing_probe_base: String = ""
 var last_probe: Dictionary = {}
 
@@ -30,7 +30,7 @@ func _loopback(base: String) -> bool:
     return matched != null and int(matched.get_string(1)) > 0 and int(matched.get_string(1)) <= 65535
 
 func _local_request(base: String, path: String, payload: Dictionary = {}, get_request: bool = false, timeout_seconds: float = 900.0) -> Dictionary:
-    if not _loopback(base) or path not in ["/v1/models", "/v1/chat/completions", "/generate", "/health"]:
+    if not _loopback(base) or path not in ["/v1/models", "/v1/chat/completions", "/generate", "/health", "/tokenize"]:
         return {"ok": false, "error": "Adresse locale invalide. Aucun fichier envoyé."}
     var http := HTTPRequest.new()
     http.timeout = timeout_seconds
@@ -149,6 +149,43 @@ func _generation_payload(reference: Image, instruction: String, style: String, v
         directive += JSON.stringify({"entities": scene_registry.get("entities", []), "relations": scene_registry.get("relations", [])})
     return {"image": _encode_input(canvas), "prompt": directive, "negative_prompt": "unrequested subjects, duplicate subject, invented body parts, changed identity, text, watermark", "width": 512, "height": 512, "steps": 20, "cfg": 7.5, "seed": randi() if variation else 1234, "scheduler": "dpm", "denoise_strength": 0.6, "use_opencl": use_opencl, "show_diffusion_process": false, "output_format": "png"}
 
+func _compile_local_prompt(reference: Image, instruction: String, style: String) -> Dictionary:
+    # SD1.5 consumes CLIP descriptions, not the long editing instructions used
+    # by Qwen. Translate/resolve entity IDs with the existing local vision
+    # model, then measure the result with the drawing model's own tokenizer.
+    # Never blindly truncate the requested action or submit an oversized prompt.
+    var context: String = JSON.stringify({"entities": scene_registry.get("entities", []), "relations": scene_registry.get("relations", [])})
+    var prompt: String = "Compile a Stable Diffusion CLIP prompt. Return ONLY JSON {\"prompt\":\"...\"}. Write one concise English visual description, ideally under 40 words. Describe the requested physical state FIRST, then the subject appearance and style. Resolve entity IDs to visible subjects. Preserve counts and non-human anatomy; invent nothing. No instructions, JSON, IDs, panel labels or reference to image numbers inside the prompt. If a transition is requested, describe a single state at the specified fraction, not both endpoints together. The picture anchors appearance; the instruction defines the new action. Style: " + _style_instruction(style) + ". Scene: " + context + ". Requested drawing: " + instruction
+    var inputs: Array[Image] = []
+    if reference != null and not reference.is_empty():
+        inputs.append(reference)
+    for attempt in range(2):
+        var response: Dictionary = await _vision_request(inputs, prompt)
+        if not response.get("ok", false):
+            return response
+        var raw: String = extract_vision_text(response.get("data", [])).strip_edges()
+        var first: int = raw.find("{")
+        var last: int = raw.rfind("}")
+        var value: Variant = JSON.parse_string(raw.substr(first, last - first + 1)) if first >= 0 and last > first else null
+        if not value is Dictionary or not value.get("prompt") is String or value["prompt"].strip_edges().is_empty() or value["prompt"].length() > 1200:
+            return {"ok": false, "error": "Le modèle local n'a pas fourni de consigne de dessin exploitable. Tes dessins sont conservés."}
+        var compiled: String = value["prompt"].strip_edges()
+        var tokenized: Dictionary = await _local_request(drawing_base, "/tokenize", {"prompt": compiled}, false, 10.0)
+        if not tokenized.get("ok", false):
+            return tokenized
+        var tokens: Variant = JSON.parse_string(tokenized["body"])
+        if not tokens is Dictionary or not (tokens.get("count") is int or tokens.get("count") is float) or not (tokens.get("max_length") is int or tokens.get("max_length") is float):
+            return {"ok": false, "error": "Le moteur local ne permet pas de vérifier la longueur de la consigne."}
+        var count: float = float(tokens["count"])
+        var limit: float = float(tokens["max_length"])
+        if not is_finite(count) or not is_finite(limit) or count < 2 or count > 1000000 or count != floor(count) or limit < 3 or limit > 8192 or limit != floor(limit):
+            return {"ok": false, "error": "Mesure de longueur locale invalide."}
+        var budget: int = mini(77, int(limit))
+        if count <= budget:
+            return {"ok": true, "prompt": compiled, "token_count": int(count)}
+        prompt += " Your previous prompt was too long (%d tokens; limit %d including special tokens): %s. Rewrite it substantially shorter, preserving the specific action, subjects and counts. Return the same JSON schema." % [int(count), budget, compiled]
+    return {"ok": false, "error": "La consigne reste trop longue pour le modèle local. Aucune image tronquée n'est générée ; tes dessins sont conservés."}
+
 func decode_local_drawing(body: String) -> Dictionary:
     for block in body.replace("\r\n", "\n").split("\n\n"):
         var payload: String = ""
@@ -203,7 +240,12 @@ func redraw(reference: Image, instruction: String, style: String, _previous: Ima
     var service: Dictionary = await _ensure_drawing_service()
     if not service.get("ok", false):
         return service
-    var result: Dictionary = await _local_request(drawing_base, "/generate", _generation_payload(reference, instruction, style, variation))
+    var compiled: Dictionary = await _compile_local_prompt(reference, instruction, style)
+    if not compiled.get("ok", false):
+        return compiled
+    var payload: Dictionary = _generation_payload(reference, instruction, style, variation)
+    payload["prompt"] = compiled["prompt"]
+    var result: Dictionary = await _local_request(drawing_base, "/generate", payload)
     if not result.get("ok", false):
         return result
     return decode_local_drawing(result["body"])
@@ -225,6 +267,9 @@ func create_reference(description: String, style: String) -> Dictionary:
     var service: Dictionary = await _ensure_drawing_service()
     if not service.get("ok", false):
         return service
-    var payload: Dictionary = {"prompt": build_reference_prompt(description, style), "negative_prompt": "unrequested human body, text, watermark, unrequested subjects", "width": 512, "height": 512, "steps": 20, "cfg": 7.5, "seed": 1234, "scheduler": "dpm", "use_opencl": use_opencl, "output_format": "png"}
+    var compiled: Dictionary = await _compile_local_prompt(null, description, style)
+    if not compiled.get("ok", false):
+        return compiled
+    var payload: Dictionary = {"prompt": compiled["prompt"], "negative_prompt": "unrequested human body, text, watermark, unrequested subjects", "width": 512, "height": 512, "steps": 20, "cfg": 7.5, "seed": 1234, "scheduler": "dpm", "use_opencl": use_opencl, "output_format": "png"}
     var result: Dictionary = await _local_request(drawing_base, "/generate", payload)
     return decode_local_drawing(result["body"]) if result.get("ok", false) else result
