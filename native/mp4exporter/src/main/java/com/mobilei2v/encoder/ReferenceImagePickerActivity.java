@@ -56,7 +56,7 @@ public final class ReferenceImagePickerActivity extends Activity {
     }
     static synchronized String consume(Context c) {
         String value = prefs(c).getString("result", "");
-        if (!value.isEmpty()) prefs(c).edit().remove("result").putString("stage", "idle").commit();
+        if (!value.isEmpty()) prefs(c).edit().remove("result").remove("request").putString("stage", "idle").commit();
         return value;
     }
     static synchronized String status(Context c) { return prefs(c).getString("stage", "idle"); }

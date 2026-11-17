@@ -28,6 +28,8 @@ public class ReferenceImageMailboxTest {
         assertEquals("selected", result.getString("state"));
         assertEquals("style", result.getString("role"));
         assertEquals("", ReferenceImagePickerActivity.consume(context));
+        ReferenceImagePickerActivity.complete(context, id, "cancelled", "");
+        assertEquals("", ReferenceImagePickerActivity.consume(context));
     }
     @Test public void cancelledOrSupersededWorkCannotReplaceNewerSelection() throws Exception {
         Activity host = Robolectric.buildActivity(Activity.class).setup().get();
