@@ -2041,12 +2041,21 @@ func _create_remote_reference(description_override: String = "") -> void:
     if not result.get("ok", false):
         status.text = str(result.get("error", "Generation echouee.")) + " Ta photo et tes dessins existants sont conserves."
         return
+    # The model may return a success flag with no valid image. Never replace
+    # the user's existing photo with empty or tiny pixels.
+    if not result.get("image") is Image:
+        status.text = "Le moteur n'a renvoyé aucune image exploitable. Ton projet est conservé."
+        return
+    var generated_image: Image = result["image"]
+    if generated_image.is_empty() or generated_image.get_width() < 256 or generated_image.get_height() < 256:
+        status.text = "Image IA absente ou trop petite. Ton projet est conservé."
+        return
     var folder: String = "user://projects/reference_ai_%d" % Time.get_ticks_usec()
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
         status.text = "Sauvegarde impossible."
         return
     var path: String = folder.path_join("original.png")
-    if (result["image"] as Image).save_png(path) != OK:
+    if generated_image.save_png(path) != OK:
         status.text = "Sauvegarde impossible."
         return
     await _image_chosen(path)
