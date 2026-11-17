@@ -25,6 +25,12 @@ class UniversalTextEntryContract(unittest.TestCase):
         self.assertIn("func _review_confirmation_changed(", self.storyboard)
         self.assertIn("func _friendly_export(", self.storyboard)
 
+    def test_android_wizard_rejects_missing_or_tiny_generated_images(self):
+        self.assertIn('if not result.get("image") is Image:', self.storyboard)
+        self.assertIn('generated_image.get_width() < 256', self.storyboard)
+        self.assertIn('generated_image.get_height() < 256', self.storyboard)
+        self.assertIn('if generated_image.save_png(path) != OK:', self.storyboard)
+
     def test_progress_reports_actual_stages(self):
         for stage in ("reference_generation", "analysis", "generation", "fidelity_review", "intermediate_generation", "intermediate_fidelity_review"):
             self.assertIn('"' + stage + '":', self.storyboard)
