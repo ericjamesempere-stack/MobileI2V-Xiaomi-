@@ -62,7 +62,7 @@ public final class MP4Exporter extends GodotPlugin {
         return pick_reference_image_for_role("reference");
     }
     @UsedByGodot public boolean pick_reference_image_for_role(String role) {
-        return ReferenceImagePickerActivity.launch(getActivity(), "style".equals(role) ? "style" : "reference");
+        return ReferenceImagePickerActivity.launch(getActivity(), Arrays.asList("style", "board", "replacement").contains(role) ? role : "reference");
     }
 
     @UsedByGodot public String local_engine_installation_status() {
@@ -78,6 +78,56 @@ public final class MP4Exporter extends GodotPlugin {
             }
         }
         return report.toString();
+    }
+
+    private volatile String chatgptShareResult = "";
+    private volatile boolean chatgptSharing = false;
+    @UsedByGodot public String consume_chatgpt_share_result() {
+        String result = chatgptShareResult; chatgptShareResult = ""; return result;
+    }
+    @UsedByGodot public synchronized boolean share_chatgpt_reference(String path, String prompt) {
+        Activity activity = getActivity();
+        if (activity == null || chatgptSharing || prompt == null || prompt.trim().isEmpty() || prompt.length() > 24000) return false;
+        chatgptSharing = true;
+        chatgptShareResult = "";
+        new Thread(() -> {
+            try {
+                Intent intent = new Intent(Intent.ACTION_SEND);
+                intent.putExtra(Intent.EXTRA_TEXT, prompt);
+                intent.setType("text/plain");
+                if (path != null && !path.isEmpty()) {
+                    File source = new File(path).getCanonicalFile();
+                    File privateRoot = activity.getFilesDir().getCanonicalFile();
+                    if (!source.getPath().startsWith(privateRoot.getPath() + File.separator) || !source.isFile() || source.length() > 32000000)
+                        throw new IllegalArgumentException("Reference privée invalide ou trop volumineuse");
+                    File folder = new File(activity.getCacheDir(), "karma_shares");
+                    if (!folder.isDirectory() && !folder.mkdirs()) throw new IllegalStateException("Cache de partage inaccessible");
+                    File copy = new File(folder, java.util.UUID.randomUUID().toString() + ".png");
+                    try (FileInputStream input = new FileInputStream(source); java.io.FileOutputStream output = new java.io.FileOutputStream(copy)) {
+                        byte[] buffer = new byte[65536]; int count;
+                        while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                    }
+                    Uri uri = Uri.parse("content://" + activity.getPackageName() + ".karma.references/" + copy.getName());
+                    intent.setType("image/png");
+                    intent.putExtra(Intent.EXTRA_STREAM, uri);
+                    intent.setClipData(android.content.ClipData.newRawUri("KARMA reference", uri));
+                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                }
+                activity.runOnUiThread(() -> {
+                    try {
+                        Intent target = new Intent(intent).setPackage("com.openai.chatgpt");
+                        if (activity.getPackageManager().resolveActivity(target, 0) != null) activity.startActivity(target);
+                        else activity.startActivity(Intent.createChooser(intent, "Choisis ChatGPT"));
+                        chatgptShareResult = "opened";
+                    } catch (RuntimeException e) { chatgptShareResult = "error: " + e.getClass().getSimpleName(); }
+                    finally { chatgptSharing = false; }
+                });
+            } catch (Exception e) {
+                chatgptShareResult = "error: " + e.getClass().getSimpleName();
+                chatgptSharing = false;
+            }
+        }, "KarmaChatGPTShare").start();
+        return true;
     }
 
     @UsedByGodot public String import_reference_uri(String uri) {

@@ -43,6 +43,11 @@ var importing_style_reference: bool = false
 var style_reference_preview: TextureRect
 var style_reference_hint: Label
 var last_ai_sequence_ok: bool = false
+var chatgpt_columns: SpinBox
+var chatgpt_rows: SpinBox
+var chatgpt_pending: Dictionary = {}
+var chatgpt_import_role: String = ""
+var chatgpt_board_origin: bool = false
 var photo_importing: bool = false
 var photo_import_clock: float = 0.0
 var photo_import_stage: String = ""
@@ -754,7 +759,7 @@ func _open_photo_folder(folder: String) -> void:
 func _choose_style_reference() -> void:
     _choose_image(true)
 
-func _choose_image(as_style: bool = false) -> void:
+func _choose_image(as_style: bool = false, native_role: String = "") -> void:
     if photo_importing and not (ai_running or disk_drawing_running or exporting_video):
         _cancel_photo_import()
         return
@@ -762,6 +767,7 @@ func _choose_image(as_style: bool = false) -> void:
         status.text = "Attends la fin de l operation en cours."
         return
     importing_style_reference = as_style
+    chatgpt_import_role = native_role
     photo_import_clock = 0.0
     if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
@@ -769,7 +775,7 @@ func _choose_image(as_style: bool = false) -> void:
             photo_importing = true
             status.text = "Ouverture de la galerie…"
             photo_import_stage = "opening"
-            photo_importing = bool(native.call("pick_reference_image_for_role", "style" if as_style else "reference")) if native.has_method("pick_reference_image_for_role") else bool(native.call("pick_reference_image"))
+            photo_importing = bool(native.call("pick_reference_image_for_role", native_role if not native_role.is_empty() else "style" if as_style else "reference")) if native.has_method("pick_reference_image_for_role") else bool(native.call("pick_reference_image"))
             status.text = "Choisis une image dans ta galerie." if photo_importing else "La galerie n'a pas pu s'ouvrir. Réessaie."
             if not photo_importing:
                 importing_style_reference = false
@@ -809,6 +815,11 @@ func _remove_style_reference() -> void:
 
 func _image_chosen(path: String) -> void:
     photo_importing = false
+    var external_role: String = chatgpt_import_role
+    chatgpt_import_role = ""
+    if external_role in ["board", "replacement"]:
+        _import_chatgpt_result(path, external_role)
+        return
     var as_style: bool = importing_style_reference
     importing_style_reference = false
     if as_style:
@@ -1826,7 +1837,7 @@ func _save() -> void:
                     nearest_distance = distance
                     nearest = int(original_idx)
             approved_timeline.append(old_to_new[nearest])
-    var data := {"version": 3, "local_mode": local_mode.button_pressed, "universal_folder": universal_folder, "universal_quality": universal_quality, "universal_style": universal_style, "universal_input_signature": universal_input_signature, "required_drawing_count": required_drawing_count, "explicit_rejections": explicit_rejections.keys(), "character_description": character_description.text, "drawing_style": drawing_style.selected, "custom_style": custom_style_input.text, "ai_drawings_count": ai_drawings_count.value, "karma_auto_export": karma_auto_export, "approved_drawings": approved_drawings, "approved_timeline": approved_timeline, "reference_path": imported_path, "style_reference_path": style_reference_path, "description": action_input.text, "ai_endpoint": ai_endpoint.text, "duration_seconds": duration_input.value, "drawings": paths, "approved": flags, "timeline_indices": plan, "warning": "Offline photo camera motion or existing poses; no AI anatomy generation"}
+    var data := {"chatgpt_board_origin": chatgpt_board_origin, "chatgpt_pending": chatgpt_pending, "chatgpt_columns": int(chatgpt_columns.value), "chatgpt_rows": int(chatgpt_rows.value), "version": 3, "local_mode": local_mode.button_pressed, "universal_folder": universal_folder, "universal_quality": universal_quality, "universal_style": universal_style, "universal_input_signature": universal_input_signature, "required_drawing_count": required_drawing_count, "explicit_rejections": explicit_rejections.keys(), "character_description": character_description.text, "drawing_style": drawing_style.selected, "custom_style": custom_style_input.text, "ai_drawings_count": ai_drawings_count.value, "karma_auto_export": karma_auto_export, "approved_drawings": approved_drawings, "approved_timeline": approved_timeline, "reference_path": imported_path, "style_reference_path": style_reference_path, "description": action_input.text, "ai_endpoint": ai_endpoint.text, "duration_seconds": duration_input.value, "drawings": paths, "approved": flags, "timeline_indices": plan, "warning": "Offline photo camera motion or existing poses; no AI anatomy generation"}
     var f := FileAccess.open(SAVE, FileAccess.WRITE)
     if f == null:
         status.text = "Erreur de sauvegarde"
@@ -1876,6 +1887,11 @@ func _load_saved(save_path: String = SAVE) -> void:
     required_drawing_count = int(data.get("required_drawing_count", 0))
     imported_path = str(data.get("reference_path", ""))
     _clear_universal_state()
+    chatgpt_board_origin = bool(data.get("chatgpt_board_origin", false))
+    chatgpt_pending = data.get("chatgpt_pending", {}) if data.get("chatgpt_pending", {}) is Dictionary else {}
+    chatgpt_columns.value = clampi(int(data.get("chatgpt_columns", 4)), 1, 6)
+    chatgpt_rows.value = clampi(int(data.get("chatgpt_rows", 2)), 1, 6)
+    v5_sheet_loaded = chatgpt_board_origin
     session_agent = null
     universal_folder = str(data.get("universal_folder", ""))
     universal_quality = data.get("universal_quality", {})
@@ -2192,6 +2208,7 @@ func _universal_signature() -> String:
     return JSON.stringify(signature).sha256_text()
 
 func _clear_universal_state() -> void:
+    chatgpt_board_origin = false
     universal_folder = ""
     universal_plan.clear()
     universal_quality.clear()
@@ -2386,6 +2403,13 @@ func _go_step(index: int) -> void:
 
 func _process(delta: float) -> void:
     _poll_photo_import(delta)
+    if Engine.has_singleton("MP4Exporter"):
+        var native: Object = Engine.get_singleton("MP4Exporter")
+        if native.has_method("consume_chatgpt_share_result"):
+            var shared: String = str(native.call("consume_chatgpt_share_result"))
+            if shared.begins_with("error:"):
+                status.text = "Partage vers ChatGPT impossible (" + shared + "). La consigne reste copiée et le projet conservé."
+
     friendly_ui_clock += delta
     if friendly_ui_clock >= 0.12:
         friendly_ui_clock = 0.0
@@ -2507,6 +2531,7 @@ func _consume_photo_result(encoded: String, recover_pending: bool = false) -> vo
         _native_image_error("Réponse de la galerie illisible. Réessaie.")
         return
     if result.has("role"):
+        chatgpt_import_role = str(result["role"]) if str(result["role"]) in ["board", "replacement"] else ""
         importing_style_reference = str(result["role"]) == "style"
     match str(result.get("state", "")):
         "selected": _image_chosen(str(result.get("value", "")))
@@ -2556,11 +2581,13 @@ func _poll_photo_import(delta: float) -> void:
         status.text = "Le chargement ne répond pas à l'étape : " + failed_stage + ". Projet précédent conservé. Réessaie une image locale."
 
 func _native_image_error(message: String) -> void:
+    chatgpt_import_role = ""
     photo_importing = false
     importing_style_reference = false
     status.text = message
 
 func _native_image_cancelled() -> void:
+    chatgpt_import_role = ""
     photo_importing = false
     importing_style_reference = false
     status.text = "Sélection annulée. Ton projet est conservé."
@@ -2666,6 +2693,8 @@ func _show_drawing_review(index: int = 0) -> void:
     _review_button(actions, "Garder", func() -> void: _review_choose(true))
     _review_button(actions, "Refuser", func() -> void: _review_choose(false))
     _review_button(actions, "Refaire", _regenerate_reviewed_drawing)
+    if chatgpt_board_origin:
+        _review_button(content, "Importer le dessin refait", _choose_chatgpt_replacement)
     _review_button(content, "Revenir à la planche", review_dialog.hide)
     add_child(review_dialog)
     _refresh_review_dialog()
@@ -2718,6 +2747,9 @@ func _review_choose(keep: bool) -> void:
 
 func _regenerate_reviewed_drawing() -> void:
     if ai_running or exporting_video or disk_drawing_running:
+        return
+    if chatgpt_board_origin:
+        _send_chatgpt_request("replacement")
         return
     if not universal_folder.is_empty():
         await _regenerate_universal_drawing()
@@ -2899,3 +2931,134 @@ func _make_drawing_worker() -> Node:
     if worker.has_method("configure_local"):
         worker.configure_local(local_auth_input.text)
     return worker
+
+func _chatgpt_context() -> Dictionary:
+    return {"reference": imported_path, "story": action_input.text, "style": _selected_drawing_style()}
+
+func _send_chatgpt_request(kind: String = "board") -> void:
+    if ai_running or exporting_video or disk_drawing_running or photo_importing:
+        return
+    var story: String = action_input.text.strip_edges()
+    var subject: String = character_description.text.strip_edges()
+    if (kind == "reference" and subject.is_empty()) or (kind != "reference" and story.is_empty()):
+        status.text = "Décris ton image ou ton histoire avant de l'envoyer à ChatGPT."
+        return
+    chatgpt_pending = _chatgpt_context()
+    chatgpt_pending["kind"] = kind
+    if kind == "replacement":
+        if review_index < 0 or review_index >= paths.size():
+            status.text = "Choisis d'abord le dessin à refaire."
+            return
+        chatgpt_pending["index"] = review_index
+        chatgpt_pending["old_path"] = paths[review_index]
+        chatgpt_pending["old_hash"] = FileAccess.get_sha256(paths[review_index])
+    var bridge: RefCounted = load("res://scripts/chatgpt_board_bridge.gd").new()
+    var prompt: String = bridge.request_prompt(story, subject, _selected_drawing_style(), kind, review_index, sources.size())
+    DisplayServer.clipboard_set(prompt)
+    _save()
+    if Engine.has_singleton("MP4Exporter"):
+        var native: Object = Engine.get_singleton("MP4Exporter")
+        if native.has_method("share_chatgpt_reference"):
+            var shared_path: String = "" if kind == "reference" else ProjectSettings.globalize_path(imported_path) if not imported_path.is_empty() else ""
+            if bool(native.call("share_chatgpt_reference", shared_path, prompt)):
+                status.text = "Demande préparée pour ChatGPT. Lance la génération dans ChatGPT, enregistre l'image, puis reviens l'importer ici."
+            else:
+                status.text = "Partage indisponible. La consigne est copiée ; ouvre ChatGPT et joins ta référence."
+            return
+    OS.shell_open("https://chatgpt.com/")
+    status.text = "Consigne copiée. Colle-la dans ChatGPT et joins ta référence. Puis enregistre et importe le résultat ici."
+
+func _send_chatgpt_reference() -> void:
+    _send_chatgpt_request("reference")
+
+func _send_chatgpt_board() -> void:
+    _send_chatgpt_request("board")
+
+func _choose_chatgpt_board() -> void:
+    if ai_running or exporting_video or disk_drawing_running or photo_importing:
+        return
+    # This explicit import also supports boards generated in an existing conversation.
+    chatgpt_pending = _chatgpt_context()
+    chatgpt_pending["kind"] = "board"
+    chatgpt_pending["columns"] = int(chatgpt_columns.value)
+    chatgpt_pending["rows"] = int(chatgpt_rows.value)
+    _save()
+    _choose_image(false, "board")
+
+func _choose_chatgpt_replacement() -> void:
+    if chatgpt_pending.get("kind", "") != "replacement":
+        status.text = "Ouvre un dessin et appuie sur Refaire pour préparer sa demande ChatGPT."
+        return
+    _choose_image(false, "replacement")
+
+func _chatgpt_context_matches() -> bool:
+    var context: Dictionary = _chatgpt_context()
+    return chatgpt_pending.get("reference", "") == context["reference"] and chatgpt_pending.get("story", "") == context["story"] and chatgpt_pending.get("style", "") == context["style"]
+
+func _import_chatgpt_result(path: String, role: String) -> void:
+    if not _chatgpt_context_matches():
+        status.text = "Le projet ou la consigne a changé. Résultat non appliqué ; prépare à nouveau l'import dans le bon projet."
+        return
+    var image: Image = load("res://scripts/android_image_reader.gd").read_image(path)
+    if image == null or image.is_empty():
+        status.text = "Image ChatGPT illisible. Les dessins existants sont conservés."
+        return
+    if role == "replacement":
+        var index: int = int(chatgpt_pending.get("index", -1))
+        if chatgpt_pending.get("kind", "") != "replacement" or index < 0 or index >= paths.size() or paths[index] != chatgpt_pending.get("old_path", "") or FileAccess.get_sha256(paths[index]) != chatgpt_pending.get("old_hash", ""):
+            status.text = "Le dessin ciblé a changé. Aucun dessin remplacé."
+            return
+        if image.get_width() < 256 or image.get_height() < 256:
+            status.text = "Nouveau dessin trop petit. L'ancien est conservé."
+            return
+        var next_path: String = paths[index].get_base_dir().path_join("chatgpt_redo_%04d_%d.png" % [index, Time.get_ticks_usec()])
+        if image.save_png(next_path) != OK:
+            status.text = "Sauvegarde du nouveau dessin impossible. L'ancien est conservé."
+            return
+        sources[index] = ImageTexture.create_from_image(image)
+        paths[index] = next_path
+        accepted[index] = false
+        explicit_rejections.erase(index)
+        review_fingerprint = ""
+        review_check.set_pressed_no_signal(false)
+        chatgpt_pending.clear()
+        _build_contact_sheet()
+        _save()
+        _refresh_review_dialog()
+        status.text = "Un seul dessin remplacé. Ses voisins sont conservés. Examine-le puis choisis Garder."
+        return
+    var bridge: RefCounted = load("res://scripts/chatgpt_board_bridge.gd").new()
+    var folder: String = "user://projects/chatgpt_board_%d" % Time.get_ticks_usec()
+    var result: Dictionary = bridge.save_board(image, folder, int(chatgpt_pending.get("columns", 4)), int(chatgpt_pending.get("rows", 2)))
+    if not result.get("ok", false):
+        status.text = result.get("error", "Import de planche impossible.")
+        return
+    if not imported_path.is_empty():
+        _save()
+    else:
+        await _image_chosen(result["paths"][0])
+    _clear_universal_state()
+    session_agent = null
+    sources.clear()
+    paths.clear()
+    accepted.clear()
+    plan.clear()
+    explicit_rejections.clear()
+    for item in result["paths"]:
+        var frame_path: String = str(item)
+        sources.append(_texture_for_path(frame_path))
+        paths.append(frame_path)
+        accepted.append(false)
+        plan.append(plan.size())
+    chatgpt_board_origin = true
+    required_drawing_count = paths.size()
+    v5_sheet_loaded = true # Display generated states as holds; no fabricated interpolation.
+    review_fingerprint = ""
+    review_check.set_pressed_no_signal(false)
+    frame_index = 0
+    chatgpt_pending.clear()
+    _refresh()
+    _build_contact_sheet()
+    _save()
+    _go_step(2)
+    status.text = "%d cases importées sans étirement. Vérifie les découpes, l'identité et les actions ; garde chaque dessin avant le MP4. Aucune fidélité IA automatiquement certifiée." % paths.size()

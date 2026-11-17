@@ -91,7 +91,7 @@ func build(board: Control) -> void:
     shell.add_theme_constant_override("separation", 12)
     margin.add_child(shell)
     text(shell, "KARMA ONE", 36, PURPLE)
-    text(shell, "Imagine. Dessine. Anime. · V58", 21, MUTED)
+    text(shell, "Imagine. Dessine. Anime. · V59", 21, MUTED)
     var tabs := HBoxContainer.new()
     tabs.add_theme_constant_override("separation", 8)
     shell.add_child(tabs)
@@ -143,7 +143,9 @@ func build(board: Control) -> void:
     board.character_description.custom_minimum_size.y = 120
     board.character_description.placeholder_text = "Un renard, un paysage, un véhicule, plusieurs sujets…"
     board.invent_box.add_child(board.character_description)
-    button(board, board.invent_box, "Créer mon image de départ", board._create_remote_reference, true)
+    text(board.invent_box, "Avec ChatGPT : tu lances la génération dans ChatGPT puis tu importes son image ici. Ton abonnement garde ses propres limites ; aucun appel ZeroGPU par ce bouton.", 18, MUTED)
+    button(board, board.invent_box, "Créer cette image dans ChatGPT", board._send_chatgpt_reference, true).name = "ChatGPTReference"
+    button(board, board.invent_box, "Créer avec le moteur configuré", board._create_remote_reference, true)
     board.invent_box.visible = false
     board.preview = TextureRect.new()
     board.preview.custom_minimum_size.y = 190
@@ -213,6 +215,25 @@ func build(board: Control) -> void:
         preset.custom_minimum_size.y = 60
         preset.add_theme_font_size_override("font_size", 19)
     board.choice_summary = text(story, "", 19, MUTED)
+    var chatgpt: VBoxContainer = card(board.wizard_pages[1], "Dessiner avec ChatGPT", "Mode assisté : envoie la référence et l'histoire à ChatGPT, lance la génération là-bas, enregistre l'image puis importe-la ici. Ce bouton partage ta photo avec l'application choisie. Pas de clé API ni de ZeroGPU ; les limites de ton abonnement s'appliquent.")
+    button(board, chatgpt, "Envoyer l'histoire à ChatGPT", board._send_chatgpt_board, true).name = "ChatGPTBoard"
+    var grid_shape := HBoxContainer.new()
+    chatgpt.add_child(grid_shape)
+    text(grid_shape, "Colonnes", 18)
+    board.chatgpt_columns = SpinBox.new()
+    board.chatgpt_columns.min_value = 1
+    board.chatgpt_columns.max_value = 6
+    board.chatgpt_columns.value = 4
+    grid_shape.add_child(board.chatgpt_columns)
+    text(grid_shape, "Lignes", 18)
+    board.chatgpt_rows = SpinBox.new()
+    board.chatgpt_rows.min_value = 1
+    board.chatgpt_rows.max_value = 6
+    board.chatgpt_rows.value = 2
+    grid_shape.add_child(board.chatgpt_rows)
+    text(chatgpt, "Demande standard : 4 colonnes × 2 lignes, sans marges. Ajuste la grille si le résultat diffère. Une mauvaise grille découpe mal les dessins : inspecte chaque case avant validation.", 18, MUTED)
+    button(board, chatgpt, "Importer la planche de ChatGPT", board._choose_chatgpt_board).name = "ImportChatGPTBoard"
+    button(board, chatgpt, "Importer le dessin refait", board._choose_chatgpt_replacement).name = "ImportChatGPTRedo"
     button(board, board.wizard_pages[1], "C'est parti ! Créer mes dessins", board._friendly_generate, true).name = "GenerateStory"
     button(board, board.wizard_pages[1], "Revoir mon image de départ", func() -> void: board._go_step(0))
 
