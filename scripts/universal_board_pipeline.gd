@@ -10,6 +10,44 @@ func _ready() -> void:
     worker = load("res://scripts/local_studio_generator.gd" if local_inference else "res://scripts/hf_studio_generator.gd").new()
     add_child(worker)
 
+# Text-only entry point: create a real reference with the selected image model,
+# then reuse the EXACT same storyboard, review and MP4 gates as photo input.
+# Never synthesize a placeholder image or claim generation succeeded without pixels.
+func build_boards_from_text(description: String, story: String, seconds: float, style: String, folder: String, maximum_keyposes: int = 24) -> Dictionary:
+    if description.strip_edges().is_empty() or story.strip_edges().is_empty():
+        return {"ok": false, "stage": "reference_generation", "error": "description_and_story_required", "ready_for_animation": false}
+    if invocation_running or worker == null:
+        return {"ok": false, "stage": "reference_generation", "error": "pipeline_not_ready", "ready_for_animation": false}
+    var absolute_folder: String = ProjectSettings.globalize_path(folder)
+    if DirAccess.make_dir_recursive_absolute(absolute_folder) != OK:
+        return {"ok": false, "stage": "reference_generation", "error": "project_directory_failed", "ready_for_animation": false}
+    var reference_path: String = folder.path_join("generated_reference.png")
+    var metadata_path: String = folder.path_join("generated_reference.json")
+    var identity: String = (description.strip_edges() + "\n" + style + "\n" + str(local_inference)).sha256_text()
+    var reference: Image = null
+    if FileAccess.file_exists(reference_path) or FileAccess.file_exists(metadata_path):
+        if not FileAccess.file_exists(reference_path) or not FileAccess.file_exists(metadata_path):
+            return {"ok": false, "stage": "reference_generation", "error": "incomplete_reference_cache", "ready_for_animation": false}
+        var meta: Variant = JSON.parse_string(FileAccess.get_file_as_string(metadata_path))
+        if not meta is Dictionary or meta.get("identity", "") != identity or meta.get("image_sha", "") != FileAccess.get_sha256(reference_path):
+            return {"ok": false, "stage": "reference_generation", "error": "reference_cache_mismatch_new_folder_required", "ready_for_animation": false}
+        reference = Image.new()
+        if reference.load(reference_path) != OK or reference.is_empty():
+            return {"ok": false, "stage": "reference_generation", "error": "cached_reference_invalid", "ready_for_animation": false}
+    else:
+        stage_changed.emit("reference_generation", 0, 1)
+        var generated: Dictionary = await worker.create_reference(description, style)
+        if not generated.get("ok", false) or not generated.get("image") is Image:
+            return {"ok": false, "stage": "reference_generation", "error": generated.get("error", "image_model_unavailable"), "ready_for_animation": false}
+        reference = generated["image"]
+        if reference.is_empty() or reference.get_width() < 256 or reference.get_height() < 256:
+            return {"ok": false, "stage": "reference_generation", "error": "generated_reference_too_small", "ready_for_animation": false}
+        if reference.save_png(reference_path) != OK:
+            return {"ok": false, "stage": "reference_generation", "error": "reference_save_failed", "ready_for_animation": false}
+        if not _write(metadata_path, {"identity": identity, "image_sha": FileAccess.get_sha256(reference_path), "source": "real_image_generator", "human_approved": false}):
+            return {"ok": false, "stage": "reference_generation", "error": "reference_metadata_save_failed", "ready_for_animation": false}
+    return await build_boards(reference, story, seconds, style, folder, maximum_keyposes)
+
 func build_boards(reference: Image, story: String, seconds: float, style: String, folder: String, maximum_keyposes: int = 24) -> Dictionary:
     if invocation_running:
         return {"ok": false, "stage": "supervision", "error": "autopilot_operation_already_running", "ready_for_animation": false}
