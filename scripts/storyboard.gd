@@ -720,7 +720,11 @@ func _show_saved_images() -> void:
                         choice.tooltip_text = name
                         choice.pressed.connect(func() -> void:
                             gallery.hide()
-                            _image_chosen(reference)
+                            var manifest: String = reference.get_base_dir().path_join("project.json")
+                            if FileAccess.file_exists(manifest):
+                                _restore_project(manifest)
+                            else:
+                                _image_chosen(reference)
                         )
                         grid.add_child(choice)
                         count += 1
@@ -1836,9 +1840,22 @@ func _save() -> void:
             snapshot.close()
     status.text = "Planche sauvegardee dans les donnees locales de l'application."
 
-func _load_saved() -> void:
-    if not FileAccess.file_exists(SAVE): return
-    var f := FileAccess.open(SAVE, FileAccess.READ)
+func _restore_project(manifest: String) -> void:
+    if ai_running or disk_drawing_running or exporting_video or photo_importing:
+        status.text = "Attends la fin de l'opération avant de changer de projet."
+        return
+    var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(manifest))
+    if not data is Dictionary or not FileAccess.file_exists(str(data.get("reference_path", ""))):
+        status.text = "Projet inaccessible. Le projet actuel est conservé."
+        return
+    _save()
+    _load_saved(manifest)
+    _save()
+    status.text = "Projet précédent repris avec ses dessins et ses validations enregistrées."
+
+func _load_saved(save_path: String = SAVE) -> void:
+    if not FileAccess.file_exists(save_path): return
+    var f := FileAccess.open(save_path, FileAccess.READ)
     if f == null: return
     var data = JSON.parse_string(f.get_as_text())
     f.close()

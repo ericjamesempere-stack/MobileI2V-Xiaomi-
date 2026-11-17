@@ -6,6 +6,7 @@ func run() -> void:
     var board: Node = load("res://scripts/storyboard.gd").new()
     root.add_child(board)
     await process_frame
+    assert(board.wizard_pages[0].is_ancestor_of(board.local_mode), "Engine choice must be visible before first text-to-image request")
     var source: String = "user://v58_fixture.webp"
     var image := Image.create(320, 256, false, Image.FORMAT_RGB8)
     image.fill(Color.YELLOW)
@@ -43,6 +44,10 @@ func run() -> void:
     reopened._load_saved()
     assert(reopened.imported_path == current)
     assert(reopened.preview.texture != null)
+    reopened._restore_project(snapshot)
+    assert(reopened.imported_path == original)
+    assert(reopened.action_input.text == "Une banane danse.")
+    assert(FileAccess.file_exists(current))
     reopened.queue_free()
     await process_frame
     print("V58_PHOTO_RECOVERY_OK: WebP pixels, preview, recovery, cancellation, errors, successive projects, reopen. Android NOT tested.")

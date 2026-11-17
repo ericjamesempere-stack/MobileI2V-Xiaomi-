@@ -103,6 +103,14 @@ func inspect_local_engines(include_vision: bool = true, include_drawing: bool = 
             report["ok"] = false
             report["drawing"] = {"status": "unavailable", "http_status": response.get("http_status", 0), "network_result": response.get("network_result", -1), "endpoint": response.get("endpoint", "")}
             failures.append(response.get("error", "Ouvre Local Dream et charge un modèle CPU avec img2img."))
+    var apps: Variant = report.get("android_apps", {})
+    if apps is Dictionary and not apps.is_empty():
+        if include_drawing and apps.get("io.github.xororz.localdream", {}).get("installed", true) == false:
+            failures.append("Local Dream n'est pas installé sur ce téléphone. Utilise le lien d'installation dans les options.")
+            report["ok"] = false
+        if include_vision and apps.get("com.alibaba.mnnllm.android", {}).get("installed", true) == false and apps.get("com.alibaba.mnnllm.android.release", {}).get("installed", true) == false:
+            failures.append("MNN Chat n'est pas installé sur ce téléphone. Utilise le lien d'installation dans les options.")
+            report["ok"] = false
     report["message"] = "Connexion locale vérifiée. L'analyse et les dessins doivent encore réussir avec les modèles chargés." if failures.is_empty() else " ".join(failures)
     last_probe = report.duplicate(true)
     return report

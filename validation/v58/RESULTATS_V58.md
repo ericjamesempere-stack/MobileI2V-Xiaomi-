@@ -8,13 +8,15 @@ Constats de code : le résultat V57 ne vivait que dans l'instance Java du plugin
 
 Correctif : une activité Android interne, non exportée, reçoit directement le résultat du sélecteur, sans dépendre du cycle de vie du plugin Godot. Le résultat et son rôle (sujet/style) sont conservés dans une boîte privée persistante. Recréation Godot, annulation et résultats tardifs sont gérés ; un résultat annulé ne peut pas remplacer un nouvel import. Un arrêt du processus pendant le décodage est signalé, pas présenté comme un succès. Lecture URI avec autorisation temporaire, prise d'autorisation persistante lorsqu'elle est accordée, libération après copie. Décodage et compression hors thread UI, limite 4096 px, PNG privé unique. JPG/PNG/WebP/HEIC dépendent du décodeur Android réellement installé ; aucun support HEIC n'est revendiqué sans essai matériel.
 
-L'écran récupère le résultat même après recréation, affiche sélection/décodage/sauvegarde et nomme l'étape si le délai expire. Les anciens projets disposent d'un manifeste project.json en plus de leurs images. Aucun dessin précédent n'est effacé par un nouvel import. Les gardes Garder/Refuser/Refaire et export restent en place.
+L'écran récupère le résultat même après recréation, affiche sélection/décodage/sauvegarde et nomme l'étape si le délai expire. Les anciens projets disposent d'un manifeste project.json en plus de leurs images. Aucun dessin précédent n'est effacé par un nouvel import. Mes images enregistrées reprend le manifeste du projet choisi, plutôt que de réinitialiser son histoire et ses dessins. Les gardes Garder/Refuser/Refaire et export restent en place.
 
 Tests réellement passés localement : écran Godot 4.5.2 et 4.6.3, import d'un WebP réel, pixels/aperçu, sauvegarde, réouverture, récupération d'un résultat avec état UI réinitialisé, erreur, annulation, imports successifs et conservation des manifests. C'est un test du véritable écran et des fichiers, PAS du sélecteur Android. Les tests Java Robolectric sont des simulations du framework, PAS des essais sur Xiaomi.
 
 ## Bug B : moteur absent/non joignable
 
 V57 contient des connecteurs, pas les moteurs MNN Chat/Local Dream ni leurs modèles. HTTP 0 signifie absence de réponse HTTP ; il ne prouve ni installation ni compatibilité. Les adresses 127.0.0.1 désignent le téléphone au moment de l'exécution Android, pas cet environnement de développement.
+
+Le choix local/distant est désormais disponible dès la première étape, avant la création texte → image. Il était sur la page Histoire, après l’entrée initiale, ce qui rendait le secours distant difficile à sélectionner. Aucun envoi automatique ajouté.
 
 Ajouts : rapport natif des paquets Local Dream et MNN Chat (standard/release) visibles via queries limitées ; diagnostic des requêtes avec endpoint, code HTTP et résultat réseau ; libellé explicite installation/modèles requis. Les contrôles /health et /v1/models ne sont jamais assimilés à une inférence réussie. Aucun envoi en ligne automatique ajouté.
 

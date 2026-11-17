@@ -91,7 +91,7 @@ func build(board: Control) -> void:
     shell.add_theme_constant_override("separation", 12)
     margin.add_child(shell)
     text(shell, "KARMA ONE", 36, PURPLE)
-    text(shell, "Imagine. Dessine. Anime. · V57", 21, MUTED)
+    text(shell, "Imagine. Dessine. Anime. · V58", 21, MUTED)
     var tabs := HBoxContainer.new()
     tabs.add_theme_constant_override("separation", 8)
     shell.add_child(tabs)
@@ -129,6 +129,12 @@ func build(board: Control) -> void:
 
     var person: VBoxContainer = card(board.wizard_pages[0], "Que veux-tu créer ?", "Choisis une image ou décris ton idée à l'étape Histoire.")
     button(board, person, "Choisir une photo", board._choose_image, true).name = "ChoosePhoto"
+    board.local_mode = CheckBox.new()
+    board.local_mode.text = "Moteurs du téléphone — installation et modèles requis"
+    board.local_mode.button_pressed = true
+    person.add_child(board.local_mode)
+    text(person, "Mode local : MNN Chat pour l'analyse et Local Dream pour les dessins doivent être installés, avec leurs modèles chargés. Le moteur de calcul reste séparé de KARMA ONE. Aucun appel en ligne automatique dans ce mode.", 18, MUTED)
+    text(person, "Mode en ligne : décoche la case pour envoyer l'image et l'histoire aux services distants. Leurs quotas s'appliquent.", 18, MUTED)
     board.invent_box = VBoxContainer.new()
     board.invent_box.add_theme_constant_override("separation", 12)
     button(board, person, "Décrire mon image de départ", func() -> void: board.invent_box.visible = not board.invent_box.visible).name = "InventCharacter"
@@ -207,12 +213,6 @@ func build(board: Control) -> void:
         preset.custom_minimum_size.y = 60
         preset.add_theme_font_size_override("font_size", 19)
     board.choice_summary = text(story, "", 19, MUTED)
-    board.local_mode = CheckBox.new()
-    board.local_mode.text = "Moteurs du téléphone — installation et modèles requis"
-    board.local_mode.button_pressed = true
-    story.add_child(board.local_mode)
-    text(story, "Mode local : MNN Chat pour l'analyse et Local Dream pour les dessins doivent être installés, avec leurs modèles chargés. Le moteur de calcul reste séparé de KARMA ONE. Aucun appel en ligne automatique dans ce mode.", 18, MUTED)
-    text(story, "Mode en ligne : décoche la case pour envoyer l'image et l'histoire aux services distants. Leurs quotas s'appliquent.", 18, MUTED)
     button(board, board.wizard_pages[1], "C'est parti ! Créer mes dessins", board._friendly_generate, true).name = "GenerateStory"
     button(board, board.wizard_pages[1], "Revoir mon image de départ", func() -> void: board._go_step(0))
 

@@ -42,4 +42,19 @@ public class ReferenceImageMailboxTest {
         assertEquals("", ReferenceImagePickerActivity.consume(context));
         assertFalse(ReferenceImagePickerActivity.stage(context, old, "saving"));
     }
+    @Test public void receiverHandlesCancellationAfterActivityRecreation() throws Exception {
+        Activity host = Robolectric.buildActivity(Activity.class).setup().get();
+        ReferenceImagePickerActivity.launch(host, "reference");
+        Context context = host.getApplicationContext();
+        String id = context.getSharedPreferences("karma_photo_import_v58", 0).getString("request", "");
+        android.content.Intent intent = new android.content.Intent(host, ReferenceImagePickerActivity.class).putExtra("request", id);
+        org.robolectric.android.controller.ActivityController<ReferenceImagePickerActivity> controller =
+            Robolectric.buildActivity(ReferenceImagePickerActivity.class, intent).setup();
+        controller.recreate();
+        controller.get().onActivityResult(31, Activity.RESULT_CANCELED, null);
+        JSONObject result = new JSONObject(ReferenceImagePickerActivity.consume(context));
+        assertEquals("cancelled", result.getString("state"));
+        controller.pause().stop().destroy();
+    }
+
 }

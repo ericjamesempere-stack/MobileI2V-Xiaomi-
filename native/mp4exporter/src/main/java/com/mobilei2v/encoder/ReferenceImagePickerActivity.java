@@ -49,6 +49,11 @@ public final class ReferenceImagePickerActivity extends Activity {
             prefs(c).edit().putString("result", result.toString()).putString("stage", state).commit();
         } catch (Exception e) { throw new IllegalStateException(e); }
     }
+    private static synchronized void interrupt(Context c, String id, String state, String message) {
+        if (!id.equals(prefs(c).getString("request", ""))) return;
+        complete(c, id, state, message);
+        prefs(c).edit().remove("request").commit();
+    }
     static synchronized String consume(Context c) {
         String value = prefs(c).getString("result", "");
         if (!value.isEmpty()) prefs(c).edit().remove("result").putString("stage", "idle").commit();
@@ -86,14 +91,13 @@ public final class ReferenceImagePickerActivity extends Activity {
     }
     @Override public void onBackPressed() {
         // Back during decoding must invalidate the worker's result, not replace a newer project.
-        complete(this, request, "cancelled", "");
-        decoding.remove(request);
-        prefs(this).edit().remove("request").commit();
+        interrupt(this, request, "cancelled", "");
         finish();
     }
     @Override protected void onActivityResult(int code, int result, Intent data) {
         super.onActivityResult(code, result, data);
         if (code != SELECT_IMAGE) return;
+        if (!request.equals(prefs(this).getString("request", ""))) { finish(); return; }
         if (result != RESULT_OK || data == null || data.getData() == null) {
             complete(this, request, "cancelled", ""); finish(); return;
         }
@@ -111,6 +115,14 @@ public final class ReferenceImagePickerActivity extends Activity {
         final boolean releaseGrant = held;
         decoding.add(id);
         stage(context, id, "decoding");
+        android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+        Runnable watchdog = () -> {
+            interrupt(context, id, "error", "Délai dépassé pendant " + status(context) + ". Projet conservé. Essaie une image stockée sur l'appareil.");
+            ReferenceImagePickerActivity receiver = current.get();
+            if (receiver != null && id.equals(receiver.request)) receiver.finish();
+            finish();
+        };
+        handler.postDelayed(watchdog, 120000);
         new Thread(() -> {
             try {
                 String path = ReferenceImageImporter.importImage(context, uri, phase -> stage(context, id, phase));
@@ -118,6 +130,7 @@ public final class ReferenceImagePickerActivity extends Activity {
             } catch (Exception | OutOfMemoryError e) {
                 complete(context, id, "error", "Import photo / " + status(context) + " : " + e.getClass().getSimpleName() + ". Projet précédent conservé.");
             } finally {
+                handler.removeCallbacks(watchdog);
                 if (releaseGrant) {
                     try { context.getContentResolver().releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION); }
                     catch (SecurityException ignored) {}
