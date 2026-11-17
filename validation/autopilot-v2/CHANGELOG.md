@@ -7,6 +7,7 @@ Base : V54 e824aa4a684e9e7d2fdfd4981018d7a5d8249407, descendant de V53 769614a59
 - Mémoire technique SQLite pour l'outillage et journal privé vérifiable dans Android ; budget persistant de deux échecs identiques et arrêt sur journal corrompu.
 - Raccordement des dessins intermédiaires aux planches, à la validation individuelle et à la chronologie MP4. Une séquence partielle ou non contrôlée ne peut plus être exportée comme complète.
 - Reprise par lots de quatre intermédiaires, conservation des PNG existants, refus et correction ciblée suivis d'une nouvelle validation.
+- Revue finale : un refus visuel compte comme un échec persistant ; les verdicts des intermédiaires restent distincts de ceux des poses clés après réparation.
 - Livraison Android versionCode 9 / 1.4.4 (AUTOPILOT V2), nom distinct de toutes les V53/V54.
 
 Tests locaux exécutés : 12 tests Python du superviseur, mémoire et budget du pipeline Godot, intégration du véritable écran avec données synthétiques et transport HTTP local simulé. MP4 H.264 décodé intégralement : 96×160, 30 FPS, 150 images, 5 s. Ces preuves ne sont ni une inférence générative ni un test MediaCodec/Xiaomi.

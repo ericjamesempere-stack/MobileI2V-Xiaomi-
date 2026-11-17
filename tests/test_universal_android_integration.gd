@@ -169,6 +169,16 @@ func run() -> void:
     assert(worker.repairs == 2 and not board.accepted[intermediate_index])
     for i in range(board.paths.size()):
         assert((FileAccess.get_sha256(board.paths[i]) == hashes[i]) == (i != intermediate_index))
+    # A successful keypose review must never certify an intermediate whose
+    # own model review failed after repair.
+    worker.fail_review = true
+    await board._regenerate_reviewed_drawing()
+    assert(not board.session_agent.state["frames"][str(intermediate_index)]["technical_quality"]["fidelity_verified"])
+    assert(board.session_agent.state["agents"]["quality"] == "unverified_or_rejected")
+    assert(board.status.text.contains("non confirmé") and not board._universal_ready_for_review())
+    worker.fail_review = false
+    var restored_review: Dictionary = await load("res://scripts/karma_intermediate_agent.gd").new().review_candidates(load("res://scripts/android_image_reader.gd").read_image(board.imported_path), board.universal_plan, board.universal_folder, worker, 240)
+    assert(restored_review.get("fidelity_verified", false))
     board._review_choose(true)
     board.review_check.set_pressed(true)
     assert(board._has_current_review(), board.status.text)

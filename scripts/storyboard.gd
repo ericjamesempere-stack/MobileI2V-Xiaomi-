@@ -2705,6 +2705,7 @@ func _regenerate_universal_drawing() -> void:
     universal_pipeline.worker.vision_failed = false
     status.text = "Correction du dessin %d…" % (index + 1)
     var result: Dictionary
+    var sequence_verified: bool = false
     if entry.has("task"):
         result = await _repair_universal_intermediate(reference, entry, meta, defect)
     else:
@@ -2716,16 +2717,20 @@ func _regenerate_universal_drawing() -> void:
         universal_quality = await universal_pipeline.review_keyposes(reference, universal_plan, universal_folder, universal_style)
         # A corrected keypose invalidates the physical transition checks of its
         # neighbors; recheck those cached pixels before any new approval.
-        await load("res://scripts/karma_intermediate_agent.gd").new().review_candidates(reference, universal_plan, universal_folder, universal_pipeline.worker, 240)
+        var intermediate_review: Dictionary = await load("res://scripts/karma_intermediate_agent.gd").new().review_candidates(reference, universal_plan, universal_folder, universal_pipeline.worker, 240)
+        sequence_verified = universal_quality.get("fidelity_verified", false) and intermediate_review.get("fidelity_verified", false)
+        var drawing_verified: bool = _universal_intermediate_ready(entry, reference.save_png_to_buffer().hex_encode().sha256_text()) if entry.has("task") else universal_quality.get("fidelity_verified", false)
         if session_agent != null:
-            session_agent.record_frame(index, paths[index], {"fidelity_verified": universal_quality.get("fidelity_verified", false)})
+            session_agent.record_frame(index, paths[index], {"fidelity_verified": drawing_verified})
             session_agent.state["quality"] = universal_quality
+            session_agent.state["intermediate_quality"] = intermediate_review
+            session_agent.state["agents"]["quality"] = "model_review_passed" if sequence_verified else "unverified_or_rejected"
             session_agent.save(universal_folder)
         _build_contact_sheet()
     ai_running = false
     _save()
     _refresh_review_dialog()
-    status.text = ("Dessin refait. Examine-le et garde-le avant une nouvelle confirmation." if universal_quality.get("fidelity_verified", false) else "Dessin refait ; contrôle de fidélité encore non confirmé. " + str(universal_quality.get("error", ""))) if result.get("ok", false) else "L'ancien dessin est conservé. " + str(result.get("error", "Correction indisponible."))
+    status.text = ("Dessin refait. Examine-le et garde-le avant une nouvelle confirmation." if sequence_verified else "Dessin refait ; contrôle de fidélité encore non confirmé. " + str(universal_quality.get("error", ""))) if result.get("ok", false) else "L'ancien dessin est conservé. " + str(result.get("error", "Correction indisponible."))
 
 func _repair_universal_intermediate(reference: Image, entry: Dictionary, meta: Dictionary, defect: String) -> Dictionary:
     var task: Dictionary = entry["task"]

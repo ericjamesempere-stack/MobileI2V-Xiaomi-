@@ -95,7 +95,10 @@ func finish(ticket: Dictionary, result: Dictionary) -> bool:
     var passed: bool = result.get("ok", false) and result.get("quality", {}).get("fidelity_verified", false) and result.get("intermediate_review", {}).get("fidelity_verified", false)
     # Available candidates are progress, not a failed operation. They remain
     # unapproved and the runtime review gate handles sequence completeness.
-    var progress_only: bool = result.get("intermediates", {}).get("ok", false) and result.get("intermediate_review", {}).get("ok", false) and not result.get("intermediate_review", {}).get("fidelity_verified", false)
+    var intermediate_review: Dictionary = result.get("intermediate_review", {})
+    var progress_only: bool = result.get("intermediates", {}).get("ok", false) and intermediate_review.get("ok", false) and intermediate_review.get("failed", []).is_empty() and not intermediate_review.get("pending", []).is_empty()
+    if not intermediate_review.get("failed", []).is_empty():
+        message = "intermediate_fidelity_rejected"
     var status: String = "PASS" if passed else ("NOT_TESTED" if progress_only and message.is_empty() else "FAIL")
     return _append({"event": "result", "id": ticket["id"], "input_sha": ticket["input_sha"], "status": status,
         "stage_sha": stage.sha256_text(), "failure_sha": (stage + ":" + message).sha256_text() if status == "FAIL" else ""})
