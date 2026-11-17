@@ -43,7 +43,7 @@ jobs:
           info = Path("live-evidence/vision-api-info.json")
           if info.exists():
               value = json.loads(info.read_text())
-              print("VISION_API_CONTRACT", json.dumps(value.get("named_endpoints", {}))[:16000])
+              print("VISION_API_CONTRACT", json.dumps({name: {"parameters": [{"name": p.get("parameter_name"), "example": p.get("example_input")} for p in endpoint.get("parameters", [])], "returns": [p.get("component") for p in endpoint.get("returns", [])]} for name, endpoint in value.get("named_endpoints", {}).items() if name == "/add_message"}))
           source = Path("scripts/hf_studio_generator.gd")
           content = source.read_text()
           marker = '    var body: String = (response[3] as PackedByteArray).get_string_from_utf8()'
