@@ -2093,12 +2093,21 @@ func _configure_universal_pipeline(style_image: Image = null) -> void:
     universal_pipeline.stage_changed.connect(_universal_progress)
 
 func _universal_progress(stage: String, completed: int, total: int) -> void:
-    if stage == "analysis":
-        status.text = "Analyse IA de ton image et de l'histoire…"
-    elif stage == "generation":
-        status.text = "Création des poses : %d / %d" % [completed, total]
-    else:
-        status.text = "Contrôle de fidélité des poses et correction ciblée…"
+    match stage:
+        "reference_generation":
+            status.text = "Création de l'image de départ par le moteur IA…"
+        "analysis":
+            status.text = "Analyse IA de l'image et de ton histoire…"
+        "generation":
+            status.text = "Création des dessins : %d / %d" % [completed, total]
+        "fidelity_review":
+            status.text = "Vérification des personnages, objets et actions…"
+        "intermediate_generation":
+            status.text = "Création des dessins intermédiaires : %d / %d" % [completed, total]
+        "intermediate_fidelity_review":
+            status.text = "Vérification des mouvements entre les poses…"
+        _:
+            status.text = "Préparation de la planche : " + stage
 
 func _universal_signature() -> String:
     var identity: String = FileAccess.get_sha256(imported_path) if FileAccess.file_exists(imported_path) else "missing"
