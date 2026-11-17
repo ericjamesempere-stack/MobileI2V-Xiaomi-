@@ -91,7 +91,7 @@ func build(board: Control) -> void:
     shell.add_theme_constant_override("separation", 12)
     margin.add_child(shell)
     text(shell, "KARMA ONE", 36, PURPLE)
-    text(shell, "Imagine. Dessine. Anime. · V59", 21, MUTED)
+    text(shell, "Imagine. Dessine. Anime. · mode simplifié", 21, MUTED)
     var tabs := HBoxContainer.new()
     tabs.add_theme_constant_override("separation", 8)
     shell.add_child(tabs)
@@ -132,9 +132,6 @@ func build(board: Control) -> void:
     board.local_mode = CheckBox.new()
     board.local_mode.text = "Moteurs du téléphone — installation et modèles requis"
     board.local_mode.button_pressed = true
-    person.add_child(board.local_mode)
-    text(person, "Mode local : MNN Chat pour l'analyse et Local Dream pour les dessins doivent être installés, avec leurs modèles chargés. Le moteur de calcul reste séparé de KARMA ONE. Aucun appel en ligne automatique dans ce mode.", 18, MUTED)
-    text(person, "Mode en ligne : décoche la case pour envoyer l'image et l'histoire aux services distants. Leurs quotas s'appliquent.", 18, MUTED)
     board.invent_box = VBoxContainer.new()
     board.invent_box.add_theme_constant_override("separation", 12)
     button(board, person, "Décrire mon image de départ", func() -> void: board.invent_box.visible = not board.invent_box.visible).name = "InventCharacter"
@@ -218,6 +215,12 @@ func build(board: Control) -> void:
     var chatgpt: VBoxContainer = card(board.wizard_pages[1], "Dessiner avec ChatGPT", "Mode assisté : envoie la référence et l'histoire à ChatGPT, lance la génération là-bas, enregistre l'image puis importe-la ici. Ce bouton partage ta photo avec l'application choisie. Pas de clé API ni de ZeroGPU ; les limites de ton abonnement s'appliquent.")
     button(board, chatgpt, "Envoyer l'histoire à ChatGPT", board._send_chatgpt_board, true).name = "ChatGPTBoard"
     var grid_shape := HBoxContainer.new()
+    var grid_toggle := Button.new()
+    grid_toggle.text = "Corriger la grille (si nécessaire)"
+    grid_toggle.custom_minimum_size.y = 52
+    chatgpt.add_child(grid_toggle)
+    grid_shape.visible = false
+    grid_toggle.pressed.connect(func() -> void: grid_shape.visible = not grid_shape.visible)
     chatgpt.add_child(grid_shape)
     text(grid_shape, "Colonnes", 18)
     board.chatgpt_columns = SpinBox.new()
@@ -231,7 +234,7 @@ func build(board: Control) -> void:
     board.chatgpt_rows.max_value = 6
     board.chatgpt_rows.value = 2
     grid_shape.add_child(board.chatgpt_rows)
-    text(chatgpt, "Demande standard : 4 colonnes × 2 lignes, sans marges. Ajuste la grille si le résultat diffère. Une mauvaise grille découpe mal les dessins : inspecte chaque case avant validation.", 18, MUTED)
+    text(chatgpt, "Grille automatique par défaut : 4 × 2. Vérifie les dessins après import.", 18, MUTED)
     button(board, chatgpt, "Importer la planche de ChatGPT", board._choose_chatgpt_board).name = "ImportChatGPTBoard"
     button(board, chatgpt, "Importer le dessin refait", board._choose_chatgpt_replacement).name = "ImportChatGPTRedo"
     button(board, board.wizard_pages[1], "C'est parti ! Créer mes dessins", board._friendly_generate, true).name = "GenerateStory"
@@ -273,6 +276,8 @@ func build(board: Control) -> void:
     var advanced: VBoxContainer = card(board.root_box, "Le coin des réglages", "Facultatif : les trois étapes suffisent pour commencer.", Color("edf0f9"))
     board.advanced_panel = advanced.get_parent()
     board.advanced_panel.visible = false
+    advanced.add_child(board.local_mode)
+    text(advanced, "Mode local : MNN Chat et Local Dream nécessitent des modèles installés. Décoche pour utiliser les services distants ; leurs quotas s'appliquent. Aucune bascule automatique.", 18, MUTED)
     text(advanced, "Durée personnalisée (secondes)", 20)
     board.duration_input = SpinBox.new()
     board.duration_input.min_value = 1
