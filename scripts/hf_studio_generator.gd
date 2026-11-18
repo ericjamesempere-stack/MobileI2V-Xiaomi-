@@ -22,6 +22,10 @@ var repair_target: Image = null
 var scene_registry: Dictionary = {}
 var reference_contract: Dictionary = {}
 var remote_vision_consent: bool = false
+# Optional Gradio-compatible vision endpoints, configured by the application.
+# An unconfigured endpoint is never represented as a working model.
+var vision_backup_urls: Array[String] = []
+var last_vision_attempts: Array[Dictionary] = []
 var vision_failed: bool = false
 var job_folder: String = ""
 const DETAIL_CACHE_VERSION := "style-guide-v2"
@@ -381,12 +385,30 @@ func analyze_scene(reference: Image, story: String) -> Dictionary:
     var images: Array[Image] = [reference]
     if reference_contract.get("ok", false):
         prompt += " Reference identity constraints to check explicitly: " + " ".join(reference_contract.get("constraints", []))
-    var response: Dictionary = await _vision_request(images, prompt)
+    last_vision_attempts.clear()
+    var endpoints: Array[String] = [VISION_URL]
+    for candidate in vision_backup_urls:
+        var endpoint: String = candidate.strip_edges().trim_suffix("/")
+        if endpoint.begins_with("https://") and not endpoints.has(endpoint):
+            endpoints.append(endpoint)
+        if endpoints.size() >= 4:
+            break
+    var response: Dictionary = {"ok": false, "error": "vision_unavailable"}
+    for endpoint in endpoints:
+        response = await _vision_request_at(endpoint, images, prompt)
+        last_vision_attempts.append({"provider": endpoint, "ok": response.get("ok", false), "http_status": response.get("http_status", 0), "error_kind": response.get("error_kind", "")})
+        if response.get("ok", false):
+            response["provider"] = endpoint
+            break
+        # Never submit another provider after an ambiguous in-flight failure.
+        if response.get("error_kind", "") == "hidden_server_error":
+            break
+        if response.get("error_kind", "") in ["authentication", "safety"]:
+            break
     if not response.get("ok", false):
         vision_failed = true
         response["semantic_analysis"] = false
-        response["provider"] = vision_provider_id()
-        response["retry_mode"] = "manual_only"
+        response["attempts"] = last_vision_attempts.duplicate(true)
         return response
     var raw: String = extract_vision_text(response.get("data", []))
     var first: int = raw.find("{")
@@ -398,7 +420,7 @@ func analyze_scene(reference: Image, story: String) -> Dictionary:
     var analyzer: RefCounted = load("res://scripts/reference_visual_analysis.gd").new()
     scene["reference_sha"] = analyzer.reference_sha(reference)
     scene["analysis_origin"] = "live_vision_model"
-    scene["provider"] = vision_provider_id()
+    scene["provider"] = str(response.get("provider", vision_provider_id()))
     scene["raw_model_output"] = raw
     var checked: Dictionary = analyzer.validate_scene(scene, scene["reference_sha"])
     if not checked.get("ok", false):
@@ -580,19 +602,22 @@ func vision_provider_id() -> String:
     return VISION_URL
 
 func _vision_request(images: Array[Image], prompt: String) -> Dictionary:
-    var upload: Dictionary = await _upload_images(VISION_URL, images)
+    return await _vision_request_at(VISION_URL, images, prompt)
+
+func _vision_request_at(endpoint: String, images: Array[Image], prompt: String) -> Dictionary:
+    var upload: Dictionary = await _upload_images(endpoint, images)
     # An upload failure precedes inference. Retry a temporary gateway outage
     # once here, never resubmit a job whose execution state may be unknown.
     if not upload.get("ok", false) and int(upload.get("http_status", 0)) in [502, 503, 504]:
         await get_tree().create_timer(1.0).timeout
-        upload = await _upload_images(VISION_URL, images)
+        upload = await _upload_images(endpoint, images)
     if not upload.get("ok", false):
         upload["error"] = "Qwen3-VL — envoi des images : " + str(upload.get("error", "échec de l’envoi."))
         return upload
-    var result: Dictionary = await _call_api(VISION_URL, "add_message", [{"files": upload["files"], "text": prompt}])
+    var result: Dictionary = await _call_api(endpoint, "add_message", [{"files": upload["files"], "text": prompt}])
     if not result.get("ok", false):
         # Keep transport details for diagnosis; do not pretend a second model ran.
-        result["provider"] = VISION_URL
+        result["provider"] = endpoint
         result["retry_mode"] = "manual_only"
         if result.get("error_kind", "") == "hidden_server_error":
             result["error"] = "Qwen3-VL a interrompu l’analyse sans détail. Réessaie plus tard ou utilise les moteurs locaux si configurés."
