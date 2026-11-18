@@ -101,6 +101,41 @@ jobs:
             echo "::error::KARMA agents validation encountered errors"
             exit 1
           fi
+      - name: Probe real remote image and vision API endpoints (read-only)
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          echo '## Real provider API connectivity (no inference)' >> "$GITHUB_STEP_SUMMARY"
+          echo '| Service | HTTP | API info |' >> "$GITHUB_STEP_SUMMARY"
+          echo '|---|---|---|' >> "$GITHUB_STEP_SUMMARY"
+          for spec in \
+            'Z-Image-Turbo|https://mrfakename-z-image-turbo.hf.space' \
+            'Qwen-Image-Edit|https://prithivmlmods-qwen-image-edit-2511-loras-fast.hf.space' \
+            'AnyPose|https://abidlabs-qwen-image-edit-2511-anypose.hf.space' \
+            'Qwen3-VL|https://qwen-qwen3-vl-demo.hf.space' \
+            'SmolVLM2|https://huggingfacetb-smolvlm2.hf.space'; do
+            name="${spec%%|*}"
+            base="${spec#*|}"
+            file="$(mktemp)"
+            code="$(curl --location --silent --show-error --max-time 15 --connect-timeout 6 --output "$file" --write-out '%{http_code}' "$base/gradio_api/info")"
+            if [ "$code" = "200" ] && python3 -m json.tool "$file" >/dev/null 2>&1; then
+              state='JSON API reachable (inference NOT tested)'
+            else
+              state='Unavailable or invalid response'
+            fi
+            printf '| %s | %s | %s |\n' "$name" "$code" "$state" >> "$GITHUB_STEP_SUMMARY"
+            printf '%s: HTTP %s, %s\n' "$name" "$code" "$state" | tee -a remote-provider-probe.log
+            rm -f "$file"
+          done
+      - name: Publish provider connectivity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-provider-probe-${{ github.sha }}
+          path: remote-provider-probe.log
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Publish agents validation log
         if: always()
         uses: actions/upload-artifact@v4
