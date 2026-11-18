@@ -1,7 +1,7 @@
-name: Verify KARMA ONE Step 10 without APK
+name: Verify KARMA ONE Step 11 without APK
 on:
   push:
-    branches: [karma/step10-consolidation-safe-20261118]
+    branches: [karma/step10-consolidation-safe-20261118, karma/step11-final-integration-20261118]
     paths-ignore: ['**.md']
   workflow_dispatch:
 
@@ -60,7 +60,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: karma-step10-godot-test-logs
+          name: karma-step11-godot-test-logs
           path: ${{ runner.temp }}/karma-logs
   android:
     runs-on: ubuntu-latest
@@ -95,5 +95,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: karma-step10-android-unit-tests
+          name: karma-step11-android-unit-tests
           path: native/mp4exporter/build/test-results/testDebugUnitTest
