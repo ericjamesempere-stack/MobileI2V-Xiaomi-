@@ -2334,7 +2334,7 @@ func _draw_remote_story() -> void:
         return
     if not result.has("plan"):
         _restore_previous_pipeline(previous_pipeline)
-        status.text = "Analyse IA non aboutie ; tes dessins sont conservés. " + str(result.get("detail", {}).get("error", result.get("error", "Service indisponible.")))
+        status.text = "Analyse IA non aboutie ; tes dessins sont conservés. " + _explain_scene_failure(str(result.get("detail", {}).get("error", result.get("error", "Service indisponible."))))
         return
     var generation: Dictionary = result.get("generation", result.get("detail", {}))
     var generated_paths: Array = generation.get("paths", [])
@@ -3077,6 +3077,18 @@ func _drawing_thumbnail(path: String) -> Texture2D:
         var factor: float = 320.0 / float(side)
         image.resize(maxi(1, roundi(image.get_width() * factor)), maxi(1, roundi(image.get_height() * factor)), Image.INTERPOLATE_LANCZOS)
     return ImageTexture.create_from_image(image)
+
+func _explain_scene_failure(reason: String) -> String:
+    match reason:
+        "missing_entities_or_actions":
+            return "Le moteur n'a pas identifié assez de personnages ou d'actions dans sa réponse. Reformule l'histoire ou réessaie avec un moteur d'analyse disponible ; aucune scène n'a été inventée."
+        "vision_returned_no_scene_json":
+            return "Le moteur d'analyse a renvoyé une réponse illisible. Tes images sont conservées ; vérifie le moteur avant de relancer."
+        "external_vision_consent_required":
+            return "L'analyse distante nécessite ton autorisation explicite dans Réglages et outils. Aucune photo n'a été envoyée."
+        _:
+            return reason
+
 
 func _may_use_remote_fallback(failure: Dictionary) -> bool:
     return remote_fallback.button_pressed and not failure.get("ok", false) \
