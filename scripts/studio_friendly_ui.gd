@@ -272,6 +272,7 @@ func build(board: Control) -> void:
     film.add_child(board.review_check)
     board.friendly_export = button(board, board.wizard_pages[2], "Créer ma vidéo MP4", board._friendly_export, true)
     board.friendly_export.name = "CreateMovie"
+    button(board, board.wizard_pages[2], "Exporter les dessins et la planche PNG", board._export_png_sequence, false)
     button(board, board.wizard_pages[2], "Lire ma dernière vidéo", board._play_last_mp4).name = "PlayMovie"
     button(board, board.wizard_pages[2], "Partager ma vidéo", board._share_last_mp4)
     button(board, board.wizard_pages[2], "Améliorer mon histoire", func() -> void: board._go_step(1))
