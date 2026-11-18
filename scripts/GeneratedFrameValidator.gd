@@ -43,3 +43,24 @@ static func inspect(plan: Dictionary, frame_paths: Array[String]) -> Dictionary:
         "pose_verified": false,
         "review_required": true
     }
+
+# Adapter for the current universal storyboard schema (boards + intermediates).
+# Unlike inspect(), this accepts resumable partial generations and does not
+# reject identical adjacent poses: held animation frames may be intentional.
+static func inspect_storyboard_entries(entries: Array) -> Dictionary:
+    if entries.is_empty():
+        return {"ok": false, "error": "no_generated_drawings"}
+    var inspected: int = 0
+    var dimensions: Array[Vector2i] = []
+    for entry in entries:
+        if not entry is Dictionary:
+            return {"ok": false, "error": "invalid_drawing_entry", "index": inspected}
+        var path: String = str(entry.get("path", ""))
+        if not path.begins_with("user://") or not FileAccess.file_exists(path):
+            return {"ok": false, "error": "missing_generated_drawing", "index": inspected}
+        var picture := Image.new()
+        if picture.load(path) != OK or picture.is_empty():
+            return {"ok": false, "error": "unreadable_generated_drawing", "index": inspected}
+        dimensions.append(picture.get_size())
+        inspected += 1
+    return {"ok": true, "drawings": inspected, "dimensions": dimensions, "identity_verified": false, "pose_verified": false, "review_required": true}
