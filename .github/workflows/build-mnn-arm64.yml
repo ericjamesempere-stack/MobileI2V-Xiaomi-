@@ -7,6 +7,7 @@ on:
       - 'native/mnnarm64/src/karma_sd_scheduler.hpp'
       - 'native/mnnarm64/src/karma_mnn_jni.cpp'
       - 'native/mnnarm64/src/KarmaMnnBridge.java'
+      - 'native/mnnarm64/src/KarmaSdInference.java'
       - 'tests/test_mnn_ddim_scheduler.cpp'
   workflow_dispatch:
 permissions:
@@ -22,6 +23,15 @@ jobs:
           set -euo pipefail
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -I native/mnnarm64/src tests/test_mnn_ddim_scheduler.cpp -o /tmp/karma-ddim-test
           /tmp/karma-ddim-test
+      - name: Compile Android Java inference loop (no APK)
+        run: |
+          set -euo pipefail
+          ANDROID_JAR="$(find "${ANDROID_HOME:-/opt/android-sdk}" -path '*/platforms/android-*/android.jar' -print | sort -V | tail -n 1)"
+          test -f "$ANDROID_JAR"
+          mkdir -p /tmp/karma-java-classes
+          javac -source 8 -target 8 -cp "$ANDROID_JAR" -d /tmp/karma-java-classes \
+            native/mnnarm64/src/KarmaMnnBridge.java native/mnnarm64/src/KarmaSdInference.java
+          echo KARMA_SD_JAVA_LOOP_COMPILES_OK
       - name: Setup Android NDK r27c
         uses: nttld/setup-ndk@v1
         id: ndk
