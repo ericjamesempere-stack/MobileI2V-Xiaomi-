@@ -8,6 +8,7 @@ on:
       - 'native/mnnarm64/src/karma_mnn_jni.cpp'
       - 'native/mnnarm64/src/KarmaMnnBridge.java'
       - 'native/mnnarm64/src/KarmaSdInference.java'
+      - 'native/mnnarm64/MODEL_SETUP.md'
       - 'tests/test_mnn_ddim_scheduler.cpp'
   workflow_dispatch:
 permissions:
@@ -58,7 +59,7 @@ jobs:
             -DMNN_BUILD_CONVERTER=OFF -DMNN_BUILD_TRAIN=OFF \
             -DMNN_OPENCL=OFF -DMNN_VULKAN=OFF \
             -DMNN_ARM82=ON -DMNN_LOW_MEMORY=ON -DMNN_SEP_BUILD=OFF \
-            -DMNN_BUILD_DIFFUSION=OFF -DMNN_BUILD_OPENCV=OFF
+            -DMNN_BUILD_DIFFUSION=ON -DMNN_BUILD_LLM=ON -DMNN_BUILD_OPENCV=OFF
           cmake --build /tmp/mnn-android-build --target MNN --parallel 2
           mkdir -p native/mnnarm64/prebuilt/include native/mnnarm64/prebuilt/lib/arm64-v8a
           cp -R /tmp/MNN/include/MNN native/mnnarm64/prebuilt/include/
