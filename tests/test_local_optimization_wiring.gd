@@ -1,0 +1,19 @@
+extends SceneTree
+func _initialize() -> void:
+    call_deferred("run")
+func run() -> void:
+    var engine: Node = load("res://scripts/local_studio_generator.gd").new()
+    root.add_child(engine)
+    var normal: Dictionary = engine._apply_image_optimization({"width": 512, "height": 512, "steps": 20, "prompt": "test"})
+    assert(normal["ok"] and normal["payload"]["steps"] == 20)
+    assert(not engine.configure_resource_budget(0, 0, 50, false)["ok"])
+    var economy: Dictionary = engine.configure_resource_budget(1200, 3, 15, false)
+    assert(economy["ok"] and economy["mode"] == "economy")
+    var reduced: Dictionary = engine._apply_image_optimization({"width": 512, "height": 512, "steps": 20})
+    assert(reduced["ok"] and reduced["payload"]["steps"] == 12)
+    var paused: Dictionary = engine.configure_resource_budget(512, 5, 5, false)
+    assert(not paused["ok"])
+    assert(not engine._apply_image_optimization({"width": 512, "height": 512, "steps": 20})["ok"])
+    engine.queue_free()
+    print("KARMA_LOCAL_OPTIMIZATION_WIRING_OK")
+    quit(0)
