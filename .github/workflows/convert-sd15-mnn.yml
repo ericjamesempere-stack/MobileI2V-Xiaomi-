@@ -35,6 +35,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Pin compatible Python for PyTorch and ONNX exporter
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
       - name: Free unused hosted-runner SDK space before large conversion
         run: |
           set -euo pipefail
