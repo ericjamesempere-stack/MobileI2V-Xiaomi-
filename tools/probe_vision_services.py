@@ -20,6 +20,7 @@ for name, base in SERVICES.items():
                 data = json.loads(response.read(500000).decode("utf-8"))
             endpoints = data.get("named_endpoints", {}) if isinstance(data, dict) else {}
             record["api"] = sorted(endpoints.keys())
+            record["schemas"] = {key: {"parameters": value.get("parameters", []), "returns": value.get("returns", [])} for key, value in endpoints.items() if key in ("/add_message", "/chat", "/run_vl", "/handle_submit")}
             record["verified"] = bool(endpoints)
             record["info_path"] = suffix
             break
