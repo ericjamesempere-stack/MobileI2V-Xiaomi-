@@ -24,3 +24,13 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.14.1'
 }
+
+// Explicit task ordering prevents Gradle from reading shared Android plugin
+// outputs before their producer tasks have completed.
+afterEvaluate {
+    tasks.matching { it.name == 'extractDebugAnnotations' }.configureEach {
+        dependsOn tasks.matching {
+            it.name in ['writeDebugAarMetadata', 'javaPreCompileDebug', 'mergeDebugJavaResource']
+        }
+    }
+}
