@@ -635,7 +635,19 @@ func _vision_gradio_adapter(endpoint: String, api: String, images: Array[Image],
     elif api == "chat" and data is Array and not data.is_empty():
         raw = str(data[0]) if data[0] is String else extract_vision_text(data[0])
     elif api == "handle_submit" and data is Array and data.size() >= 3:
-        raw = extract_vision_text(data[2])
+        # MiniCPM returns chatbot turns as [user, assistant] pairs, not
+        # ModelScope assistant dictionaries. Ignore user text entirely.
+        var turns: Variant = data[2]
+        if turns is Array:
+            for turn in turns:
+                if turn is Array and turn.size() >= 2:
+                    var answer: Variant = turn[1]
+                    if answer is String and not answer.strip_edges().is_empty():
+                        raw = answer
+                    elif answer is Dictionary:
+                        raw = extract_vision_text(answer)
+        if raw.is_empty():
+            raw = extract_vision_text(turns)
     if raw.is_empty():
         return {"ok": false, "provider": endpoint, "error_kind": "invalid_output", "error": "vision_adapter_empty_response"}
     return {"ok": true, "provider": endpoint, "data": [{"role": "assistant", "status": "done", "content": [{"type": "text", "content": raw}]}]}
