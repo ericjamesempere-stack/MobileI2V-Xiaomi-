@@ -38,6 +38,14 @@ public final class KarmaMnnBridge {
     }
     private static native float[] nativeDdimStep(float[] latent, float[] epsilon,
                                                   float alphaT, float alphaPrev);
+    public static synchronized boolean setFloatInput(String name, float[] values) {
+        return available && name != null && values != null && nativeSetFloatInput(name, values);
+    }
+    public static synchronized float[] getFloatOutput(String name) {
+        return available && name != null ? nativeGetFloatOutput(name) : null;
+    }
+    private static native boolean nativeSetFloatInput(String name, float[] values);
+    private static native float[] nativeGetFloatOutput(String name);
     private static native boolean nativeLoadGraph(String path);
     private static native boolean nativeRunGraph();
     private static native String nativeLastError();
