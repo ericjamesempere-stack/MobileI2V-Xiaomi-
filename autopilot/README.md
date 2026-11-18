@@ -1,4 +1,4 @@
-# KARMA ONE AUTOPILOT V2
+# KARMA ONE AUTOPILOT
 
 KarmaWan now executes a dependency graph through real, fixed tools: Git inventory,
 allowlisted Godot tests, FFprobe/full FFmpeg decode, APK ABI/plugin/signature
@@ -11,6 +11,7 @@ python3 autopilot/supervisor.py --godot /path/to/godot
 python3 autopilot/supervisor.py --tasks autopilot/artifact_tasks.json --mp4 /path/to/synthetic-demo.mp4 --apk /path/to/build.apk
 python3 autopilot/audit.py --commit FULL_COMMIT_SHA
 python3 -m unittest discover -s tests -p test_autopilot.py -v
+python3 -m autopilot.candidate FULL_CANDIDATE_SHA --state /tmp/karma-technical.sqlite3 --report-dir /tmp/karma-review
 ```
 
 The existing build workflow remains responsible for compiling Android and its
@@ -24,7 +25,7 @@ substituted MediaCodec encoder. A PASS is scoped to the named evidence type.
 `mission_tasks_v1.json` preserves the original mission dependency graph as
 unexecuted criteria. `tasks.json` contains connected offline checks, separately
 from unconnected real inference, MediaPipe and physical-device mission work.
-Unknown executors report NOT_TESTED. No role gains PASS from its declaration.
+Roles explicitly marked unconnected report NOT_TESTED. Unknown executors are rejected. No role gains PASS from its declaration.
 
 Technical memory defaults to `autopilot/state/technical.sqlite3`; use `--state`
 to select durable private storage. Results are in `autopilot/reports/`; use
@@ -46,3 +47,25 @@ executables, URLs or arbitrary test files. Timeouts bound all external tools.
 There is no push, merge, publish, paid service, live model retry or automatic
 correction executor. Proposed fixes still require a versioned branch and tests;
 physical Xiaomi tests and real universal generation remain separate mission gates.
+
+
+## Supervised MobileI2V patch review
+
+Run the candidate command from the clean, trusted baseline checkout. Pass the full
+SHA of a trusted descendant commit. The current MobileI2V policy admits changes
+to existing app files listed in `candidate.py`. Tests, review policy and CI are
+outside that list. The Git checkpoint and literal manifest are bound to the
+receipt. The disposable worktree runs with temporary Godot data/config and a short
+environment allowlist. This runs local application code from the trusted commit.
+
+The V60 code-test agent consumes the receipts in a separate Godot process, after
+the V60 guard authorizes evaluation. REJECT covers an observed gate failure.
+BLOCKED covers missing proof, infrastructure or remaining budget. REVIEW_REQUIRED
+means the configured local gates passed. The human controls integration, and
+device, measurement and live inference evidence need their own checks.
+
+Desktop Autopilot allows one DAG per SQLite state. Each completed success is
+bound to its append-only checkpoint and checksummed evidence. Use the same state
+and report directory to resume. The cap is two attempts per task fingerprint.
+The mission execution budget defaults to 30 minutes and can be reduced with
+`--budget-seconds`. A previously verified matching task can be read from cache.
