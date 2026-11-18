@@ -504,18 +504,11 @@ func _export_board_mp4() -> void:
     exporter.set("status_label", status)
     exporter.set("hold_keyframes", v5_sheet_loaded)
     add_child(exporter)
-    var indices: Array = []
-    # Export only approved drawings, preserving the planned temporal order.
-    for item in plan:
-        var frame_id: int = int(item)
-        if frame_id >= 0 and frame_id < sources.size() and frame_id < accepted.size() and accepted[frame_id]:
-            indices.append(frame_id)
+    # An invalid timeline must not silently fall back to an unordered export.
+    # Preserve the precise sequence approved by the user.
+    var indices: Array = _validated_export_timeline(plan, sources.size(), accepted)
     if indices.is_empty():
-        for i in range(sources.size()):
-            if i < accepted.size() and accepted[i]:
-                indices.append(i)
-    if indices.is_empty():
-        status.text = "Aucun dessin valide a exporter."
+        status.text = "Export bloque : chronologie de la planche absente ou invalide. Revalide la planche."
         exporter.queue_free()
         return
     exporting_video = true
@@ -3208,3 +3201,19 @@ func _play_last_mp4() -> void:
             status.text = "Ouverture de ta vidéo dans le lecteur Android."
             return
     status.text = "Crée d'abord une vidéo MP4. Les vidéos déjà enregistrées restent dans Movies/KARMA ONE."
+
+# Pure validation shared with regression tests; never invents an export order.
+static func _validated_export_timeline(timeline: Array, drawing_count: int, approvals: Array) -> Array:
+    if timeline.is_empty() or drawing_count <= 0 or approvals.size() != drawing_count:
+        return []
+    for approved in approvals:
+        if approved != true:
+            return []
+    var valid: Array = []
+    for frame_id in timeline:
+        if not (frame_id is int or frame_id is float):
+            return []
+        if int(frame_id) != float(frame_id) or int(frame_id) < 0 or int(frame_id) >= drawing_count:
+            return []
+        valid.append(int(frame_id))
+    return valid
