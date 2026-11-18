@@ -14,8 +14,14 @@ def inspect(root: Path):
         if not graph.is_file() or graph.stat().st_size < 1024:
             raise ValueError("missing or implausibly small converted graph: " + name)
         external = root / (name + ".mnn.weight")
-        if external.exists() and external.stat().st_size < 1024:
-            raise ValueError("empty external weights: " + name)
+        if external.is_symlink():
+            raise ValueError("unsafe external weight symlink: " + name)
+        if external.exists() and (not external.is_file() or external.stat().st_size < 1024):
+            raise ValueError("empty or invalid external weights: " + name)
+        # MNN stores large converted tensors in external .weight files. Reject
+        # suspiciously small graph-only exports with no external data.
+        if graph.stat().st_size < 1024 * 1024 and not external.is_file():
+            raise ValueError("missing external weights for small graph: " + name)
     tokenizer = root / "tokenizer.mtok"
     if not tokenizer.is_file() or tokenizer.stat().st_size < 1024:
         raise ValueError("missing real tokenizer.mtok")
@@ -33,6 +39,7 @@ def inspect(root: Path):
             manifest["components"][name]["external_weight_file"] = ext.name
             manifest["components"][name]["external_weight_sha256"] = sha.hexdigest()
             manifest["components"][name]["external_weight_bytes"] = ext.stat().st_size
+    manifest["weights_verified"] = False
     manifest["graph_execution_verified"] = False
     manifest["tokenizer_execution_verified"] = False
     manifest["on_device_inference_verified"] = False
