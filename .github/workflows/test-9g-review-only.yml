@@ -6,6 +6,7 @@ on:
       - karma/step09g-review-assertion-fix-20261118
     paths:
       - tests/test_reference_review_pipeline.gd
+      - tests/test_step10_agent_ledger.gd
       - scripts/**
       - .github/workflows/test-9g-review-only.yml
   workflow_dispatch:
@@ -28,7 +29,7 @@ jobs:
       - name: Run review and regression checks without GPU or APK
         run: |
           set -euo pipefail
-          for test in test_reference_review_pipeline.gd test_friendly_studio.gd test_hf_batch_fallback.gd; do
+          for test in test_reference_review_pipeline.gd test_friendly_studio.gd test_hf_batch_fallback.gd test_step10_agent_ledger.gd; do
             echo "::group::$test"
             timeout 45s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script "res://tests/$test" 2>&1 | tee "$test.log"
             if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error' "$test.log"; then exit 1; fi
@@ -36,6 +37,7 @@ jobs:
               test_reference_review_pipeline.gd) grep -q 'REFERENCE_IMPORT_SUBJECT_PROMPT_AND_REVIEW_GATE_OK' "$test.log" ;;
               test_friendly_studio.gd) grep -q 'FRIENDLY_STUDIO_NAVIGATION_AND_GUARDS_OK' "$test.log" ;;
               test_hf_batch_fallback.gd) grep -q 'HF_BATCH_FALLBACK_OK' "$test.log" ;;
+              test_step10_agent_ledger.gd) grep -q 'KARMA_STEP10_AGENT_LEDGER_AND_EXPORT_GATES_OK' "$test.log" ;;
             esac
             echo "::endgroup::"
           done
