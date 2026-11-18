@@ -34,6 +34,8 @@ func run() -> void:
     var board := LocalBoard.new()
     root.add_child(board)
     board.local_mode.set_pressed_no_signal(true)
+    # An isolated loopback transport test must never switch to cloud services.
+    board.remote_fallback.set_pressed_no_signal(false)
     board.local_auth_input.text = "test-local-secret"
     board.character_description.text = "Une banane vivante"
     await board._create_remote_reference()
