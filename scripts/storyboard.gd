@@ -3375,3 +3375,22 @@ static func _validated_export_timeline(timeline: Array, drawing_count: int, appr
             return []
         valid.append(int(frame_id))
     return valid
+
+# Explicit user-triggered diagnostic: one genuine local diffusion image.
+# No remote fallback and no automatic reattempt on thermal or model failures.
+func _test_real_local_diffusion() -> void:
+    if ai_running or disk_drawing_running or exporting_video or photo_importing:
+        status.text = "Une autre opération est déjà en cours."
+        return
+    ai_running = true
+    status.text = "Test réel du modèle local : création d'une image 512 × 512, sans Internet…"
+    var worker: Node = load("res://scripts/local_studio_generator.gd").new()
+    add_child(worker)
+    var result: Dictionary = await worker.verify_real_local_diffusion()
+    worker.queue_free()
+    ai_running = false
+    if result.get("ok", false):
+        status.text = "Modèle local validé : image enregistrée dans " + str(result.get("file", "")) + " (" + str(result.get("elapsed_ms", 0)) + " ms). Qualité à examiner."
+    else:
+        status.text = "Modèle local non validé : " + str(result.get("error", "Erreur inconnue")) + ". Aucun moteur extérieur sollicité."
+    _sync_friendly_ui()
