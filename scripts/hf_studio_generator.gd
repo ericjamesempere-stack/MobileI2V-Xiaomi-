@@ -76,8 +76,8 @@ func build_edit_payload(reference: Image, story: String, style: String, previous
     return {"instruction": instruction, "images": images, "adapter": adapter}
 
 func _http_failure(code: int, network: int) -> Dictionary:
-    var kind: String = "quota" if code == 429 else ("authentication" if code == 401 or code == 403 else "transport")
-    return {"ok": false, "error_kind": kind, "http_status": code, "error": "Service IA indisponible (HTTP %d, reseau %d)." % [code, network]}
+    var kind: String = "quota" if code == 429 else ("authentication" if code in [401, 403] else ("budget" if code == 402 else ("invalid_request" if code in [400, 409, 422] else "transport")))
+    return {"ok": false, "error_kind": kind, "http_status": code, "network_result": network, "error": "Service IA indisponible (HTTP %d, reseau %d)." % [code, network]}
 
 func _save_job(path: String, record: Dictionary) -> void:
     if path.is_empty():
