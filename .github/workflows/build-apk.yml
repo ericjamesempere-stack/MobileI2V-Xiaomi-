@@ -14,18 +14,18 @@ on:
   workflow_dispatch:
     inputs:
       expected_sha:
-        description: "Full commit SHA of the approved consolidation"
-        required: true
+        description: "Optional exact SHA; leave blank to build the selected branch head"
+        required: false
         type: string
 
 permissions:
   contents: read
 
-# Only the newest commit needs a costly Android build. Cancel superseded
-# runs on the same branch instead of compiling the H.264 plugin repeatedly.
+# Separate cheap push validation from manual APK builds. Never cancel a running
+# Android build when a push validation starts; serialize manual builds instead.
 concurrency:
-  group: mobilei2v-apk-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: mobilei2v-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   validate-autopilot:
@@ -106,8 +106,9 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "karma/step12-consolidation-20261118"
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            test -n "$REQUESTED_SHA"
-            test "$REQUESTED_SHA" = "$GITHUB_SHA" || { echo "::error::Source SHA mismatch"; exit 1; }
+            if [ -n "$REQUESTED_SHA" ]; then
+              test "$REQUESTED_SHA" = "$GITHUB_SHA" || { echo "::error::Source SHA mismatch: requested $REQUESTED_SHA, selected $GITHUB_SHA"; exit 1; }
+            fi
           fi
           echo "Building exact commit $GITHUB_SHA as $APK_NAME"
 
@@ -189,7 +190,16 @@ jobs:
         run: |
           set -euo pipefail
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses </dev/null || true
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > sdk-licenses.log 2>&1 || {
+            cat sdk-licenses.log
+            echo "::error::Android SDK licenses were not accepted"
+            exit 1
+          }
+          grep -q "All SDK package licenses accepted" sdk-licenses.log || {
+            cat sdk-licenses.log
+            echo "::error::Android SDK license acceptance not confirmed"
+            exit 1
+          }
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
             'platform-tools' 'platforms;android-34' 'build-tools;34.0.0' 'ndk;23.2.8568313'
           test -x "$ANDROID_HOME/build-tools/34.0.0/apksigner"
