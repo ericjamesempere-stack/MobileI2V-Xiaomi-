@@ -74,6 +74,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
+      - name: Verify Step 11 Android and Godot version alignment
+        run: |
+          set -euo pipefail
+          grep -Fx 'config/name="KARMA ONE"' project.godot
+          grep -Fx 'config/version="1.11.0"' project.godot
+          grep -Fx 'version/code=18' export_presets.cfg
+          grep -Fx 'version/name="1.11.0 (Step 11 integration)"' export_presets.cfg
+          grep -Fx 'export_path="build/KARMA_ONE_STEP11_INTEGRATION_ARM64.apk"' export_presets.cfg
+          grep -Fx 'package/name="KARMA ONE"' export_presets.cfg
       - name: Check ARM64 export preset and Android bridge
         run: |
           set -euo pipefail
