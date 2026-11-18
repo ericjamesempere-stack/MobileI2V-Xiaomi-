@@ -41,6 +41,7 @@ Date : 2026-11-18. Ce registre distingue correction committée et validation ex�
 - **Essai réel** — Depuis l’écran storyboard sous Godot 4.6.3, `tools/test_universal_live_board.gd` a utilisé l’image synthétique publique `validation/v54-poses/reference.png`. La tâche d’analyse Qwen3-VL a répondu `success=false` avec une sortie nulle. Zéro image générée. L’essai de diagnostic sur le même code applicatif a confirmé ces valeurs.
 - **Correctif transport Qwen3-VL** — Une relance après une erreur HTTP 502, 503 ou 504 à l’envoi, avant la soumission du calcul. Les erreurs d’envoi et d’analyse apparaissent séparément. Le test de protocole confirme qu’une erreur de quota ou un échec après soumission ne provoquent pas de doublon.
 - **Nouvel essai réel** — La référence publique a atteint l’étape d’analyse, puis Qwen3-VL a renvoyé HTTP 503. La génération réelle reste bloquée et l’APK publié à l’étape 10 précède ce correctif.
+- **Diagnostic CI historique** — Le runner GitHub a reçu une fin de tâche Qwen3-VL avec `success=false` et `output.error=null`. Le client reconnaît désormais aussi cette forme masquée de l’erreur. Ce journal concerne un commit antérieur et ne valide pas le parcours actuel. [Exécution 43984469671](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/43984469671).
 - **Validation restante** — Obtenir une planche complète avec une analyse et une inférence réelles, puis la faire examiner par une personne. Le parcours avec les moteurs locaux reste à essayer sur le téléphone.
 
 ## Étape 12 — Qualité visuelle et Android

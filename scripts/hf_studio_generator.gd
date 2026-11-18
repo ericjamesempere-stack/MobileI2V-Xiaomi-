@@ -184,6 +184,10 @@ func decode_queue_stream(body: String, event_id: String) -> Dictionary:
             var output: Variant = message.get("output")
             if message.get("success", false) == true and output is Dictionary and output.get("data") is Array:
                 return {"ok": true, "data": output["data"]}
+            # Gradio may suppress the exception in an object with a null
+            # error field, as well as in a null output.
+            if output is Dictionary and output.has("error") and output["error"] == null:
+                output = null
             return decode_event_stream("event: error\ndata: " + JSON.stringify(output) + "\n\n")
     return {"ok": false, "error": "Resultat de session IA absent. Aucun resultat d'un autre travail accepte."}
 

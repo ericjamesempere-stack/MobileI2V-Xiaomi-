@@ -39,6 +39,8 @@ func run() -> void:
     var queue: String = 'data: {"msg":"heartbeat"}\n\ndata: {"msg":"process_completed","event_id":"other","success":true,"output":{"data":["wrong"]}}\n\ndata: {"msg":"process_completed","event_id":"target","success":true,"output":{"data":["correct"]}}\n\n'
     assert(client.decode_queue_stream(queue, "target")["data"] == ["correct"])
     assert(not client.decode_queue_stream(queue, "missing")["ok"])
+    var hidden: Dictionary = client.decode_queue_stream('data: {"msg":"process_completed","event_id":"target","success":false,"output":{"error":null}}\n\n', "target")
+    assert(not hidden["ok"] and hidden["error_kind"] == "hidden_server_error")
     assert(not client.decode_queue_stream('data: {"msg":"process_completed","event_id":"target","success":false,"output":{"error":"quota exceeded"}}\n\n', "target")["ok"])
     assert(not client.decode_queue_stream('data: {"msg":"process_completed","event_id":"target","success":true,"output":{"data":null}}\n\n', "target")["ok"])
     assert(client.result_stream_url(client.VISION_URL, "add_message", "event", "session") == client.VISION_URL + "/gradio_api/queue/data?session_hash=session")
