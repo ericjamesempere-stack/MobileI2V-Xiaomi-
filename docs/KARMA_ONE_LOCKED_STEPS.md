@@ -28,13 +28,21 @@ Date : 2026-11-18. Ce registre distingue correction committée et validation ex�
 - **Premier contrôle CI** — Le job Godot 4.5.2 a passé les contrôles de revue 9G et le registre des agents, puis le test d’intégration MP4 a échoué car FFmpeg était absent. Le job Android s’est arrêté avant les tests unitaires, sur HTTP 429 lors de la résolution des dépendances Gradle. [Exécution 44260572129](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44260572129).
 - **Correctifs CI** — Installation conditionnelle de FFmpeg avec vérification SHA256 reprise du workflow du dépôt. Nouvelle tentative Gradle uniquement si Maven Central renvoie HTTP 429.
 - **Contrôles de validation** — Réussite des jobs Godot 4.5.2 (36 scripts, contrôles Python et transports simulés) et Android (profil ARM64 et `testDebugUnitTest`) au commit `dba278abd8761610c1e863a42bc32267790bd6de`. [Exécution 44261921954](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44261921954).
-- **Exécution ARM64** — Tentative unique sur `0731367885df4fd773e11ca557c869c8c88b1281`. Arrêt avant export APK au test `test_friendly_studio.gd:51` dans « Test real image service protocol without GPU calls ». [Exécution 44262509434](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44262509434).
+- **Exécution ARM64** — Première tentative sur `0731367885df4fd773e11ca557c869c8c88b1281`. Arrêt avant export APK au test `test_friendly_studio.gd:51` dans « Test real image service protocol without GPU calls ». [Exécution 44262509434](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44262509434).
 - **Cause et correction** — Le partage des données Godot entre tests reproduit l’assertion quand Friendly Studio charge la planche persistée par V60. Le workflow attribue maintenant à chacun des sept scripts de cette étape son propre `XDG_DATA_HOME`. Les sept scripts passent localement sous Godot 4.6.3, même avec la fixture V60 toujours présente dans le répertoire parent.
 - **Artefact de diagnostic** — ID 14409460942, expiration le 2 décembre 2026 à 07:58:07 UTC. [Journaux du build](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44262509434/artifacts/14409460942).
-- **APK** — Aucun APK produit. Validation matérielle Xiaomi 14T Pro à effectuer.
+- **APK consolidé** — Succès sur `ac5cfdb22d36f05881c08b6ddfe303d00eb25c35`. Signature de débogage, ABI `arm64-v8a` et enregistrement du plugin MP4 vérifiés par CI. [Build 44273932601](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44273932601).
+- **Artefact APK** — ID `14414665218`, valable jusqu’au 18 décembre 2026 à 09:18:04 UTC. SHA-256 APK `ee4664baacc2f07eaa6f5f9dad6cf934520915e091a16f6069790f31f37952c2`. [Téléchargement](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44273932601/artifacts/14414665218).
 
 ## Étape 11 — Génération universelle
-- **Statut : À FAIRE** ; dépend de la vérification des moteurs et des flux Android.
+
+- **Statut** — Contrôles simulés réussis. Validation réelle ouverte.
+- **Contrôles automatisés** — Tests Godot 4.5.2, transports simulés et tests unitaires Android réussis sur `ac5cfdb22d36f05881c08b6ddfe303d00eb25c35`. [CI 44263505389](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44263505389).
+- **Essai réel** — Depuis l’écran storyboard sous Godot 4.6.3, `tools/test_universal_live_board.gd` a utilisé l’image synthétique publique `validation/v54-poses/reference.png`. La tâche d’analyse Qwen3-VL a répondu `success=false` avec une sortie nulle. Zéro image générée. L’essai de diagnostic sur le même code applicatif a confirmé ces valeurs.
+- **Validation restante** — Obtenir une planche complète avec une analyse et une inférence réelles, puis la faire examiner par une personne. Le parcours avec les moteurs locaux reste à essayer sur le téléphone.
 
 ## Étape 12 — Qualité visuelle et Android
-- **Statut : À FAIRE** ; les commits de la branche qualité divergent de 9F et ne sont pas présumés fusionnés.
+
+- **Statut** — Contrôles automatisés réussis. Validation matérielle ouverte.
+- **Contrôles** — Le test de diagnostic visuel, le branchement storyboard, le contrôle de revue 9G et le test d’intégration MP4 ont réussi sur `ac5cfdb22d36f05881c08b6ddfe303d00eb25c35`. Le MP4 de régression issu de dessins simulés a été entièrement décodé avec FFmpeg (H.264, 150 images, 5 secondes). [CI 44263505389](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44263505389).
+- **Xiaomi 14T Pro** — Installation, galerie et sélecteur de documents, reprise après retour dans l’application, qualité des dessins réels, export et lecture MediaCodec à vérifier sur appareil. La signature de débogage de l’APK reste à comparer à celle de l’installation existante avant une mise à jour.
