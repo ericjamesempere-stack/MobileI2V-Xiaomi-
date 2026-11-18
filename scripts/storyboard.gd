@@ -2618,7 +2618,8 @@ func _friendly_generate() -> void:
     var previous_paths: Array[String] = paths.duplicate()
     await _draw_remote_story()
     if last_ai_sequence_ok or paths != previous_paths:
-        _go_step(2)
+        # Show the generated drawings for review before offering video export.
+        _go_step(1)
 
 func _confirm_export_review() -> bool:
     if ai_running or disk_drawing_running or exporting_video or photo_importing:
