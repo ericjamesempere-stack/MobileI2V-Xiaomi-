@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
 import tempfile
 import time
 
-from autopilot.supervisor import ROOT, Memory, Supervisor, digest
+from autopilot.supervisor import ERRORS, ROOT, Memory, Supervisor, digest
 
 # The first project's authorized application surfaces. The candidate cannot
 # change the orchestrator, review gates, test fixtures, workflows or permissions.
@@ -96,7 +97,6 @@ def validate(sup, executable, temp, manifest, receipt, budget_seconds):
     xdg = Path(temp) / 'test-data'
     xdg.mkdir()
     process = sup.process
-    import os
     env = {key: os.environ[key] for key in ('PATH', 'LANG', 'LC_ALL', 'SYSTEMROOT') if key in os.environ}
     env.update(XDG_DATA_HOME=str(xdg), XDG_CONFIG_HOME=str(xdg), XDG_CACHE_HOME=str(xdg))
     def isolated_process(argv, cwd, timeout):
@@ -111,23 +111,42 @@ def validate(sup, executable, temp, manifest, receipt, budget_seconds):
         except subprocess.TimeoutExpired:
             receipt.update(decision='BLOCKED', reason='godot_import_timeout')
             return
-        from autopilot.supervisor import ERRORS
         import_log = imported.stdout + imported.stderr
         receipt['import_output_sha256'] = digest(import_log)
         if imported.returncode != 0 or ERRORS.search(import_log):
             receipt.update(decision='REJECT', reason='godot_project_import_failed')
             return
-        results = sup.run(json.loads(manifest)['tasks'], budget_seconds=deadline - time.monotonic())
+        # Reserve a short window for the independent agent to record the decision.
+        results = sup.run(json.loads(manifest)['tasks'], budget_seconds=max(0, deadline - time.monotonic() - 3))
         receipt['checks'] = {name: {'status': result['status'], 'reason': result['reason'],
                                    'evidence_sha256': [a['sha256'] for a in result['artifacts']]}
                              for name, result in results.items()}
-        statuses = {r['status'] for r in results.values()}
-        if 'FAIL' in statuses:
-            receipt.update(decision='REJECT', reason='required_check_failed')
-        elif statuses != {'PASS'}:
-            receipt.update(decision='BLOCKED', reason='required_check_unavailable')
-        else:
-            receipt.update(decision='REVIEW_REQUIRED', reason='offline_checks_passed')
+        checks_file = Path(temp) / 'check-receipts.json'
+        checks_file.write_text(json.dumps(receipt['checks']), encoding='utf-8')
+        time_left = deadline - time.monotonic()
+        if time_left <= 0:
+            receipt.update(decision='BLOCKED', reason='review_budget_exhausted')
+            return
+        try:
+            review = sup.process([executable, '--headless', '--script',
+                                  'res://autopilot/review_checks.gd', '--', str(checks_file)],
+                                 sup.root, timeout=min(10, time_left))
+        except subprocess.TimeoutExpired:
+            receipt.update(decision='BLOCKED', reason='code_test_agent_timeout')
+            return
+        output = review.stdout + review.stderr
+        prefix = 'KARMA_CANDIDATE_REVIEW '
+        decisions = [line[len(prefix):] for line in review.stdout.splitlines() if line.startswith(prefix)]
+        if review.returncode or ERRORS.search(output) or len(decisions) != 1:
+            receipt.update(decision='BLOCKED', reason='code_test_agent_failed')
+            return
+        decision = json.loads(decisions[0])
+        mapping = {'BLOCKED', 'REJECT', 'REVIEW_REQUIRED'}
+        if not isinstance(decision, dict) or decision.get('decision') not in mapping:
+            receipt.update(decision='BLOCKED', reason='invalid_code_test_agent_decision')
+            return
+        receipt.update(decision=decision['decision'], reason=decision['reason'],
+                       review_agent='karma_code_test_agent.gd', review_output_sha256=digest(output))
     finally:
         sup.process = process
 

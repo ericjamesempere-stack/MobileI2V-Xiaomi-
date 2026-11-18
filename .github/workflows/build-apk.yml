@@ -2,7 +2,7 @@ name: Build Android APK KARMA ONE V60 Simplified Android
 
 on:
   push:
-    branches: [main, karma/storyboard-story-sequence-20261113, karma/v54-approval-safety-20261116, karma/autopilot-v2-20261117, karma/universal-text-entry-v55-20261117, karma/v55-finalisation-20261117, karma/v56-local-engines-20261117]
+    branches: [main, karma/storyboard-story-sequence-20261113, karma/v54-approval-safety-20261116, karma/autopilot-v2-20261117, karma/universal-text-entry-v55-20261117, karma/v55-finalisation-20261117, karma/v56-local-engines-20261117, karma/advanced-autonomy-integration-20261118]
     paths-ignore:
       - '**.md'
       - '.github/workflows/validate-universal-live.yml'
@@ -200,6 +200,16 @@ jobs:
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' import-individual-review.log; then exit 1; fi
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' autopilot-pipeline.log; then exit 1; fi
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' autopilot-memory.log; then exit 1; fi
+      - name: Run the connected agent validation graph on the autonomy branch
+        if: github.ref_name == 'karma/advanced-autonomy-integration-20261118'
+        run: |
+          set -euo pipefail
+          # checkout defaults to a single branch. Expose its exact commit to inventory.
+          git update-ref refs/remotes/origin/"$GITHUB_REF_NAME" "$GITHUB_SHA"
+          mkdir -p "$RUNNER_TEMP/karma-fixture-data"
+          export XDG_DATA_HOME="$RUNNER_TEMP/karma-fixture-data"
+          python3 autopilot/supervisor.py --godot "$GITHUB_WORKSPACE/Godot_v4.5.2-stable_linux.x86_64" --budget-seconds 180
+
       - name: Test KARMA ONE intermediate rendering and cache
         run: |
           set -euo pipefail
@@ -435,6 +445,7 @@ jobs:
             disk-drawings.log
             export.log
             signing-check.log
+            autopilot/reports/*.json
             apk-badging.txt
             export_presets.cfg
           if-no-files-found: ignore

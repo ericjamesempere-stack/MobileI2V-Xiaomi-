@@ -75,3 +75,29 @@ func evaluate(baseline: Dictionary, candidate: Dictionary) -> Dictionary:
 func deployment_allowed(_evaluation: Dictionary) -> bool:
     # Deliberate fail-closed design. Human-controlled CI deployment is separate.
     return false
+
+func review_candidate_checks(checks: Dictionary) -> Dictionary:
+    # Host Autopilot supplies its fixed, committed test manifest and the
+    # receipts it generated. Offline evidence cannot approve deployment.
+    if checks.is_empty():
+        return {"decision": "BLOCKED", "reason": "required_check_unavailable"}
+    var missing: bool = false
+    for id in checks:
+        var check: Variant = checks[id]
+        if not check is Dictionary:
+            return {"decision": "BLOCKED", "reason": "invalid_check_receipt"}
+        var status: String = str(check.get("status", ""))
+        var evidence: Variant = check.get("evidence_sha256", [])
+        if status in ["PASS", "FAIL"]:
+            if not evidence is Array or evidence.is_empty():
+                return {"decision": "BLOCKED", "reason": "missing_check_evidence"}
+            for fingerprint in evidence:
+                if not _valid_digest(fingerprint):
+                    return {"decision": "BLOCKED", "reason": "invalid_check_evidence"}
+            if status == "FAIL":
+                return {"decision": "REJECT", "reason": "required_check_failed"}
+        else:
+            missing = true
+    if missing:
+        return {"decision": "BLOCKED", "reason": "required_check_unavailable"}
+    return {"decision": "REVIEW_REQUIRED", "reason": "offline_checks_passed"}
