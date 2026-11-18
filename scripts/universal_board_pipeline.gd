@@ -142,7 +142,7 @@ func prepare(reference: Image, story: String, seconds: float, folder: String) ->
             return prepare_from_scene(reference, scene, seconds, folder)
     var response: Dictionary = await worker.analyze_scene(reference, story)
     if not response.get("ok", false):
-        return {"ok": false, "error": response.get("error", "vision_unavailable"), "semantic_analysis": false, "drawings_unchanged": true}
+        return {"ok": false, "error": response.get("error", "vision_unavailable"), "semantic_analysis": false, "drawings_unchanged": true, "http_status": response.get("http_status", 0), "network_result": response.get("network_result", -1), "request_error": response.get("request_error", 0)}
     var scene: Dictionary = response["scene"]
     scene["story"] = story
     return prepare_from_scene(reference, scene, seconds, folder)
@@ -267,6 +267,7 @@ func generate_keyposes(reference: Image, plan: Dictionary, style: String, folder
     var previous: Image = null
     var pending: Array = []
     var failure: String = ""
+    var engine_failure: Dictionary = {}
     var reused: int = 0
     var session: RefCounted = load("res://scripts/karma_studio_session.gd").new()
     for i in range(plan["boards"].size()):
@@ -289,6 +290,7 @@ func generate_keyposes(reference: Image, plan: Dictionary, style: String, folder
                 var response: Dictionary = await worker.redraw_batch(reference, briefs, style, _trusted_previous(folder, i, plan, style))
                 if not response.get("ok", false):
                     failure = str(response.get("error", "generation_failed"))
+                    engine_failure = {"ok": false, "http_status": response.get("http_status", 0), "network_result": response.get("network_result", -1), "request_error": response.get("request_error", 0), "error_kind": response.get("error_kind", "")}
                     break
                 pending = response["images"].duplicate()
                 if response.has("sheet"):
@@ -309,6 +311,8 @@ func generate_keyposes(reference: Image, plan: Dictionary, style: String, folder
         stage_changed.emit("generation", paths.size(), plan["keyposes"])
         previous = image
     var result: Dictionary = {"ok": failure.is_empty() and paths.size() == plan["keyposes"], "paths": paths, "keyposes_required": plan["keyposes"], "keyposes_generated": paths.size(), "reused": reused, "intermediates_required": plan["intermediate_drawings"], "intermediates_generated": 0, "semantic_analysis": plan["semantic_analysis"], "analysis_origin": plan["analysis_origin"], "automatic_fidelity_check": "unavailable", "fidelity_verified": false, "human_approved": false, "ready_for_animation": false, "error": failure, "engines": worker.engine_status.duplicate(true)}
+    if not engine_failure.is_empty():
+        result["engine_failure"] = engine_failure
     _write(folder.path_join("generation.json"), result)
     return result
 

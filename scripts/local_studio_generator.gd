@@ -76,8 +76,7 @@ func inspect_local_engines(include_vision: bool = true, include_drawing: bool = 
     var failures: Array[String] = []
     if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("local_engine_installation_status"):
-            report["android_apps"] = JSON.parse_string(str(native.call("local_engine_installation_status")))
+        report["android_apps"] = JSON.parse_string(str(native.call("local_engine_installation_status")))
     if include_vision:
         var response: Dictionary = await _local_request(vision_base, "/v1/models", {}, true, 4.0)
         var parsed := JSON.new()
@@ -119,7 +118,7 @@ func _ensure_drawing_service() -> Dictionary:
     if drawing_probe_base == drawing_base:
         return {"ok": true}
     var result: Dictionary = await inspect_local_engines(false, true)
-    return {"ok": result["ok"], "error": result["message"]}
+    return {"ok": result["ok"], "error": result["message"], "http_status": result["drawing"].get("http_status", 0), "network_result": result["drawing"].get("network_result", -1)}
 
 func _vision_request(images: Array[Image], prompt: String) -> Dictionary:
     # MNN Chat exposes an OpenAI-compatible API. Select an actually loaded
@@ -127,7 +126,7 @@ func _vision_request(images: Array[Image], prompt: String) -> Dictionary:
     if local_model.is_empty():
         var discovery: Dictionary = await inspect_local_engines(true, false)
         if not discovery.get("ok", false):
-            return {"ok": false, "error": discovery["message"]}
+            return {"ok": false, "error": discovery["message"], "http_status": discovery["vision"].get("http_status", 0), "network_result": discovery["vision"].get("network_result", -1)}
     if local_model.is_empty():
         return {"ok": false, "error": "Aucun modèle local sélectionné."}
     var content: Array = [{"type": "text", "text": prompt}]

@@ -47,9 +47,8 @@ func run() -> void:
     board.plan.assign([0, 1])
     board._sync_friendly_ui()
     assert(not board.review_check.button_pressed)
-    board.review_check.set_pressed_no_signal(true)
-    board._sync_friendly_ui()
     assert(not board.friendly_export.disabled)
+    assert(board._confirm_export_review())
     board._reject_all()
     board._sync_friendly_ui()
     assert(not board.review_check.button_pressed and board.friendly_export.disabled)
@@ -76,12 +75,22 @@ class FakeImageWorker extends Node:
         var image := Image.create(side, side, false, Image.FORMAT_RGBA8)
         image.fill(Color.SKY_BLUE)
         return {"ok": true, "image": image, "model": "SIMULATED"}
+class ProbeImageWorker extends FakeImageWorker:
+    func inspect_local_engines(_vision: bool, _drawing: bool) -> Dictionary:
+        return {"ok": false, "message": "SIMULATED local probe failure", "drawing": {"http_status": observer.probe_status}}
 class IdeaBoard extends "res://scripts/storyboard.gd":
     var requested_ideas: Array[String] = []
     var received_stories: Array[String] = []
     var fail_creation: bool = false
     var image_mode: String = "valid"
+    var probe_status: int = -1
     func _make_drawing_worker() -> Node:
+        if probe_status == -1:
+            return _make_remote_drawing_worker()
+        var worker := ProbeImageWorker.new()
+        worker.observer = self
+        return worker
+    func _make_remote_drawing_worker() -> Node:
         var worker := FakeImageWorker.new()
         worker.observer = self
         return worker
@@ -129,6 +138,20 @@ func test_idea_entry() -> void:
     await board._friendly_generate()
     assert(board.requested_ideas.back() == "Deux véhicules dans un désert")
     assert(board.received_stories.back() == "Ils se croisent.")
+    assert(board.remote_fallback.button_pressed, "V61 enables online fallback by default")
+    board.remote_fallback.button_pressed = false
+    var before_fallback: int = board.requested_ideas.size()
+    board.probe_status = 503
+    await board._create_remote_reference("Moteur local indisponible")
+    assert(board.requested_ideas.size() == before_fallback, "No remote upload without session consent")
+    board.remote_fallback.button_pressed = true
+    board.probe_status = 401
+    await board._create_remote_reference("Authentification locale refusée")
+    assert(board.requested_ideas.size() == before_fallback, "Authentication failure must stop")
+    board.probe_status = 503
+    await board._create_remote_reference("Secours distant autorisé")
+    assert(board.requested_ideas.size() == before_fallback + 1)
+    assert(board.requested_ideas.back() == "Secours distant autorisé")
     board.queue_free()
     await process_frame
     print("UNIVERSAL_IDEA_ENTRY_WIRING_OK: SIMULATED image creation; idea-only, optional subject, reference reuse, import guard and failure preservation")

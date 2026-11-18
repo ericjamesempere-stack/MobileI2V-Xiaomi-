@@ -9,6 +9,11 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Validated full Step 10 commit SHA"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -21,8 +26,13 @@ concurrency:
 
 jobs:
   build:
+    if: >-
+      github.ref_name != 'karma/step10-consolidation-safe-20261118' ||
+      (github.event_name == 'workflow_dispatch' && inputs.expected_sha == github.sha && github.run_attempt == '1')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      APK_NAME: ${{ github.ref_name == 'karma/step10-consolidation-safe-20261118' && 'KARMA_ONE_STEP10_CONSOLIDATED_ARM64' || 'KARMA_ONE_STEP09F_AGENT_WIRING_ARM64' }}
 
     steps:
       - name: Checkout project
@@ -342,32 +352,34 @@ jobs:
           set -euo pipefail
           mkdir -p build
           timeout 300s ./Godot_v4.5.2-stable_linux.x86_64 --headless --verbose --path . \
-            --export-debug Android build/KARMA_ONE_STEP09F_AGENT_WIRING_ARM64.apk 2>&1 | tee export.log
-          test -s build/KARMA_ONE_STEP09F_AGENT_WIRING_ARM64.apk
-          unzip -t build/KARMA_ONE_STEP09F_AGENT_WIRING_ARM64.apk | tail -2
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs build/KARMA_ONE_STEP09F_AGENT_WIRING_ARM64.apk | tee signing-check.log
+            --export-debug Android build/${APK_NAME}.apk 2>&1 | tee export.log
+          test -s build/${APK_NAME}.apk
+          unzip -t build/${APK_NAME}.apk | tail -2
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs build/${APK_NAME}.apk | tee signing-check.log
           # Actions caches are branch-scoped. Publish phone updates from this
           # existing release lane, whose cached key signed the delivered V55.
           if [ "$GITHUB_REF_NAME" = 'karma/v55-finalisation-20261117' ]; then
             grep -q 'certificate SHA-256 digest: 5fe844e7ae98d51d5464f1e3a7d58e218aeade4c11b8fe4a1c5ed5e45d9663ef' signing-check.log
           fi
-          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging build/KARMA_ONE_STEP09F_AGENT_WIRING_ARM64.apk | tee apk-badging.txt
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging build/${APK_NAME}.apk | tee apk-badging.txt
           grep -q "package: name='com.ericjamesempere.mobilei2v'" apk-badging.txt
-          grep -q "versionCode='15'" apk-badging.txt
-          grep -q "versionName='1.6.0" apk-badging.txt
+          version_code=$(sed -n 's#^version/code=\([0-9][0-9]*\)$#\1#p' export_presets.cfg)
+          version_name=$(sed -n 's#^version/name="\(.*\)"$#\1#p' export_presets.cfg)
+          test -n "$version_code"
+          test -n "$version_name"
+          grep -Fq "versionCode='$version_code'" apk-badging.txt
+          grep -Fq "versionName='$version_name'" apk-badging.txt
           grep -q 'launchable-activity:' apk-badging.txt
-          unzip -l build/KARMA_ONE_STEP09F_AGENT_WIRING_ARM64.apk | grep -q 'lib/arm64-v8a/libgodot_android.so'
-          if unzip -l build/KARMA_ONE_STEP09F_AGENT_WIRING_ARM64.apk | grep -q 'lib/armeabi-v7a/'; then
-            echo 'Unexpected 32-bit ARM libraries in ARM64-only APK' >&2
-            exit 1
-          fi
-          stat -c 'APK size: %s bytes' build/KARMA_ONE_STEP09F_AGENT_WIRING_ARM64.apk
-          sha256sum build/KARMA_ONE_STEP09F_AGENT_WIRING_ARM64.apk
+          grep -Fxq "native-code: 'arm64-v8a'" apk-badging.txt
+          unzip -Z1 "build/${APK_NAME}.apk" > apk-entries.txt
+          grep -Fxq 'lib/arm64-v8a/libgodot_android.so' apk-entries.txt
+          stat -c 'APK size: %s bytes' build/${APK_NAME}.apk
+          sha256sum build/${APK_NAME}.apk
 
       - name: Verify native MP4 class and Android plugin registration
         run: |
           set -euo pipefail
-          APK=build/KARMA_ONE_STEP09F_AGENT_WIRING_ARM64.apk
+          APK=build/${APK_NAME}.apk
           "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$APK" | grep -E "^(package:|launchable-activity:|native-code:)" | tee build/apk-runtime-metadata.txt
           "$ANDROID_HOME/build-tools/34.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml > build/apk-manifest.txt
           grep -q 'org.godotengine.plugin.v2.MP4Exporter' build/apk-manifest.txt
@@ -379,12 +391,15 @@ jobs:
           grep -q '127.0.0.1' build/apk-local-network.txt
           python3 - <<'PY'
           import zipfile
-          with zipfile.ZipFile('build/KARMA_ONE_STEP09F_AGENT_WIRING_ARM64.apk') as z:
+          import os
+          with zipfile.ZipFile('build/' + os.environ['APK_NAME'] + '.apk') as z:
               dex = [z.read(n) for n in z.namelist() if n.endswith('.dex')]
               assert any(b'Lcom/mobilei2v/encoder/MP4Exporter;' in data for data in dex), 'MP4 native class absent'
               assert any(b'share_last_export' in data for data in dex), 'MP4 share method absent'
               assert any(b'Lcom/mobilei2v/encoder/ReferenceImageImporter;' in data for data in dex), 'Native reference importer absent'
               assert any(b'pick_reference_image' in data for data in dex), 'Native photo picker absent'
+              if os.environ['GITHUB_REF_NAME'] == 'karma/step10-consolidation-safe-20261118':
+                  assert any(b'prefer_document_image_picker' in data for data in dex), 'Document picker bridge absent'
               assert any(b'Lcom/mobilei2v/encoder/ReferenceImagePickerActivity;' in data for data in dex), 'Durable receiver absent'
               assert any(b'Lcom/mobilei2v/encoder/SharedImageReceiverActivity;' in data for data in dex), 'Shared image receiver absent'
               assert any(b'peek_shared_image_result' in data for data in dex), 'Shared image bridge absent'
@@ -399,7 +414,7 @@ jobs:
       - name: Publish verified APK checksum and build evidence
         run: |
           set -euo pipefail
-          sha256sum build/KARMA_ONE_STEP09F_AGENT_WIRING_ARM64.apk | tee build/SHA256SUMS.txt
+          sha256sum build/${APK_NAME}.apk | tee build/SHA256SUMS.txt
           {
             echo "## MobileI2V Android build"
             echo "- Commit: \`$GITHUB_SHA\`"
@@ -415,9 +430,9 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: KARMA_ONE_STEP09F_AGENT_WIRING_ARM64
+          name: ${{ env.APK_NAME }}
           path: |
-            build/KARMA_ONE_STEP09F_AGENT_WIRING_ARM64.apk
+            build/${{ env.APK_NAME }}.apk
             build/SHA256SUMS.txt
             build/apk-runtime-metadata.txt
             signing-check.log

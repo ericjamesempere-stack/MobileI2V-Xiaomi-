@@ -1,6 +1,7 @@
 package com.mobilei2v.encoder;
 
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -22,7 +23,7 @@ public final class ReferenceImagePickerActivity extends Activity {
     static synchronized boolean launch(Activity host, String role) {
         if (host == null) return false;
         String id = UUID.randomUUID().toString();
-        prefs(host).edit().clear().putString("request", id).putString("role", role)
+        prefs(host).edit().remove("result").putString("request", id).putString("role", role)
             .putString("stage", "opening").commit();
         host.runOnUiThread(() -> {
             try {
@@ -60,7 +61,8 @@ public final class ReferenceImagePickerActivity extends Activity {
         return value;
     }
     static synchronized String status(Context c) { return prefs(c).getString("stage", "idle"); }
-    static synchronized void cancel(Context c) { prefs(c).edit().clear().commit(); }
+    static synchronized void cancel(Context c) { prefs(c).edit().remove("request").remove("result").remove("role").putString("stage", "idle").commit(); }
+    static synchronized void preferDocumentPicker(Context c) { prefs(c).edit().putBoolean("force_document_picker", true).commit(); }
 
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -78,22 +80,21 @@ public final class ReferenceImagePickerActivity extends Activity {
             return; // Existing document picker result is delivered by Android.
         }
         try {
-            // Android 13+ system Photo Picker avoids vendor document-provider
-            // callbacks that may never return on some Android 16 devices.
-            // Legacy Android keeps the existing Storage Access Framework path.
-            Intent intent;
-            if (android.os.Build.VERSION.SDK_INT >= 33) {
-                intent = new Intent(android.provider.MediaStore.ACTION_PICK_IMAGES);
-                intent.setType("image/*");
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            } else {
-                intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.setType("image/*");
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            if (!stage(this, request, "selecting")) { finish(); return; }
+            if (android.os.Build.VERSION.SDK_INT >= 33 && !prefs(this).getBoolean("force_document_picker", false)) {
+                Intent gallery = new Intent(android.provider.MediaStore.ACTION_PICK_IMAGES)
+                    .setType("image/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                try {
+                    startActivityForResult(gallery, SELECT_IMAGE);
+                    return;
+                } catch (ActivityNotFoundException | SecurityException ignored) {
+                    // Some devices expose the framework API without a usable picker.
+                    preferDocumentPicker(this);
+                }
             }
-            stage(this, request, "selecting");
-            startActivityForResult(intent, SELECT_IMAGE);
+            Intent document = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("image/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            startActivityForResult(document, SELECT_IMAGE);
         } catch (RuntimeException e) {
             complete(this, request, "error", "Ouverture sélecteur : " + e.getClass().getSimpleName());
             finish();
@@ -108,8 +109,14 @@ public final class ReferenceImagePickerActivity extends Activity {
         super.onActivityResult(code, result, data);
         if (code != SELECT_IMAGE) return;
         if (!request.equals(prefs(this).getString("request", ""))) { finish(); return; }
-        if (result != RESULT_OK || data == null || data.getData() == null) {
+        if (result != RESULT_OK) {
             complete(this, request, "cancelled", ""); finish(); return;
+        }
+        if (data == null || data.getData() == null) {
+            preferDocumentPicker(this);
+            complete(this, request, "error", "Aucune photo reçue. Réessaie avec le sélecteur de fichiers alternatif.");
+            finish();
+            return;
         }
         Uri uri = data.getData();
         Context context = getApplicationContext();

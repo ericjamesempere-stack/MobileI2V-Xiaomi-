@@ -1,0 +1,74 @@
+name: Verify KARMA ONE Step 10 without APK
+on:
+  push:
+    branches: [karma/step10-consolidation-safe-20261118]
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  godot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.5.2
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 3 -o "$RUNNER_TEMP/godot.zip" https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP"
+          chmod +x "$RUNNER_TEMP/Godot_v4.5.2-stable_linux.x86_64"
+          echo "GODOT_BIN=$RUNNER_TEMP/Godot_v4.5.2-stable_linux.x86_64" >> "$GITHUB_ENV"
+      - name: Import project and run Godot regressions
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/karma-logs"
+          "$GODOT_BIN" --headless --path . --editor --import --quit 2>&1 | tee "$RUNNER_TEMP/karma-logs/import.log"
+          if grep -Ei 'SCRIPT ERROR|Parse Error|ConfigFile parse error' "$RUNNER_TEMP/karma-logs/import.log"; then exit 1; fi
+          for script in test_autopilot_pipeline_budget test_chatgpt_board_bridge test_detailed_style_reference test_disk_drawing_sequence test_fidelity_prompt_wiring test_friendly_studio test_generated_frame_validator test_hf_batch_fallback test_hf_studio_generator test_hf_studio_ui test_import_individual_review test_intermediate_fidelity_completion test_karma_intermediate_agent test_karma_intermediate_render test_karma_lyrics_bridge_v6 test_karma_technical_memory test_local_engine_probe test_local_prompt test_mp4_approved_timeline test_mp4_output_container test_mp4_source_preflight test_png_board_export test_reference_fidelity_gate test_reference_review_pipeline test_remote_pose_briefs test_step09_agent_handoff test_step09_orchestrator_bridge test_step09_storyboard_adapter test_step10_agent_ledger test_unified_storyboard_wiring test_universal_android_integration test_universal_image_import_formats test_universal_subject_contracts test_v58_photo_recovery test_v60_simplified_receive validate_karma_one; do
+            log="$RUNNER_TEMP/karma-logs/$script.log"
+            echo "::group::$script"
+            XDG_DATA_HOME="$RUNNER_TEMP/karma-data/$script" timeout 120s "$GODOT_BIN" --headless --path . --script "res://tests/$script.gd" 2>&1 | tee "$log"
+            if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error' "$log"; then exit 1; fi
+            echo "::endgroup::"
+          done
+      - name: Verify text entry and simulated local transports
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_v55_text_entry_contract.py' -v
+          for script in test_local_studio_transport test_local_engine_probe; do
+            XDG_DATA_HOME="$RUNNER_TEMP/karma-data/$script" python3 "tests/$script.py"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: karma-step10-godot-test-logs
+          path: ${{ runner.temp }}/karma-logs
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Check ARM64 export preset and Android bridge
+        run: |
+          set -euo pipefail
+          grep -Fx 'architectures/arm64-v8a=true' export_presets.cfg
+          grep -Fx 'architectures/armeabi-v7a=false' export_presets.cfg
+          grep -Fx 'architectures/x86=false' export_presets.cfg
+          grep -Fx 'architectures/x86_64=false' export_presets.cfg
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-35'
+          gradle -p native/mp4exporter testDebugUnitTest --no-daemon
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: karma-step10-android-unit-tests
+          path: native/mp4exporter/build/test-results/testDebugUnitTest

@@ -4,7 +4,7 @@ Date : 2026-11-18. Ce registre distingue correction committée et validation ex�
 
 ## Étape 9G — Contrat de validation humaine / export PNG
 
-- **Statut : EN COURS (non verrouillée)**
+- **Statut : VERROUILLÉE pour les contrôles Godot 9G**
 - **Branche :** `karma/step09g-review-assertion-fix-20261118`
 - **Base :** `7d211dc8216375bd12d0a5233fecd07877f25b34`
 - **Commit correctif :** `f3c001178cf0e9d99f67e8245347716635264c2e`
@@ -13,11 +13,11 @@ Date : 2026-11-18. Ce registre distingue correction committée et validation ex�
 - **Preuves antérieures :** dans ce workflow, `REMOTE_POSE_BRIEFS_OK` et `HF_BATCH_FALLBACK_OK` ; ce sont des tests simulés, non des preuves d'accès réel au GPU.
 - **Tests ciblés à exécuter localement, sans APK :** `Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_reference_review_pipeline.gd` ; `Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_friendly_studio.gd` ; `Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_hf_batch_fallback.gd`.
 - **Workflow de tests sans APK :** `.github/workflows/test-9g-review-only.yml` ajouté au commit `e56d718fe3197d7560cd85fd5c307fcd982cb6f1` (déclenchement sur push de la branche 9G). Vérifie trois tests Godot avec logs et sentinelles. Aucune commande de compilation APK dans ce workflow.
-- **Résultat des nouveaux tests :** NON CONFIRMÉ ; ne pas supposer qu'un run a eu lieu ou réussi sans consulter GitHub Actions.
+- **Résultat des nouveaux tests :** succès des contrôles Godot au commit `8b3a795ec900861c8878dfbdf3b7185efcf100b9`. [Exécution 44257383744](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44257383744).
 - **Acquis préservés :** refus d'export sans approbation, rejet de scène, empreinte de validation et parcours existant ; aucune fusion ni reconstruction.
 - **Limites :** pas de test Android Xiaomi, pas de preuve d'export MP4 ni de service IA réel ; aucun APK actuel produit.
 - **Dépendances :** inventaire des branches divergentes avant intégration des étapes 10–12.
-- **Régression :** non vérifiée depuis le correctif.
+- **Régression :** contrôles 9G exécutés avec succès au commit ci-dessus.
 - **Règle :** ne pas modifier les étapes validées sans justification et nouveaux tests. Ne pas déclencher de compilation APK sans autorisation explicite.
 
 ## Étape 10 — Agents et orchestrateur

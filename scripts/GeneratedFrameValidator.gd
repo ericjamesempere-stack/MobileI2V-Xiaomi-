@@ -64,3 +64,37 @@ static func inspect_storyboard_entries(entries: Array) -> Dictionary:
         dimensions.append(picture.get_size())
         inspected += 1
     return {"ok": true, "drawings": inspected, "dimensions": dimensions, "identity_verified": false, "pose_verified": false, "review_required": true}
+
+# Lightweight pixel diagnostics only. This does not establish semantic identity,
+# pose correctness or aesthetic quality; a human review remains mandatory.
+static func inspect_visual_change(reference: Image, candidate: Image) -> Dictionary:
+    if reference == null or candidate == null or reference.is_empty() or candidate.is_empty():
+        return {"ok": false, "error": "missing_visual_input", "review_required": true}
+    var left: Image = reference.duplicate()
+    var right: Image = candidate.duplicate()
+    left.resize(32, 32, Image.INTERPOLATE_LANCZOS)
+    right.resize(32, 32, Image.INTERPOLATE_LANCZOS)
+    left.convert(Image.FORMAT_RGB8)
+    right.convert(Image.FORMAT_RGB8)
+    var difference: float = 0.0
+    var min_brightness: float = 1.0
+    var max_brightness: float = 0.0
+    for y in range(32):
+        for x in range(32):
+            var a: Color = left.get_pixel(x, y)
+            var b: Color = right.get_pixel(x, y)
+            difference += (absf(a.r - b.r) + absf(a.g - b.g) + absf(a.b - b.b)) / 3.0
+            var brightness: float = (b.r + b.g + b.b) / 3.0
+            min_brightness = minf(min_brightness, brightness)
+            max_brightness = maxf(max_brightness, brightness)
+    var mean_difference: float = difference / 1024.0
+    var warnings: Array[String] = []
+    if mean_difference < 0.003:
+        warnings.append("near_identical_to_reference")
+    if max_brightness - min_brightness < 0.015:
+        warnings.append("near_uniform_candidate")
+    return {
+        "ok": true, "mean_pixel_difference": mean_difference,
+        "warnings": warnings, "review_required": true,
+        "identity_verified": false, "pose_verified": false
+    }

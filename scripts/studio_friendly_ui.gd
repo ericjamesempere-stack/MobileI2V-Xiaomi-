@@ -91,7 +91,7 @@ func build(board: Control) -> void:
     shell.add_theme_constant_override("separation", 12)
     margin.add_child(shell)
     text(shell, "KARMA ONE", 36, PURPLE)
-    text(shell, "Imagine. Dessine. Anime. · V60", 21, MUTED)
+    text(shell, "Imagine. Dessine. Anime. · V60 · 1.6.2", 21, MUTED)
     var tabs := HBoxContainer.new()
     tabs.add_theme_constant_override("separation", 8)
     shell.add_child(tabs)
@@ -140,8 +140,8 @@ func build(board: Control) -> void:
     board.character_description.custom_minimum_size.y = 120
     board.character_description.placeholder_text = "Un renard, un paysage, un véhicule, plusieurs sujets…"
     board.invent_box.add_child(board.character_description)
-    text(board.invent_box, "Avec ChatGPT : tu lances la génération dans ChatGPT puis tu importes son image ici. Ton abonnement garde ses propres limites ; aucun appel ZeroGPU par ce bouton.", 18, MUTED)
-    button(board, board.invent_box, "Créer cette image dans ChatGPT", board._send_chatgpt_reference, true).name = "ChatGPTReference"
+    text(board.invent_box, "Le moteur image configuré crée la référence ; aucun compte ChatGPT requis.", 18, MUTED)
+    button(board, board.invent_box, "Générer mon image avec les agents", board._create_remote_reference, true).name = "AgentReference"
 
     board.invent_box.visible = false
     board.preview = TextureRect.new()
@@ -188,7 +188,7 @@ func build(board: Control) -> void:
     button(board, person, "Importer une référence de style", board._choose_style_reference).name = "ChooseStyleReference"
     button(board, person, "Retirer la référence de style", board._remove_style_reference)
     text(person, "Le style est facultatif. Original conserve le style de ta référence.", 18)
-    text(person, "Le bouton Préparer et ouvrir ChatGPT partage la référence et la consigne avec l’application choisie. Tu lances la génération dans ChatGPT ; les limites de ton compte s’appliquent.", 18, MUTED)
+    text(person, "Photo depuis la galerie Android ou création avec le moteur image configuré.", 18, MUTED)
 
     var story: VBoxContainer = card(board.wizard_pages[0], "Que va-t-il se passer ?", "Raconte une petite aventure. Tu peux commencer par un exemple.")
     board.action_input = TextEdit.new()
@@ -212,8 +212,10 @@ func build(board: Control) -> void:
         preset.custom_minimum_size.y = 60
         preset.add_theme_font_size_override("font_size", 19)
     board.choice_summary = text(story, "", 19, MUTED)
-    var chatgpt: VBoxContainer = card(board.wizard_pages[1], "Mes dessins", "Depuis ChatGPT : Partager → KARMA ONE, puis choisir Planche. Tu peux aussi enregistrer et importer l’image. Chaque dessin doit être examiné avant la vidéo.")
-    button(board, board.wizard_pages[0], "Préparer et ouvrir ChatGPT", board._send_chatgpt_board, true).name = "ChatGPTBoard"
+    var chatgpt := VBoxContainer.new() # Legacy grid controls for saved projects
+    chatgpt.visible = false
+    board.wizard_pages[1].add_child(chatgpt)
+    button(board, board.wizard_pages[0], "Générer mes dessins avec les agents", board._friendly_generate, true).name = "AgentBoard"
     button(board, board.wizard_pages[0], "Voir mes dessins", func() -> void: board._go_step(1), true).name = "NextStory"
     var grid_shape := HBoxContainer.new()
     var grid_toggle := Button.new()
@@ -236,9 +238,6 @@ func build(board: Control) -> void:
     board.chatgpt_rows.value = 2
     grid_shape.add_child(board.chatgpt_rows)
     text(chatgpt, "Grille automatique par défaut : 4 × 2. Vérifie les dessins après import.", 18, MUTED)
-    button(board, chatgpt, "Importer la planche de ChatGPT", board._choose_chatgpt_board).name = "ImportChatGPTBoard"
-    button(board, chatgpt, "Importer le dessin refait", board._choose_chatgpt_replacement).name = "ImportChatGPTRedo"
-    button(board, chatgpt, "Voir l’image partagée en attente", board._reopen_shared_image).name = "SharedImagePending"
     button(board, board.wizard_pages[1], "Revoir mon image de départ", func() -> void: board._go_step(0))
 
     var film: VBoxContainer = card(board.wizard_pages[2], "Ton histoire prend forme", "Regarde les dessins avant de créer ta vidéo.")
@@ -269,10 +268,11 @@ func build(board: Control) -> void:
         var svg: String = '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><rect x="1" y="1" width="26" height="26" rx="7" fill="%s" stroke="#6955da" stroke-width="2"/>%s</svg>' % ["#6955da" if checked else "white", mark]
         if image.load_svg_from_string(svg) == OK:
             board.review_check.add_theme_icon_override(state, ImageTexture.create_from_image(image))
+    board.review_check.visible = false # Legacy state only; final button provides one approval.
     film.add_child(board.review_check)
-    board.friendly_export = button(board, board.wizard_pages[2], "Créer ma vidéo MP4", board._friendly_export, true)
+    board.friendly_export = button(board, board.wizard_pages[2], "Valider et exporter ma vidéo MP4", board._friendly_export, true)
     board.friendly_export.name = "CreateMovie"
-    button(board, board.wizard_pages[2], "Exporter les dessins et la planche PNG", board._export_png_sequence, false)
+    button(board, board.wizard_pages[2], "Valider et exporter la planche PNG", board._friendly_export_png, false)
     button(board, board.wizard_pages[2], "Lire ma dernière vidéo", board._play_last_mp4).name = "PlayMovie"
     button(board, board.wizard_pages[2], "Partager ma vidéo", board._share_last_mp4)
     button(board, board.wizard_pages[2], "Améliorer mon histoire", func() -> void: board._go_step(1))
@@ -284,7 +284,14 @@ func build(board: Control) -> void:
     button(board, advanced, "Créer avec le moteur configuré", board._create_remote_reference).name = "ConfiguredReference"
     button(board, advanced, "Créer les dessins avec le moteur configuré", board._friendly_generate).name = "GenerateStory"
     advanced.add_child(board.local_mode)
-    text(advanced, "Mode local : MNN Chat et Local Dream nécessitent des modèles installés. Décoche pour utiliser les services distants ; leurs quotas s'appliquent. Aucune bascule automatique.", 18, MUTED)
+    text(advanced, "Décoche le mode local pour envoyer tes demandes et images aux services Hugging Face de KARMA ONE. Leurs quotas s'appliquent.", 18, MUTED)
+    board.remote_fallback = CheckBox.new()
+    board.remote_fallback.text = "Secours IA automatique en ligne (Hugging Face)"
+    board.remote_fallback.button_pressed = true
+    board.remote_fallback.name = "RemoteFallback"
+    advanced.add_child(board.remote_fallback)
+    text(advanced, "Si le moteur local échoue, les photos et consignes peuvent être envoyées à Hugging Face. Services soumis à disponibilité et quotas.", 18, MUTED)
+    text(story, "Le secours en ligne peut envoyer tes photos et consignes à Hugging Face. Tu peux le désactiver dans Réglages et outils.", 18, MUTED)
     text(advanced, "Durée personnalisée (secondes)", 20)
     board.duration_input = SpinBox.new()
     board.duration_input.min_value = 1
@@ -298,7 +305,7 @@ func build(board: Control) -> void:
     board.ai_drawings_count.value = 24
     advanced.add_child(board.ai_drawings_count)
     text(advanced, "Installation des moteurs locaux", 20)
-    text(advanced, "À installer une seule fois : MNN Chat avec un modèle vision et Local Dream avec un modèle SD1.5 CPU prenant en charge img2img. Ouvre les moteurs et garde leurs services actifs. Télécharge les modèles en Wi-Fi. Aucun abonnement ni appel en ligne automatique dans ce mode ; le calcul utilise ton téléphone.", 18, MUTED)
+    text(advanced, "À installer une seule fois : MNN Chat avec un modèle vision et Local Dream avec un modèle SD1.5 CPU prenant en charge img2img. Ouvre les moteurs et garde leurs services actifs. Télécharge les modèles en Wi-Fi.", 18, MUTED)
     text(advanced, "Sur Xiaomi MediaTek : commence par CPU. Les modèles DiT et NPU réservés aux Snapdragon ne sont pas sélectionnés par KARMA ONE. La qualité et la vitesse restent à vérifier avec tes images.", 18, MUTED)
     button(board, advanced, "Vérifier les moteurs du téléphone", board._check_local_engines).name = "CheckLocalEngines"
     board.local_engine_status = text(advanced, "Connexion locale non vérifiée. Ce contrôle ne génère aucune image.", 18, MUTED)
