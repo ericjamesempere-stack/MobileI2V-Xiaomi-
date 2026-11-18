@@ -90,11 +90,20 @@ func validate_scene(scene: Dictionary, reference_sha: String) -> Dictionary:
             var box: Variant = entity.get("bbox")
             if not box is Array or box.size() != 4:
                 return {"ok": false, "error": "visible_entity_bounds_required"}
+            # Vision models may round normalized coordinates slightly outside [0, 1].
+            # Repair only edge-rounding drift; never silently accept pixel coordinates
+            # or fabricated boxes. Preserve the original model response as evidence.
+            var normalized_box: Array = []
             for coordinate in box:
-                if not (coordinate is float or coordinate is int) or not (float(coordinate) >= 0.0 and float(coordinate) <= 1.0):
+                if not (coordinate is float or coordinate is int):
                     return {"ok": false, "error": "invalid_entity_bounds"}
-            if float(box[2]) <= 0.0 or float(box[3]) <= 0.0 or float(box[0]) + float(box[2]) > 1.001 or float(box[1]) + float(box[3]) > 1.001:
+                var value: float = float(coordinate)
+                if not is_finite(value) or value < -0.01 or value > 1.01:
+                    return {"ok": false, "error": "invalid_entity_bounds"}
+                normalized_box.append(clampf(value, 0.0, 1.0))
+            if float(normalized_box[2]) <= 0.0 or float(normalized_box[3]) <= 0.0 or float(normalized_box[0]) + float(normalized_box[2]) > 1.001 or float(normalized_box[1]) + float(normalized_box[3]) > 1.001:
                 return {"ok": false, "error": "entity_bounds_outside_reference"}
+            entity["bbox"] = normalized_box
         ids[id] = entity
     var step_ids: Dictionary = {}
     for step in scene["steps"]:
