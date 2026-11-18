@@ -281,8 +281,6 @@ func build(board: Control) -> void:
     var advanced: VBoxContainer = card(board.root_box, "Le coin des réglages", "Facultatif : les trois étapes suffisent pour commencer.", Color("edf0f9"))
     board.advanced_panel = advanced.get_parent()
     board.advanced_panel.visible = false
-    button(board, advanced, "Créer avec le moteur configuré", board._create_remote_reference).name = "ConfiguredReference"
-    button(board, advanced, "Créer les dessins avec le moteur configuré", board._friendly_generate).name = "GenerateStory"
     advanced.add_child(board.local_mode)
     text(advanced, "Décoche le mode local pour envoyer tes demandes et images aux services Hugging Face de KARMA ONE. Leurs quotas s'appliquent.", 18, MUTED)
     board.remote_fallback = CheckBox.new()
@@ -305,8 +303,7 @@ func build(board: Control) -> void:
     board.ai_drawings_count.value = 24
     advanced.add_child(board.ai_drawings_count)
     text(advanced, "Installation des moteurs locaux", 20)
-    text(advanced, "À installer une seule fois : MNN Chat avec un modèle vision et Local Dream avec un modèle SD1.5 CPU prenant en charge img2img. Ouvre les moteurs et garde leurs services actifs. Télécharge les modèles en Wi-Fi.", 18, MUTED)
-    text(advanced, "Sur Xiaomi MediaTek : commence par CPU. Les modèles DiT et NPU réservés aux Snapdragon ne sont pas sélectionnés par KARMA ONE. La qualité et la vitesse restent à vérifier avec tes images.", 18, MUTED)
+    text(advanced, "Pour utiliser le mode local, installe MNN Chat (vision) et Local Dream (images), charge leurs modèles puis active leurs services. Sinon, choisis le mode en ligne avec ton autorisation.", 18, MUTED)
     button(board, advanced, "Vérifier les moteurs du téléphone", board._check_local_engines).name = "CheckLocalEngines"
     board.local_engine_status = text(advanced, "Connexion locale non vérifiée. Ce contrôle ne génère aucune image.", 18, MUTED)
     button(board, advanced, "Copier le diagnostic local", board._copy_local_diagnostic).name = "CopyLocalDiagnostic"
@@ -332,6 +329,15 @@ func build(board: Control) -> void:
     board.karma_auto_export_toggle.button_pressed = false
     board.karma_auto_export_toggle.toggled.connect(func(enabled: bool) -> void: board.karma_auto_export = enabled)
     advanced.add_child(board.karma_auto_export_toggle)
+    # Keep every legacy operation accessible without burying the main workflow.
+    var legacy_toggle: Button = button(board, advanced, "Outils techniques et anciens parcours (afficher)", func() -> void: pass)
+    var legacy_box := VBoxContainer.new()
+    legacy_box.visible = false
+    advanced.add_child(legacy_box)
+    legacy_toggle.pressed.connect(func() -> void:
+        legacy_box.visible = not legacy_box.visible
+        legacy_toggle.text = "Outils techniques (masquer)" if legacy_box.visible else "Outils techniques et anciens parcours (afficher)"
+    )
     var tools: Array = [
         ["Reprendre mon dernier projet", board._friendly_restore],
         ["Enregistrer mes dessins", board._save], ["Mes images enregistrées", board._show_saved_images],
@@ -355,7 +361,7 @@ func build(board: Control) -> void:
     for tool in tools:
         if tool[1] in demo_actions:
             continue
-        button(board, advanced, str(tool[0]), tool[1])
+        button(board, legacy_box, str(tool[0]), tool[1])
     board.skeleton_preview = TextureRect.new()
     board.skeleton_preview.custom_minimum_size.y = 260
     board.skeleton_preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
