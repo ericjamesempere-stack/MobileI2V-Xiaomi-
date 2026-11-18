@@ -2240,6 +2240,10 @@ func _draw_remote_story() -> void:
         if style_image == null:
             status.text = "La référence de style est manquante. Réimporte-la avant de générer."
             return
+    var fidelity_contract: Dictionary = load("res://scripts/ReferenceFidelityGate.gd").build_request_from_image(reference, story)
+    if not fidelity_contract.get("ok", false):
+        status.text = "Référence invalide : " + str(fidelity_contract.get("error", "unknown"))
+        return
     var signature: String = _universal_signature()
     var folder: String = "user://projects/universal_" + signature.substr(0, 24)
     _configure_universal_pipeline(style_image)
@@ -2291,6 +2295,8 @@ func _draw_remote_story() -> void:
     universal_folder = folder
     universal_plan = result["plan"]
     universal_quality = result.get("quality", {"ok": false, "fidelity_verified": false})
+    # This contract is a constraint checklist, not proof of visual fidelity.
+    universal_quality["reference_contract"] = fidelity_contract
     universal_style = _selected_drawing_style()
     universal_input_signature = signature
     sources = candidate_sources
