@@ -5,6 +5,9 @@ const TEXT_URL = "https://mrfakename-z-image-turbo.hf.space"
 const EDIT_URL = "https://prithivmlmods-qwen-image-edit-2511-loras-fast.hf.space"
 const ANYPOSE_URL = "https://abidlabs-qwen-image-edit-2511-anypose.hf.space"
 const VISION_URL = "https://qwen-qwen3-vl-demo.hf.space"
+const SMOLVLM_URL = "https://huggingfacetb-smolvlm2.hf.space"
+const QWEN_VL_URL = "https://artificialguybr-qwen-vl.hf.space"
+const MINICPM_URL = "https://openbmb-minicpm-v-4-5-demo.hf.space"
 const STYLES = {
     "original": ["Style-Transfer", "Keep the original drawing style, subject identities, appearance, proportions, materials and colors unless explicitly changed by the story. Do not invent additional features unless requested."],
     "bd_detail": ["Style-Transfer", "Detailed semi-realistic comic-book illustration, fine controlled linework, articulation appropriate to the subject, individual hair strands and fabric folds only where already present, precise existing accessories, layered painted shadows, rich materials and coherent directional lighting. Preserve recognizable identity. Avoid simplified flat-color cartoon rendering."],
@@ -24,7 +27,7 @@ var reference_contract: Dictionary = {}
 var remote_vision_consent: bool = false
 # Optional Gradio-compatible vision endpoints, configured by the application.
 # An unconfigured endpoint is never represented as a working model.
-var vision_backup_urls: Array[String] = []
+var vision_backup_urls: Array[String] = [SMOLVLM_URL, QWEN_VL_URL, MINICPM_URL]
 var last_vision_attempts: Array[Dictionary] = []
 var vision_failed: bool = false
 var job_folder: String = ""
@@ -600,10 +603,53 @@ func build_reference_prompt(description: String, style: String) -> String:
 func vision_provider_id() -> String:
     return VISION_URL
 
+# Provider-specific contracts were verified via /gradio_api/info on 2026-11-18.
+# These are read-only analysis jobs. Never treat a reachable endpoint as a
+# successful inference; each response still has to pass scene JSON validation.
+func _vision_gradio_adapter(endpoint: String, api: String, images: Array[Image], prompt: String) -> Dictionary:
+    if images.is_empty():
+        return {"ok": false, "error_kind": "invalid_input", "error": "vision_reference_required"}
+    var upload: Dictionary = await _upload_images(endpoint, images)
+    if not upload.get("ok", false):
+        upload["provider"] = endpoint
+        return upload
+    var files: Array = upload["files"]
+    var payload: Array = []
+    match api:
+        "chat":
+            payload = [{"text": prompt, "files": files}, 2048]
+        "run_vl":
+            payload = ["Qwen/Qwen3-VL-4B-Instruct", files[0], prompt, 2048, 0.1, 0.9]
+        "handle_submit":
+            payload = [prompt, files, [], [], "Sampling", false, false, 1.0]
+        _:
+            return {"ok": false, "error_kind": "unsupported_adapter", "error": "unknown_vision_adapter"}
+    var result: Dictionary = await _call_api(endpoint, api, payload)
+    result["provider"] = endpoint
+    if not result.get("ok", false):
+        return result
+    var data: Variant = result.get("data", [])
+    var raw: String = ""
+    if api == "run_vl" and data is Array and not data.is_empty():
+        raw = str(data[0])
+    elif api == "chat" and data is Array and not data.is_empty():
+        raw = str(data[0]) if data[0] is String else extract_vision_text(data[0])
+    elif api == "handle_submit" and data is Array and data.size() >= 3:
+        raw = extract_vision_text(data[2])
+    if raw.is_empty():
+        return {"ok": false, "provider": endpoint, "error_kind": "invalid_output", "error": "vision_adapter_empty_response"}
+    return {"ok": true, "provider": endpoint, "data": [{"role": "assistant", "status": "done", "content": [{"type": "text", "content": raw}]}]}
+
 func _vision_request(images: Array[Image], prompt: String) -> Dictionary:
     return await _vision_request_at(VISION_URL, images, prompt)
 
 func _vision_request_at(endpoint: String, images: Array[Image], prompt: String) -> Dictionary:
+    if endpoint == SMOLVLM_URL:
+        return await _vision_gradio_adapter(endpoint, "chat", images, prompt)
+    if endpoint == QWEN_VL_URL:
+        return await _vision_gradio_adapter(endpoint, "run_vl", images, prompt)
+    if endpoint == MINICPM_URL:
+        return await _vision_gradio_adapter(endpoint, "handle_submit", images, prompt)
     var upload: Dictionary = await _upload_images(endpoint, images)
     # An upload failure precedes inference. Retry a temporary gateway outage
     # once here, never resubmit a job whose execution state may be unknown.
