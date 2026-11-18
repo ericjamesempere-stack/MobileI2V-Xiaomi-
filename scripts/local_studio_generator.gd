@@ -6,6 +6,36 @@ var drawing_base: String = "http://127.0.0.1:8081"
 var local_token: String = ""
 var local_model: String = ""
 var use_opencl: bool = false
+var optimization_agents: RefCounted = preload("res://scripts/karma_optimization_agents.gd").new()
+# Never invent Android telemetry: until a native sampler is connected, stay
+# conservative and allow the user/device controller to supply measured values.
+var resource_budget: Dictionary = {"ok": true, "mode": "balanced", "max_edge": 512, "parallel_inference": 1}
+var optimization_last_plan: Dictionary = {}
+
+func configure_resource_budget(free_mb: int, thermal_level: int, battery_percent: int, plugged_in: bool) -> Dictionary:
+    if free_mb <= 0 or thermal_level < 0 or thermal_level > 6 or battery_percent < 0 or battery_percent > 100:
+        return {"ok": false, "error": "invalid_resource_telemetry"}
+    resource_budget = optimization_agents.device_budget(free_mb, thermal_level, battery_percent, plugged_in)
+    return resource_budget.duplicate(true)
+
+func _apply_image_optimization(payload: Dictionary) -> Dictionary:
+    var plan: Dictionary = optimization_agents.image_plan(resource_budget)
+    optimization_last_plan = plan.duplicate(true)
+    if not plan.get("ok", false):
+        return {"ok": false, "error": plan.get("error", "device_not_ready")}
+    # Keep the original 512px canvas and fidelity defaults; only reduce work
+    # when measured constraints require it. Do not claim quantization support.
+    var edge: int = mini(512, int(plan.get("target_edge", 512)))
+    payload["width"] = mini(int(payload.get("width", 512)), edge)
+    payload["height"] = mini(int(payload.get("height", 512)), edge)
+    if resource_budget.get("mode", "balanced") == "economy":
+        payload["steps"] = mini(int(payload.get("steps", 20)), 12)
+    return {"ok": true, "payload": payload, "plan": plan}
+
+const LOCAL_REVISION := "mnn-localdream-v3-clip-prompts"
+var drawing_probe_base: String = ""
+var last_probe: Dictionary = {}
+
 const LOCAL_REVISION := "mnn-localdream-v3-clip-prompts"
 var drawing_probe_base: String = ""
 var last_probe: Dictionary = {}
@@ -299,6 +329,10 @@ func redraw(reference: Image, instruction: String, style: String, _previous: Ima
     if not compiled.get("ok", false):
         return compiled
     var payload: Dictionary = _generation_payload(reference, instruction, style, variation)
+    var optimized: Dictionary = _apply_image_optimization(payload)
+    if not optimized.get("ok", false):
+        return optimized
+    payload = optimized["payload"]
     payload["prompt"] = compiled["prompt"]
     var result: Dictionary = await _local_request(drawing_base, "/generate", payload)
     if not result.get("ok", false):
@@ -326,5 +360,8 @@ func create_reference(description: String, style: String) -> Dictionary:
     if not compiled.get("ok", false):
         return compiled
     var payload: Dictionary = {"prompt": compiled["prompt"], "negative_prompt": "unrequested human body, text, watermark, unrequested subjects", "width": 512, "height": 512, "steps": 20, "cfg": 7.5, "seed": 1234, "scheduler": "dpm", "use_opencl": use_opencl, "output_format": "png"}
-    var result: Dictionary = await _local_request(drawing_base, "/generate", payload)
+    var optimized: Dictionary = _apply_image_optimization(payload)
+    if not optimized.get("ok", false):
+        return optimized
+    var result: Dictionary = await _local_request(drawing_base, "/generate", optimized["payload"])
     return decode_local_drawing(result["body"]) if result.get("ok", false) else result
