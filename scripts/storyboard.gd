@@ -2125,7 +2125,7 @@ func _create_remote_reference(description_override: String = "") -> void:
     worker.queue_free()
     ai_running = false
     if not result.get("ok", false):
-        status.text = str(result.get("error", "Génération échouée.")) + " Tu peux utiliser « Préparer et ouvrir ChatGPT » et réimporter l’image. Ton projet est conservé."
+        status.text = str(result.get("error", "Génération échouée.")) + " Aucun moteur image vérifié disponible. Vérifie le moteur local ou autorise le secours distant dans Réglages. Ta photo et ton projet sont conservés."
         return
     # The model may return a success flag with no valid image. Never replace
     # the user's existing photo with empty or tiny pixels.
