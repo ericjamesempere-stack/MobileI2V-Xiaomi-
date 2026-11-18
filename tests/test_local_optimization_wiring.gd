@@ -18,6 +18,22 @@ func run() -> void:
     var paused: Dictionary = engine.configure_resource_budget(512, 5, 5, false)
     assert(not paused["ok"])
     assert(not engine._apply_image_optimization({"width": 512, "height": 512, "steps": 20})["ok"])
+    # Local-only transport must reject remote hosts and unknown paths before IO.
+    assert(not engine._loopback("https://127.0.0.1:8080"))
+    assert(not engine._loopback("http://example.com:8080"))
+    assert(not engine._loopback("http://127.0.0.1:0"))
+    assert(not engine._loopback("http://127.0.0.1:65536"))
+    assert(engine._loopback("http://127.0.0.1:8080"))
+    assert(not (await engine._local_request("https://example.com", "/health"))["ok"])
+    assert(not (await engine._local_request("http://127.0.0.1:8080", "/unknown"))["ok"])
+    # Model discovery never silently selects an ambiguous or invalid model.
+    assert(not engine.select_active_model({})["ok"])
+    assert(not engine.select_active_model({"data": []})["ok"])
+    assert(not engine.select_active_model({"data": [{"id": "a"}, {"id": "b"}]})["ok"])
+    assert(not engine.select_active_model({"data": [{"id": "same"}, {"id": "same"}]})["ok"])
+    assert(engine.select_active_model({"data": [{"id": "vision-model"}]})["model"] == "vision-model")
+    engine.local_model = "vision-model"
+    assert(not engine.select_active_model({"data": [{"id": "different-model"}]})["ok"])
     engine.queue_free()
     print("KARMA_LOCAL_OPTIMIZATION_WIRING_OK")
     quit(0)
