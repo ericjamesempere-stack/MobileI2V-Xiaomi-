@@ -2087,13 +2087,13 @@ func _create_remote_reference(description_override: String = "") -> void:
         if not probe.get("ok", false):
             worker.queue_free()
             ai_running = false
-            status.text = probe["message"] + " Ton projet est conservé."
+            status.text = str(probe.get("message", "Moteur image indisponible.")) + " Tu peux utiliser « Préparer et ouvrir ChatGPT » pour créer une image et la réimporter. Ton projet est conservé."
             return
     var result: Dictionary = await worker.create_reference(description, _selected_drawing_style())
     worker.queue_free()
     ai_running = false
     if not result.get("ok", false):
-        status.text = str(result.get("error", "Generation echouee.")) + " Ta photo et tes dessins existants sont conserves."
+        status.text = str(result.get("error", "Génération échouée.")) + " Tu peux utiliser « Préparer et ouvrir ChatGPT » et réimporter l’image. Ton projet est conservé."
         return
     # The model may return a success flag with no valid image. Never replace
     # the user's existing photo with empty or tiny pixels.
@@ -2112,8 +2112,10 @@ func _create_remote_reference(description_override: String = "") -> void:
     if generated_image.save_png(path) != OK:
         status.text = "Sauvegarde impossible."
         return
+    var previous_reference: String = imported_path
     await _image_chosen(path)
-    _reuse_reference_drawing()
+    if imported_path == previous_reference or preview.texture == null:
+        return
     status.text = "Ton image est prête et sauvegardée ! Passe à ton histoire."
 
 func _reuse_reference_drawing() -> void:
@@ -2564,13 +2566,17 @@ func _poll_photo_import(delta: float) -> void:
             phase = str(native.call("reference_image_import_status"))
     if not photo_importing:
         return
+    _update_photo_import_progress(phase, delta)
+
+func _update_photo_import_progress(phase: String, delta: float) -> void:
     if phase != photo_import_stage:
         photo_import_stage = phase
         photo_import_clock = 0.0
-    # Time spent choosing a document belongs to the user, not the decoder.
     if phase == "selecting":
         status.text = "Galerie ouverte : choisis une image ou reviens pour annuler."
-        return
+        # The picker can lose its callback. Count the wait once Godot regains focus.
+        if not photo_app_focused:
+            return
     if phase == "decoding":
         status.text = "Photo reçue : décodage Android en cours…"
     elif phase == "saving":
