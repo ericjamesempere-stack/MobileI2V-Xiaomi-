@@ -1,0 +1,32 @@
+name: Validate KARMA ONE Step 9 agent wiring
+on:
+  push:
+    branches:
+      - karma/step09-agent-wiring-20261118
+    paths:
+      - "scripts/karma_step09_*.gd"
+      - "scripts/karma_one_orchestrator.gd"
+      - "tests/test_step09_*.gd"
+      - ".github/workflows/validate-step09-agent-wiring.yml"
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.5.2
+        run: |
+          curl -fL --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.5.2-stable_linux.x86_64
+      - name: Import and parse project
+        run: ./Godot_v4.5.2-stable_linux.x86_64 --headless --editor --path . --import --quit
+      - name: Validate handoffs, orchestrator and storyboard adapter
+        run: |
+          set -euo pipefail
+          for item in test_step09_agent_handoff test_step09_orchestrator_bridge test_step09_storyboard_adapter; do
+            timeout 60s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script "res://tests/${item}.gd" 2>&1 | tee "${item}.log"
+            if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' "${item}.log"; then exit 1; fi
+            grep -q 'STEP09_.*_PASS' "${item}.log"
+          done
