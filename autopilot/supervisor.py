@@ -126,6 +126,20 @@ class Memory:
             self.db.rollback()
             raise
 
+    @contextmanager
+    def exclusive_run(self):
+        # A separate SQLite lock keeps this portable and leaves the journal
+        # writable throughout the run. The OS releases the lock on process death.
+        lock = sqlite3.connect(self.path.with_name(self.path.name + '.run-lock'), timeout=0)
+        try:
+            try:
+                lock.execute('BEGIN EXCLUSIVE')
+            except sqlite3.OperationalError as exc:
+                raise ValueError('mission_state_already_in_use') from exc
+            yield
+        finally:
+            lock.close()
+
     def append(self, value):
         with self.write_transaction():
             self._append(value)
@@ -143,15 +157,23 @@ class Memory:
 
     def cached(self, key):
         row = self.db.execute('SELECT result FROM cache WHERE key=?', (key,)).fetchone()
-        return json.loads(row[0]) if row else None
+        if not row:
+            return None
+        published = self.db.execute('''SELECT 1 FROM events
+            WHERE json_extract(payload, '$.event') = 'result'
+              AND json_extract(payload, '$.key') = ?
+              AND json_extract(payload, '$.checkpoint_sha256') = ?
+            LIMIT 1''', (key, digest(row[0]))).fetchone()
+        return json.loads(row[0]) if published else None
 
     def finish(self, event, result=None):
         # Publish the success checkpoint and its journal entry together.
         with self.write_transaction():
-            self._append(event)
             if result is not None:
-                self.db.execute('INSERT OR REPLACE INTO cache VALUES(?,?)',
-                                (event['key'], canonical(result)))
+                encoded = canonical(result)
+                event = dict(event, checkpoint_sha256=digest(encoded))
+                self.db.execute('INSERT OR REPLACE INTO cache VALUES(?,?)', (event['key'], encoded))
+            self._append(event)
 
     def close(self):
         self.db.close()
@@ -399,6 +421,13 @@ class Supervisor:
         return self.result('NOT_TESTED', 'executor_not_connected', 'UNCONNECTED_ROLE')
 
     def run(self, tasks, budget_seconds=1800):
+        with self.memory.exclusive_run():
+            try:
+                return self._run(tasks, budget_seconds)
+            finally:
+                self.deadline = None
+
+    def _run(self, tasks, budget_seconds):
         agents = {a['id'] for a in json.loads(REGISTRY.read_text())['agents']}
         ordered = validate_tasks(tasks, agents)
         results, keys = {}, {}
@@ -423,8 +452,14 @@ class Supervisor:
                 started = time.monotonic()
                 try:
                     result = self.execute(t)
-                except subprocess.TimeoutExpired:
-                    if time.monotonic() >= self.deadline:
+                except subprocess.TimeoutExpired as exc:
+                    output = b''.join(part or b'' for part in (exc.stdout, exc.stderr) if not isinstance(part, str))
+                    text_output = output.decode(errors='replace') + ''.join(
+                        part for part in (exc.stdout, exc.stderr) if isinstance(part, str))
+                    if t.get('executor') == 'godot' and ERRORS.search(text_output):
+                        result = self.result('FAIL', 'godot_test_failed_before_timeout', 'TEST_INTEGRATION',
+                                             details={'test': t['test'], 'output_sha256': digest(text_output)})
+                    elif time.monotonic() >= self.deadline:
                         result = self.result('BLOCKED', 'mission_time_budget_exhausted', 'EXECUTION_BUDGET')
                     else:
                         result = self.result('FAIL', 'executor_timeout', 'EXECUTOR_FAILURE')
@@ -443,7 +478,6 @@ class Supervisor:
                                 'signature':digest(result['reason']),'cached':result.get('cached',False),
                                 'evidence_sha256':[a['sha256'] for a in result['artifacts']]},
                                result if promote else None)
-        self.deadline = None
         report = {'version':'AUTOPILOT_V3','tasks':results,
                   'limitations':['Deterministic executors',
                                  'Fixture tests do not prove real image inference or Xiaomi operation',
@@ -468,6 +502,9 @@ def main():
         result = sup.run(json.loads(args.tasks.read_text())['tasks'], budget_seconds=args.budget_seconds)
         print(json.dumps({tid:{'status':r['status'],'reason':r['reason'],'cached':r.get('cached',False)} for tid,r in result.items()},indent=2))
         return 0 if all(r['status'] == 'PASS' for r in result.values()) else 1
+    except ValueError as exc:
+        print(json.dumps({'status': 'BLOCKED', 'reason': str(exc)}), file=sys.stderr)
+        return 2
     finally:
         sup.memory.close()
 

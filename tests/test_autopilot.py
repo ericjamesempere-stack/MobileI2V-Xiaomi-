@@ -59,6 +59,72 @@ class SupervisorTests(unittest.TestCase):
         count=self.calls
         s=self.sup(); self.assertFalse(s.run([self.task()])['approval'].get('cached',False)); s.memory.close()
         self.assertEqual(self.calls,count+1)
+    def test_interruption_keeps_completed_checkpoint_and_retries_only_interrupted_task(self):
+        first = self.task()
+        second = dict(self.task(), id='next_task', dependencies=['approval'])
+        supervisor = self.sup()
+        actual = supervisor.execute
+        def interrupt(task):
+            if task['id'] == 'next_task':
+                raise KeyboardInterrupt
+            return actual(task)
+        supervisor.execute = interrupt
+        with self.assertRaises(KeyboardInterrupt):
+            supervisor.run([first, second])
+        supervisor.memory.close()
+        self.assertEqual(self.calls, 1)
+        supervisor = self.sup()
+        resumed = supervisor.run([first, second])
+        supervisor.memory.verify()
+        supervisor.memory.close()
+        self.assertEqual(self.calls, 2)
+        self.assertTrue(resumed['approval']['cached'])
+        self.assertEqual(resumed['next_task']['status'], 'PASS')
+
+    def test_mission_budget_leaves_resume_possible(self):
+        supervisor = self.sup()
+        first = supervisor.run([self.task()], budget_seconds=0)
+        self.assertEqual(first['approval']['reason'], 'mission_time_budget_exhausted')
+        self.assertEqual(self.calls, 0)
+        second = supervisor.run([self.task()])
+        self.assertEqual(second['approval']['status'], 'PASS')
+        supervisor.memory.close()
+
+    def test_schema_upgrade_keeps_previous_events_and_attempts(self):
+        legacy = sqlite3.connect(self.state)
+        legacy.execute('CREATE TABLE events (n INTEGER PRIMARY KEY, payload TEXT NOT NULL, previous TEXT NOT NULL, sha TEXT NOT NULL)')
+        payload = m.canonical({'event': 'attempt', 'key': 'existing'})
+        legacy.execute('INSERT INTO events(payload,previous,sha) VALUES(?,?,?)', (payload, '', m.digest(payload)))
+        legacy.commit()
+        legacy.close()
+        memory = m.Memory(self.state)
+        self.assertEqual(memory.db.execute('PRAGMA user_version').fetchone()[0], 1)
+        self.assertTrue(memory.reserve('existing'))
+        self.assertFalse(memory.reserve('existing'))
+        memory.verify()
+        memory.close()
+
+    def test_concurrent_runner_cannot_spend_the_same_attempt_budget(self):
+        first = self.sup()
+        second = self.sup()
+        with first.memory.exclusive_run():
+            with self.assertRaisesRegex(ValueError, 'mission_state_already_in_use'):
+                second.run([self.task()])
+        self.assertEqual(self.calls, 0)
+        self.assertEqual(second.run([self.task()])['approval']['status'], 'PASS')
+        first.memory.close()
+        second.memory.close()
+
+    def test_unjournaled_cache_result_is_not_reused(self):
+        supervisor = self.sup()
+        task = self.task()
+        supervisor.run([task])
+        with supervisor.memory.db:
+            supervisor.memory.db.execute("UPDATE cache SET result = json_set(result, '$.reason', 'forged')")
+        self.assertIsNone(supervisor.memory.cached(supervisor.key(task)))
+        self.assertFalse(supervisor.run([task])['approval'].get('cached', False))
+        supervisor.memory.close()
+
     def test_input_artifact_content_changes_key(self):
         s=self.sup(); p=self.root/'synthetic.mp4'; p.write_bytes(b'one'); s.artifacts={'mp4':p}
         t=dict(id='video',agent='video',executor='video',artifact='mp4')
