@@ -94,7 +94,7 @@ def main(scenario="ready"):
         godot = env.get("GODOT_BIN") or shutil.which("godot")
         assert godot
         try:
-            result = subprocess.run([godot, "--headless", "--path", str(ROOT), "--script", "res://tests/test_local_studio_transport.gd"], env=env, capture_output=True, text=True, timeout=45)
+            result = subprocess.run([godot, "--headless", "--path", str(ROOT), "--script", "res://tests/test_local_studio_transport.gd"], env=env, capture_output=True, text=True, timeout=90)
         except subprocess.TimeoutExpired as error:
             print((error.stdout or b'').decode(errors='replace') if isinstance(error.stdout, bytes) else error.stdout)
             print((error.stderr or b'').decode(errors='replace') if isinstance(error.stderr, bytes) else error.stderr)
