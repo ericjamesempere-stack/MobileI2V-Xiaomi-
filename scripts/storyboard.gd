@@ -2287,10 +2287,10 @@ func _draw_remote_story() -> void:
             # unavailable. The user explicitly pressed Create; importing alone
             # never sends an image. Keep local and remote caches separate.
             status.text = "Moteur local indisponible. Bascule vers le moteur distant existant…"
-            _configure_universal_pipeline(style_image)
             universal_pipeline.local_inference = false
-            if is_instance_valid(universal_pipeline.worker):
-                universal_pipeline.worker.queue_free()
+            var old_worker: Node = universal_pipeline.worker
+            universal_pipeline.remove_child(old_worker)
+            old_worker.queue_free()
             universal_pipeline.worker = load("res://scripts/hf_studio_generator.gd").new()
             universal_pipeline.add_child(universal_pipeline.worker)
             universal_pipeline.worker.hf_token = ai_token_input.text.strip_edges()
