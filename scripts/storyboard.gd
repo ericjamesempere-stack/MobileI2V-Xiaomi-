@@ -2283,10 +2283,21 @@ func _draw_remote_story() -> void:
         var probe: Dictionary = await universal_pipeline.worker.inspect_local_engines()
         _remember_local_probe(probe)
         if not probe.get("ok", false):
-            ai_running = false
-            status.text = probe["message"] + " Tes dessins sont conservés."
-            return
-    var result: Dictionary = await universal_pipeline.build_boards(reference, story, float(duration_input.value), _selected_drawing_style(), folder, 2147483647 if local_mode.button_pressed else int(ai_drawings_count.value))
+            # Reuse the existing remote worker when the optional local engine is
+            # unavailable. The user explicitly pressed Create; importing alone
+            # never sends an image. Keep local and remote caches separate.
+            status.text = "Moteur local indisponible. Bascule vers le moteur distant existant…"
+            universal_pipeline.local_inference = false
+            var old_worker: Node = universal_pipeline.worker
+            universal_pipeline.remove_child(old_worker)
+            old_worker.queue_free()
+            universal_pipeline.worker = load("res://scripts/hf_studio_generator.gd").new()
+            universal_pipeline.add_child(universal_pipeline.worker)
+            universal_pipeline.worker.hf_token = ai_token_input.text.strip_edges()
+            universal_pipeline.worker.style_reference = style_image
+            universal_pipeline.worker.remote_vision_consent = true
+            folder += "_remote_fallback"
+    var result: Dictionary = await universal_pipeline.build_boards(reference, story, float(duration_input.value), _selected_drawing_style(), folder, 2147483647 if universal_pipeline.local_inference else int(ai_drawings_count.value))
     ai_running = false
     if result.get("stage", "") == "budget":
         status.text = "L'analyse prévoit %d poses clés ; ta limite est %d. Augmente la limite dans Réglages et outils, puis relance : l'analyse est sauvegardée." % [int(result["required"]), int(result["budget"])]
@@ -2325,6 +2336,20 @@ func _draw_remote_story() -> void:
     universal_quality = result.get("quality", {"ok": false, "fidelity_verified": false})
     # This contract is a constraint checklist, not proof of visual fidelity.
     universal_quality["reference_contract"] = fidelity_contract
+    # Diagnostics are advisory: an unchanged pose can be intentional.
+    # Never substitute pixel metrics for semantic identity/pose verification.
+    var visual_warnings: Array = []
+    var frame_validator = load("res://scripts/GeneratedFrameValidator.gd")
+    for i in range(candidate_sources.size()):
+        var visual: Dictionary = frame_validator.inspect_visual_change(reference, candidate_sources[i].get_image())
+        if not visual.get("ok", false):
+            visual_warnings.append({"index": i, "reason": visual.get("error", "visual_check_failed")})
+        else:
+            for warning in visual.get("warnings", []):
+                visual_warnings.append({"index": i, "reason": warning})
+    universal_quality["visual_diagnostics"] = visual_warnings
+    universal_quality["identity_verified"] = false
+    universal_quality["pose_verified"] = false
     universal_style = _selected_drawing_style()
     universal_input_signature = signature
     sources = candidate_sources
@@ -2371,6 +2396,11 @@ func _draw_remote_story() -> void:
         status.text = "%d poses affichées ; fidélité non validée. Examine les dessins et refais les poses signalées. %s" % [paths.size(), str(universal_quality.get("error", ""))]
     else:
         status.text = "%d dessins, poses et intermédiaires. Agrandis-les, garde ou refuse chaque dessin, puis confirme la planche après les contrôles de fidélité." % paths.size()
+    if not visual_warnings.is_empty():
+        var affected: Dictionary = {}
+        for warning in visual_warnings:
+            affected[int(warning.get("index", -1))] = true
+        status.text += " Attention : %d dessin(s) présentent des anomalies visuelles potentielles. Vérifie-les individuellement avant de les garder." % affected.size()
 
 func _universal_drawing_entries() -> Array:
     return _entries_for_universal_plan(universal_plan, universal_folder)
@@ -2639,8 +2669,12 @@ func _update_photo_import_progress(phase: String, delta: float) -> void:
     var limit_seconds: float = 120.0 if phase in ["decoding", "saving"] else PHOTO_IMPORT_TIMEOUT
     if photo_import_clock >= limit_seconds:
         var failed_stage: String = phase if not phase.is_empty() else "retour du sélecteur / résultat natif absent"
+        if Engine.has_singleton("MP4Exporter"):
+            var native: Object = Engine.get_singleton("MP4Exporter")
+            if native.has_method("prefer_document_image_picker"):
+                native.call("prefer_document_image_picker")
         _cancel_photo_import()
-        status.text = "Le chargement ne répond pas à l'étape : " + failed_stage + ". Projet précédent conservé. Réessaie une image locale."
+        status.text = "La galerie Android n'a pas répondu (" + failed_stage + "). Réessaie : le sélecteur de fichiers alternatif sera utilisé. Projet conservé."
 
 func _native_image_error(message: String) -> void:
     chatgpt_import_role = ""

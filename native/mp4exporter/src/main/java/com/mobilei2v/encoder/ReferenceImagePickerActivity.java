@@ -22,7 +22,7 @@ public final class ReferenceImagePickerActivity extends Activity {
     static synchronized boolean launch(Activity host, String role) {
         if (host == null) return false;
         String id = UUID.randomUUID().toString();
-        prefs(host).edit().clear().putString("request", id).putString("role", role)
+        prefs(host).edit().remove("result").putString("request", id).putString("role", role)
             .putString("stage", "opening").commit();
         host.runOnUiThread(() -> {
             try {
@@ -60,7 +60,8 @@ public final class ReferenceImagePickerActivity extends Activity {
         return value;
     }
     static synchronized String status(Context c) { return prefs(c).getString("stage", "idle"); }
-    static synchronized void cancel(Context c) { prefs(c).edit().clear().commit(); }
+    static synchronized void cancel(Context c) { prefs(c).edit().remove("request").remove("result").remove("role").putString("stage", "idle").commit(); }
+    static synchronized void preferDocumentPicker(Context c) { prefs(c).edit().putBoolean("force_document_picker", true).commit(); }
 
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -82,7 +83,11 @@ public final class ReferenceImagePickerActivity extends Activity {
             // callbacks that may never return on some Android 16 devices.
             // Legacy Android keeps the existing Storage Access Framework path.
             Intent intent;
-            if (android.os.Build.VERSION.SDK_INT >= 33) {
+            // After a vendor Photo Picker callback timeout, retry with the
+            // Storage Access Framework instead of repeating the same broken route.
+            boolean useSystemPhotoPicker = android.os.Build.VERSION.SDK_INT >= 33
+                && !prefs(this).getBoolean("force_document_picker", false);
+            if (useSystemPhotoPicker) {
                 intent = new Intent(android.provider.MediaStore.ACTION_PICK_IMAGES);
                 intent.setType("image/*");
                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -108,6 +113,9 @@ public final class ReferenceImagePickerActivity extends Activity {
         super.onActivityResult(code, result, data);
         if (code != SELECT_IMAGE) return;
         if (!request.equals(prefs(this).getString("request", ""))) { finish(); return; }
+        if (result == RESULT_OK && data != null && data.getData() != null) {
+            prefs(this).edit().putBoolean("force_document_picker", false).commit();
+        }
         if (result != RESULT_OK || data == null || data.getData() == null) {
             complete(this, request, "cancelled", ""); finish(); return;
         }

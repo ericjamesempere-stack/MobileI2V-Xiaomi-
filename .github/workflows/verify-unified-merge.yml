@@ -1,7 +1,7 @@
 name: Verify KARMA ONE unified modules
 on:
   push:
-    branches: [karma/integration-unified-20261118]
+    branches: [karma/integration-unified-20261118, karma/step12-visual-quality-gate-20261118]
     paths:
       - 'scripts/storyboard.gd'
       - 'scripts/universal_board_pipeline.gd'
@@ -26,6 +26,8 @@ on:
       - 'tests/test_generated_frame_validator.gd'
       - 'tests/test_karma_lyrics_bridge_v6.gd'
       - '.github/workflows/verify-unified-merge.yml'
+  pull_request:
+    branches: [karma/integration-unified-20261118]
   workflow_dispatch:
 permissions:
   contents: read
