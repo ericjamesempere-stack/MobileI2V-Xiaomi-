@@ -42,9 +42,10 @@ func run() -> void:
         var reference_path: String=board.imported_path
         var digest: String=FileAccess.get_sha256(reference_path)
         board.action_input.text="SYNTHETIC local setup failure must not start inference."
+        var previous_pipeline: Node = board.universal_pipeline
         for i in range(3):
             await board._draw_remote_story()
-            assert(board.universal_pipeline.build_calls==0)
+            assert(board.universal_pipeline == previous_pipeline, "A failed probe must preserve the active project's engine")
             assert(board.imported_path==reference_path and FileAccess.get_sha256(reference_path)==digest)
             assert(not board.ai_running and not board._has_current_review())
     var worker: Node=board._make_drawing_worker()
