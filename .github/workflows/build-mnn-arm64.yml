@@ -1,5 +1,9 @@
 name: KARMA ONE - Build real MNN Android ARM64 libraries (NO APK)
 on:
+  push:
+    branches: [karma/step12-consolidation-20261118]
+    paths:
+      - '.github/workflows/build-mnn-arm64.yml'
   workflow_dispatch:
 permissions:
   contents: read
