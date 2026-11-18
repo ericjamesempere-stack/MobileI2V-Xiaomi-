@@ -3091,9 +3091,18 @@ func _explain_scene_failure(reason: String) -> String:
 
 
 func _may_use_remote_fallback(failure: Dictionary) -> bool:
-    return remote_fallback.button_pressed and not failure.get("ok", false) \
-        and int(failure.get("http_status", 0)) not in [400, 401, 403, 422] \
-        and failure.get("error_kind", "") not in ["authentication", "safety"]
+    # A quota/permission error is not a connectivity failure. Never resubmit
+    # work automatically when the provider may already have consumed a job.
+    var kind: String = str(failure.get("error_kind", "")).to_lower()
+    var detail: String = str(failure.get("error", "")).to_lower()
+    var status_code: int = int(failure.get("http_status", 0))
+    if kind in ["authentication", "safety", "quota", "rate_limit", "budget", "unsupported_scene_registry"]:
+        return false
+    if status_code in [400, 401, 402, 403, 409, 422, 429]:
+        return false
+    if detail.contains("quota") or detail.contains("runs limit") or detail.contains("limite gpu"):
+        return false
+    return remote_fallback.button_pressed and not failure.get("ok", false)
 
 func _make_remote_drawing_worker() -> Node:
     return load("res://scripts/hf_studio_generator.gd").new()
