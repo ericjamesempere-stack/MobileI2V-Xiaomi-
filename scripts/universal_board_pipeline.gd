@@ -119,7 +119,7 @@ func _build_boards(reference: Image, story: String, seconds: float, style: Strin
         if intermediate_review.get("ok", false) and intermediate_review.get("failed", []).is_empty() and next_remaining >= remaining:
             return {"ok": false, "stage": "intermediate_fidelity_review", "error": "local_intermediate_no_progress", "plan": plan, "generation": generation, "quality": review, "intermediates": intermediate_result, "intermediate_review": intermediate_review, "human_approved": false, "ready_for_animation": false}
         remaining = next_remaining
-    var all_intermediates_verified: bool = intermediate_review.get("ok", false) and intermediate_review.get("fidelity_verified", false) and intermediate_review.get("failed", []).is_empty() and intermediate_review.get("pending", []).is_empty()
+    var all_intermediates_verified: bool = _intermediate_review_complete(intermediate_review)
     return {"ok": all_intermediates_verified, "stage": "intermediate_fidelity_review", "plan": plan, "generation": generation, "quality": review, "intermediates": intermediate_result, "intermediate_review": intermediate_review, "human_approved": false, "ready_for_animation": false, "intermediates_generated_this_pass": generated_total}
 
 func _write(path: String, value: Dictionary) -> bool:
@@ -452,3 +452,7 @@ func review_and_correct(reference: Image, plan: Dictionary, style: String, folde
     review["repairs"] = attempts
     review["human_approved"] = false
     return review
+
+# A successful API response is not the same as a successful fidelity review.
+static func _intermediate_review_complete(review: Dictionary) -> bool:
+    return review.get("ok", false) and review.get("fidelity_verified", false) and review.get("failed", []).is_empty() and review.get("pending", []).is_empty()
