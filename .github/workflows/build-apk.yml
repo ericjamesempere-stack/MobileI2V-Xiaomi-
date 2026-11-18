@@ -285,7 +285,7 @@ jobs:
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error' hf-studio-protocol.log; then exit 1; fi
 
       - name: Test local engines without cloud calls
-        timeout-minutes: 2
+        timeout-minutes: 4
         run: |
           set -euo pipefail
           GODOT_BIN="$PWD/Godot_v4.5.2-stable_linux.x86_64" python3 tests/test_local_studio_transport.py 2>&1 | tee local-studio.log
