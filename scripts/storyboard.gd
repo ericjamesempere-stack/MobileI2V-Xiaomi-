@@ -2267,29 +2267,40 @@ func _draw_remote_story() -> void:
     if generated_paths.is_empty():
         status.text = "Aucun nouveau dessin ; ton projet est conservé. " + str(generation.get("error", "Génération indisponible."))
         return
+    # Validate the actual generated files before replacing the user's visible
+    # storyboard. A missing/corrupt frame must not erase a previous project or
+    # produce an empty timeline that later indexes entries[0].
+    var candidate_entries: Array = _entries_for_universal_plan(result["plan"], folder)
+    var candidate_sources: Array[Texture2D] = []
+    var candidate_paths: Array[String] = []
+    for entry in candidate_entries:
+        var candidate_path: String = str(entry.get("path", ""))
+        var candidate_texture: Texture2D = _drawing_thumbnail(candidate_path)
+        if candidate_texture == null:
+            status.text = "Dessin illisible : projet précédent conservé. Relance pour reprendre la génération."
+            return
+        candidate_sources.append(candidate_texture)
+        candidate_paths.append(candidate_path)
+    if candidate_paths.is_empty():
+        status.text = "Aucune image exploitable : projet précédent conservé. Relance pour reprendre."
+        return
     universal_folder = folder
     universal_plan = result["plan"]
     universal_quality = result.get("quality", {"ok": false, "fidelity_verified": false})
     universal_style = _selected_drawing_style()
     universal_input_signature = signature
-    sources.clear()
-    paths.clear()
+    sources = candidate_sources
+    paths = candidate_paths
     accepted.clear()
     plan.clear()
     session_agent = load("res://scripts/karma_studio_session.gd").new()
     session_agent.state = {"version": 2, "story": story, "duration": duration_input.value, "count": universal_plan["keyposes"], "frames": {}, "semantic_analysis": universal_plan["semantic_analysis"], "identity_verified": false, "agents": {"scenario": "live_vision_model", "pose": "universal_physical_phases", "image": "running", "quality": "pending", "recovery": "saving", "video": "waiting_for_user"}}
     # Review and export share the same chronological set of actual drawings.
     # A generated in-between must never be silently discarded or bypass review.
-    var entries: Array = _universal_drawing_entries()
-    for entry in entries:
-        var path: String = entry["path"]
-        var texture: Texture2D = _drawing_thumbnail(path)
-        if texture == null:
-            break
-        sources.append(texture)
-        paths.append(str(path))
+    var entries: Array = candidate_entries
+    for i in range(paths.size()):
         accepted.append(false)
-        session_agent.record_frame(paths.size() - 1, str(path), {"identity_verified": false})
+        session_agent.record_frame(i, paths[i], {"identity_verified": false})
     required_drawing_count = int(universal_plan["keyposes"]) + int(universal_plan.get("intermediate_drawings", 0))
     var cursor: int = 0
     for frame in range(int(universal_plan["video_frames"])):
@@ -2324,14 +2335,17 @@ func _draw_remote_story() -> void:
         status.text = "%d dessins, poses et intermédiaires. Agrandis-les, garde ou refuse chaque dessin, puis confirme la planche après les contrôles de fidélité." % paths.size()
 
 func _universal_drawing_entries() -> Array:
+    return _entries_for_universal_plan(universal_plan, universal_folder)
+
+func _entries_for_universal_plan(board_plan: Dictionary, board_folder: String) -> Array:
     var entries: Array = []
-    for board in universal_plan.get("boards", []):
-        var path: String = universal_folder.path_join("pose_%04d.png" % int(board["index"]))
+    for board in board_plan.get("boards", []):
+        var path: String = board_folder.path_join("pose_%04d.png" % int(board["index"]))
         if FileAccess.file_exists(path):
             entries.append({"path": path, "video_frame": int(board["video_frame"]), "keypose_index": int(board["index"])})
-    var schedule: Dictionary = load("res://scripts/karma_intermediate_agent.gd").new().schedule(universal_plan)
+    var schedule: Dictionary = load("res://scripts/karma_intermediate_agent.gd").new().schedule(board_plan)
     for task in schedule.get("tasks", []):
-        var path: String = universal_folder.path_join(str(task["id"]) + ".png")
+        var path: String = board_folder.path_join(str(task["id"]) + ".png")
         if FileAccess.file_exists(path):
             entries.append({"path": path, "video_frame": int(task["target_frame"]), "task": task})
     entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["video_frame"]) < int(b["video_frame"]))
