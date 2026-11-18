@@ -2578,8 +2578,14 @@ func _sync_friendly_ui() -> void:
         drawing_preview_playing = false
     preview_toggle.text = "Mettre l aperçu en pause" if drawing_preview_playing else "Voir défiler mes dessins"
     var minimum: int = 1 if not universal_folder.is_empty() else 2
-    review_check.disabled = busy or sources.size() < minimum
-    friendly_export.disabled = busy or sources.size() < minimum or not review_check.button_pressed or not explicit_rejections.is_empty()
+    review_check.disabled = true # Kept for legacy project state; no duplicate confirmation UI.
+    var all_drawings_accepted: bool = accepted.size() == sources.size() and explicit_rejections.is_empty()
+    if all_drawings_accepted:
+        for keep in accepted:
+            if not bool(keep):
+                all_drawings_accepted = false
+                break
+    friendly_export.disabled = busy or sources.size() < minimum or not all_drawings_accepted
     action_input.editable = not busy
     character_description.editable = not busy
     ai_token_input.editable = not busy
@@ -2615,12 +2621,26 @@ func _friendly_generate() -> void:
         _go_step(2)
 
 func _friendly_export() -> void:
-    if not _has_current_review():
-        review_check.set_pressed_no_signal(false)
-        review_fingerprint = ""
-        status.text = "Regarde tes dessins, puis coche la case pour les valider."
+    # Single final user action after preview; retain the existing V54 safety checks.
+    if ai_running or disk_drawing_running or exporting_video or photo_importing:
         return
-    _approve_all()
+    if sources.is_empty() or accepted.size() != sources.size() or not explicit_rejections.is_empty():
+        status.text = "Valide la planche et corrige les dessins refusés avant l'export."
+        return
+    for keep in accepted:
+        if not bool(keep):
+            status.text = "Examine et garde chaque dessin avant l'export."
+            return
+    if not _universal_ready_for_review() or required_drawing_count > sources.size():
+        status.text = "La planche n'a pas passé les contrôles de cohérence nécessaires."
+        return
+    # The final button is the sole confirmation; bind it to the exact approved images.
+    review_check.set_pressed_no_signal(true)
+    review_fingerprint = _drawing_fingerprint()
+    reviewed_paths = "|".join(paths)
+    if not _has_current_review():
+        status.text = "Validation impossible : la planche a changé ou est incomplète."
+        return
     await _export_board_mp4()
 
 func _toggle_drawing_preview() -> void:
