@@ -1,0 +1,29 @@
+name: KARMA ONE - MNN ARM64 source checks (no APK)
+on:
+  push:
+    branches: [karma/step12-consolidation-20261118]
+    paths:
+      - 'native/mnnarm64/**'
+      - '.github/workflows/mnn-arm64-source.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate native JNI source contract and no fake bundled weights
+        run: |
+          set -euo pipefail
+          test -f native/mnnarm64/CMakeLists.txt
+          test -f native/mnnarm64/src/karma_mnn_jni.cpp
+          test -f native/mnnarm64/src/KarmaMnnBridge.java
+          grep -Fq 'MNN::Interpreter::createFromFile' native/mnnarm64/src/karma_mnn_jni.cpp
+          grep -Fq 'createSession(config)' native/mnnarm64/src/karma_mnn_jni.cpp
+          grep -Fq 'runSession(g_session)' native/mnnarm64/src/karma_mnn_jni.cpp
+          grep -Fq 'System.loadLibrary("MNN")' native/mnnarm64/src/KarmaMnnBridge.java
+          grep -Fq 'ANDROID_ABI STREQUAL "arm64-v8a"' native/mnnarm64/CMakeLists.txt
+          test ! -f native/mnnarm64/prebuilt/lib/arm64-v8a/libMNN.so
+          echo KARMA_MNN_ARM64_SOURCE_OK
