@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       expected_sha:
-        description: "Exact validated Step 11 commit SHA (required for Step 11)"
+        description: "Optional reference SHA (the workflow always builds the selected branch HEAD)"
         required: false
         type: string
 
@@ -27,8 +27,9 @@ concurrency:
 jobs:
   build:
     if: >-
-      (github.ref_name != 'karma/step10-consolidation-safe-20261118' && github.ref_name != 'karma/step11-final-integration-20261118') ||
-      (github.event_name == 'workflow_dispatch' && inputs.expected_sha == github.sha && github.run_attempt == '1')
+      github.ref_name != 'karma/step10-consolidation-safe-20261118' &&
+      (github.ref_name != 'karma/step11-final-integration-20261118' ||
+      (github.event_name == 'workflow_dispatch' && github.run_attempt == '1'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
