@@ -2283,10 +2283,21 @@ func _draw_remote_story() -> void:
         var probe: Dictionary = await universal_pipeline.worker.inspect_local_engines()
         _remember_local_probe(probe)
         if not probe.get("ok", false):
-            ai_running = false
-            status.text = probe["message"] + " Tes dessins sont conservés."
-            return
-    var result: Dictionary = await universal_pipeline.build_boards(reference, story, float(duration_input.value), _selected_drawing_style(), folder, 2147483647 if local_mode.button_pressed else int(ai_drawings_count.value))
+            # Reuse the existing remote worker when the optional local engine is
+            # unavailable. The user explicitly pressed Create; importing alone
+            # never sends an image. Keep local and remote caches separate.
+            status.text = "Moteur local indisponible. Bascule vers le moteur distant existant…"
+            _configure_universal_pipeline(style_image)
+            universal_pipeline.local_inference = false
+            if is_instance_valid(universal_pipeline.worker):
+                universal_pipeline.worker.queue_free()
+            universal_pipeline.worker = load("res://scripts/hf_studio_generator.gd").new()
+            universal_pipeline.add_child(universal_pipeline.worker)
+            universal_pipeline.worker.hf_token = ai_token_input.text.strip_edges()
+            universal_pipeline.worker.style_reference = style_image
+            universal_pipeline.worker.remote_vision_consent = true
+            folder += "_remote_fallback"
+    var result: Dictionary = await universal_pipeline.build_boards(reference, story, float(duration_input.value), _selected_drawing_style(), folder, 2147483647 if universal_pipeline.local_inference else int(ai_drawings_count.value))
     ai_running = false
     if result.get("stage", "") == "budget":
         status.text = "L'analyse prévoit %d poses clés ; ta limite est %d. Augmente la limite dans Réglages et outils, puis relance : l'analyse est sauvegardée." % [int(result["required"]), int(result["budget"])]
