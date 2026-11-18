@@ -16,6 +16,7 @@ on:
       - 'tests/test_intermediate_fidelity_completion.gd'
       - 'scripts/android_image_reader.gd'
       - 'tests/test_universal_image_import_formats.gd'
+      - 'tests/test_universal_subject_contracts.gd'
       - 'tests/test_reference_fidelity_gate.gd'
       - 'tests/test_generated_frame_validator.gd'
       - 'tests/test_karma_lyrics_bridge_v6.gd'
@@ -42,6 +43,8 @@ jobs:
         run: ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --import --quit
       - name: Test unified storyboard script and entrypoints
         run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_unified_storyboard_wiring.gd
+      - name: Test universal subjects and requested transformations
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_universal_subject_contracts.gd
       - name: Test PNG JPEG WebP import and invalid files
         run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_universal_image_import_formats.gd
       - name: Test intermediate fidelity completion gate
