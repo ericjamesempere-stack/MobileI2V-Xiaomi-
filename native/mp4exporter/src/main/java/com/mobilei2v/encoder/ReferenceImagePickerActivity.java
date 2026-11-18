@@ -78,10 +78,20 @@ public final class ReferenceImagePickerActivity extends Activity {
             return; // Existing document picker result is delivered by Android.
         }
         try {
-            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType("image/*");
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            // Android 13+ system Photo Picker avoids vendor document-provider
+            // callbacks that may never return on some Android 16 devices.
+            // Legacy Android keeps the existing Storage Access Framework path.
+            Intent intent;
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                intent = new Intent(android.provider.MediaStore.ACTION_PICK_IMAGES);
+                intent.setType("image/*");
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } else {
+                intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("image/*");
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            }
             stage(this, request, "selecting");
             startActivityForResult(intent, SELECT_IMAGE);
         } catch (RuntimeException e) {
