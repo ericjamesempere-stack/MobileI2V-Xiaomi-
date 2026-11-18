@@ -3,6 +3,22 @@ extends Node
 # No fictitious provider, quota bypass, or unverified "AI" fallback.
 signal progress(index: int, total: int)
 var cancel_requested: bool = false
+# Existing evidence-gated supervisor: generation never implies approval.
+const AGENT_HANDOFF = preload("res://scripts/karma_step09_agent_handoff.gd")
+var agent_handoff: RefCounted = AGENT_HANDOFF.new()
+
+func start_agent_session(session_id: String) -> Dictionary:
+ return agent_handoff.begin(session_id)
+
+func submit_agent_evidence(stage: String, proof: Dictionary) -> Dictionary:
+ return agent_handoff.handoff(stage, proof)
+
+func agent_status() -> Dictionary:
+ return agent_handoff.snapshot()
+
+func may_export_approved(fingerprint: String) -> Dictionary:
+ return agent_handoff.export_permission(fingerprint)
+
 
 func generate(source: Image, prompt: String, endpoints: String, count: int = 12, loop: bool = false, token: String = "", duration: float = 0.0) -> Dictionary:
  cancel_requested = false
