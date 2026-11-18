@@ -66,7 +66,7 @@ func run() -> void:
     await board._export_video(blocked_output)
     assert(not FileAccess.file_exists(blocked_output))
     board._export_png_sequence()
-    assert(board.status.text.contains("Export bloqué"))
+    assert(board.status.text.contains("Export bloque"), "PNG export must reject an unapproved board")
     board._validate_and_animate()
     assert(board.status.text.contains("Export bloqué"))
     board.accepted[1] = true
