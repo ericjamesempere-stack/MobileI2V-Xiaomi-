@@ -3,6 +3,7 @@ name: KARMA ONE - Unified ARM64 release
 on:
   push:
     branches: [karma/step12-consolidation-20261118]
+    paths: ['.github/workflows/build-apk.yml']
   workflow_dispatch:
     inputs:
       expected_sha:
