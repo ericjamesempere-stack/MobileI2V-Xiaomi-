@@ -1,0 +1,20 @@
+extends SceneTree
+const HANDOFF = preload("res://scripts/karma_step09_agent_handoff.gd")
+
+func _initialize() -> void:
+ var bridge = HANDOFF.new()
+ assert(not bridge.export_permission("fingerprint").get("ok", false))
+ assert(bridge.begin("step09-test").get("ok", false))
+ assert(not bridge.handoff("images_ready", {"ok": true, "real_image_count": 8, "pixel_files_verified": true}).get("ok", false))
+ assert(bridge.handoff("poses_ready", {"ok": true, "pose_count": 8}).get("ok", false))
+ assert(not bridge.handoff("images_ready", {"ok": true, "real_image_count": 0, "pixel_files_verified": false}).get("ok", false))
+ assert(bridge.handoff("images_ready", {"ok": true, "real_image_count": 8, "pixel_files_verified": true}).get("ok", false))
+ assert(bridge.handoff("quality_checked", {"ok": true, "all_frames_checked": true}).get("ok", false))
+ assert(not bridge.export_permission("a").get("ok", false))
+ assert(not bridge.handoff("human_approved", {"ok": true, "fingerprint": "a", "explicit_user_approval": false}).get("ok", false))
+ assert(bridge.handoff("human_approved", {"ok": true, "fingerprint": "a", "explicit_user_approval": true}).get("ok", false))
+ assert(not bridge.export_permission("b").get("ok", false))
+ assert(bridge.export_permission("a").get("ok", false))
+ assert(not bridge.engine_permission({"id": "local", "reachable": false}).get("ok", false))
+ print("STEP09_AGENT_HANDOFF_PASS")
+ quit(0)
