@@ -124,7 +124,8 @@ func run() -> void:
     assert(board.paths.filter(func(path: String) -> bool: return path.get_file().begins_with("between_")).size() == 4)
     assert(board.universal_pipeline.worker.analysis_calls == 1)
     assert(board.universal_pipeline.worker.generated == 12)
-    assert(board.plan.size() == 150 and board.wizard_step == 2)
+    # V60+ opens drawing review (step 1) before allowing video export (step 2).
+    assert(board.plan.size() == 150 and board.wizard_step == 1, "Expected drawings review; step=%d, frames=%d" % [board.wizard_step, board.plan.size()])
     assert(board.contact_sheet.texture != null and not board._has_current_review())
     await board._friendly_export()
     assert(board.encoder_calls == 0)
