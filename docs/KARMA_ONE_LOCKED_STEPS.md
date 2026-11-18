@@ -22,12 +22,13 @@ Date : 2026-11-18. Ce registre distingue correction committée et validation ex�
 
 ## Étape 10 — Agents et orchestrateur
 
-- **Statut** — Intégration committée, verrouillage en attente du contrôle CI.
+- **Statut** — VERROUILLÉE pour les contrôles Godot et Android automatisés.
 - **Commit d’intégration** — `bfab3df999f38df6d2bcf401ff76da7ea02cd97d`. Work Gallery, repli V61 avec désactivation, diagnostics visuels consultatifs et contrôle 9G réutilisé pour l’approbation des exports.
 - **Contrôles locaux** — 36 scripts Godot 4.6.3, contrôles Python et transports simulés réussis. Le MP4 de régression a été généré puis décodé sur Linux avec FFmpeg.
 - **Premier contrôle CI** — Le job Godot 4.5.2 a passé les contrôles de revue 9G et le registre des agents, puis le test d’intégration MP4 a échoué car FFmpeg était absent. Le job Android s’est arrêté avant les tests unitaires, sur HTTP 429 lors de la résolution des dépendances Gradle. [Exécution 44260572129](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44260572129).
 - **Correctifs CI** — Installation conditionnelle de FFmpeg avec vérification SHA256 reprise du workflow du dépôt. Nouvelle tentative Gradle uniquement si Maven Central renvoie HTTP 429.
-- **APK** — Compilation en attente de la réussite des contrôles Godot et Android. Validation matérielle Xiaomi 14T Pro à effectuer.
+- **Contrôles de validation** — Réussite des jobs Godot 4.5.2 (36 scripts, contrôles Python et transports simulés) et Android (profil ARM64 et `testDebugUnitTest`) au commit `dba278abd8761610c1e863a42bc32267790bd6de`. [Exécution 44261921954](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44261921954).
+- **APK** — Préconditions de compilation réunies. Validation matérielle Xiaomi 14T Pro à effectuer.
 
 ## Étape 11 — Génération universelle
 - **Statut : À FAIRE** ; dépend de la vérification des moteurs et des flux Android.
