@@ -36,6 +36,7 @@ func _run() -> void:
         sheet.fill(Color.WHITE)
         for i in range(generated.size()):
             var frame: Image = generated[i].duplicate()
+            frame.convert(Image.FORMAT_RGBA8)
             frame.resize(cell.x, cell.y)
             sheet.blit_rect(frame, Rect2i(Vector2i.ZERO, cell), Vector2i(i % 2 * cell.x, i / 2 * cell.y))
         sheet.save_png(OUT.path_join("contact_sheet.png"))
