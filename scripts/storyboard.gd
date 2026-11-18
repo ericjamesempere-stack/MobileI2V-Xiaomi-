@@ -105,7 +105,7 @@ func _ready() -> void:
     if OS.get_name() == "Android":
         picker.current_dir = "/storage/emulated/0/Pictures"
     picker.use_native_dialog = true
-    picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp;Images;image/png,image/jpeg,image/webp"])
+    picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp,*.bmp,*.tga,*.svg,*.heic,*.heif,*.avif,*.gif;Images compatibles (selon décodeur Android)", "*.*;Tous les fichiers (validation après sélection)"])
     picker.file_selected.connect(_image_chosen)
     picker.canceled.connect(_native_image_cancelled)
     add_child(picker)
@@ -829,7 +829,7 @@ func _image_chosen(path: String) -> void:
         return
     var img: Image = load("res://scripts/android_image_reader.gd").read_image(path)
     if img == null or img.is_empty():
-        status.text = "ERREUR PHOTO : impossible de lire le fichier. Essaie JPG ou PNG."
+        status.text = "ERREUR PHOTO : format non décodable ou fichier inaccessible. Essaie la galerie Android ou convertis en PNG/JPG/WEBP. Ton projet est conservé."
         return
     var max_side: int = maxi(img.get_width(), img.get_height())
     if max_side > 4096:
