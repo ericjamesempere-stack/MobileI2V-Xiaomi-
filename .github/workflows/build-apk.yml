@@ -1,4 +1,4 @@
-name: Build Android APK KARMA ONE Step 09F Agent Wiring
+name: Build Android APK KARMA ONE Step 11
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       expected_sha:
-        description: "Validated full Step 10 commit SHA"
+        description: "Exact validated Step 11 commit SHA (required for Step 11)"
         required: false
         type: string
 
@@ -27,12 +27,12 @@ concurrency:
 jobs:
   build:
     if: >-
-      github.ref_name != 'karma/step10-consolidation-safe-20261118' ||
+      (github.ref_name != 'karma/step10-consolidation-safe-20261118' && github.ref_name != 'karma/step11-final-integration-20261118') ||
       (github.event_name == 'workflow_dispatch' && inputs.expected_sha == github.sha && github.run_attempt == '1')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      APK_NAME: ${{ github.ref_name == 'karma/step10-consolidation-safe-20261118' && 'KARMA_ONE_STEP10_CONSOLIDATED_ARM64' || 'KARMA_ONE_STEP09F_AGENT_WIRING_ARM64' }}
+      APK_NAME: ${{ github.ref_name == 'karma/step11-final-integration-20261118' && 'KARMA_ONE_STEP11_INTEGRATION_ARM64' || (github.ref_name == 'karma/step10-consolidation-safe-20261118' && 'KARMA_ONE_STEP10_CONSOLIDATED_ARM64' || 'KARMA_ONE_STEP09F_AGENT_WIRING_ARM64') }}
 
     steps:
       - name: Checkout project
