@@ -8,6 +8,9 @@ on:
       - 'tests/test_device_cpu_image_engine.gd'
       - 'scripts/karma_embedded_diffusion_check.gd'
       - 'tests/test_embedded_diffusion_check.gd'
+      - 'scripts/karma_narrative_image_engine.gd'
+      - 'scripts/universal_board_pipeline.gd'
+      - 'tests/test_narrative_image_engine.gd'
       - '.github/workflows/device-cpu-image.yml'
   workflow_dispatch:
 permissions:
@@ -36,3 +39,9 @@ jobs:
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_embedded_diffusion_check.gd 2>&1 | tee model-check.log
           grep -Fq KARMA_EMBEDDED_DIFFUSION_CHECK_OK model-check.log
           if grep -Ei 'SCRIPT ERROR|Parse Error|Assertion failed|ERROR:' model-check.log; then exit 1; fi
+      - name: Verify narrative image planning and continuity
+        run: |
+          set -euo pipefail
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_narrative_image_engine.gd 2>&1 | tee narrative.log
+          grep -Fq KARMA_NARRATIVE_IMAGE_ENGINE_OK narrative.log
+          if grep -Ei 'SCRIPT ERROR|Parse Error|Assertion failed|ERROR:' narrative.log; then exit 1; fi
