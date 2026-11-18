@@ -47,6 +47,23 @@ jobs:
           unzip -q Godot_v4.5.2-stable_linux.x86_64.zip
           chmod +x Godot_v4.5.2-stable_linux.x86_64
           ./Godot_v4.5.2-stable_linux.x86_64 --version
+      - name: Validate all Godot scripts before tests
+        run: |
+          set -euo pipefail
+          timeout 120s ./Godot_v4.5.2-stable_linux.x86_64 --headless --editor --path . --import --quit 2>&1 | tee godot-import-validation.log
+          if grep -Ei 'SCRIPT ERROR|Parse Error|Invalid call|Invalid assignment|Assertion failed|ERROR:' godot-import-validation.log; then
+            echo "::error::Godot import or script validation failed"
+            exit 1
+          fi
+      - name: Publish Godot import validation log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-import-validation-${{ github.sha }}
+          path: godot-import-validation.log
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Validate Autopilot budget, no errors and no timeout
         run: |
           set -euo pipefail
