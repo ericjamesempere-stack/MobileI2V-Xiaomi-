@@ -2658,8 +2658,12 @@ func _update_photo_import_progress(phase: String, delta: float) -> void:
     var limit_seconds: float = 120.0 if phase in ["decoding", "saving"] else PHOTO_IMPORT_TIMEOUT
     if photo_import_clock >= limit_seconds:
         var failed_stage: String = phase if not phase.is_empty() else "retour du sélecteur / résultat natif absent"
+        if Engine.has_singleton("MP4Exporter"):
+            var native: Object = Engine.get_singleton("MP4Exporter")
+            if native.has_method("prefer_document_image_picker"):
+                native.call("prefer_document_image_picker")
         _cancel_photo_import()
-        status.text = "Le chargement ne répond pas à l'étape : " + failed_stage + ". Projet précédent conservé. Réessaie une image locale."
+        status.text = "La galerie Android n'a pas répondu (" + failed_stage + "). Réessaie : le sélecteur de fichiers alternatif sera utilisé. Projet conservé."
 
 func _native_image_error(message: String) -> void:
     chatgpt_import_role = ""
