@@ -24,5 +24,14 @@ class ExportValidation(unittest.TestCase):
             with self.assertRaises(ValueError):
                 mod.inspect(root)
 
+    def test_missing_external_weights_fail(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for name in ("text_encoder", "unet", "vae_decoder"):
+                (root / (name + ".mnn")).write_bytes(b"x" * 2048)
+            (root / "tokenizer.mtok").write_bytes(b"x" * 2048)
+            with self.assertRaisesRegex(ValueError, "missing external weights"):
+                mod.inspect(root)
+
 if __name__ == "__main__":
     unittest.main()
