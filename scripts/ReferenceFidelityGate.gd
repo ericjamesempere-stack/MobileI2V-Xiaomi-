@@ -57,7 +57,7 @@ static func build_request_from_image(reference: Image, description: String, subj
     var constraints := [
         "Preserve subject identity, silhouette, materials, colors and proportions.",
         "Preserve scene and background unless the action requests changes.",
-        "Do not invent anatomy or accessories absent from the reference.",
+        "Do not invent anatomy or accessories unless the user explicitly requests them.",
         "Use physically coherent poses and consistent scale across frames."
     ]
     if subject_type in ["object", "plant", "vehicle"]:
