@@ -26,6 +26,18 @@ public final class KarmaMnnBridge {
         return available ? nativeLastError() : "mnn_native_library_missing";
     }
     public static synchronized void release() { if (available) nativeRelease(); }
+    /**
+     * One deterministic DDIM denoising step, requiring epsilon predicted by
+     * a genuine MNN UNet graph. Null means invalid shapes or alpha schedule.
+     * This method alone cannot generate an image.
+     */
+    public static synchronized float[] ddimStep(float[] latent, float[] epsilon,
+                                                 float alphaT, float alphaPrev) {
+        return available && latent != null && epsilon != null
+                ? nativeDdimStep(latent, epsilon, alphaT, alphaPrev) : null;
+    }
+    private static native float[] nativeDdimStep(float[] latent, float[] epsilon,
+                                                  float alphaT, float alphaPrev);
     private static native boolean nativeLoadGraph(String path);
     private static native boolean nativeRunGraph();
     private static native String nativeLastError();
