@@ -58,9 +58,9 @@ jobs:
             -DMNN_BUILD_TEST=OFF -DMNN_BUILD_BENCHMARK=OFF \
             -DMNN_BUILD_CONVERTER=OFF -DMNN_BUILD_TRAIN=OFF \
             -DMNN_OPENCL=OFF -DMNN_VULKAN=OFF \
-            -DMNN_ARM82=ON -DMNN_LOW_MEMORY=ON -DMNN_SEP_BUILD=OFF \
-            -DMNN_BUILD_DIFFUSION=ON -DMNN_BUILD_LLM=ON -DMNN_BUILD_OPENCV=OFF
-          cmake --build /tmp/mnn-android-build --target MNN --parallel 2
+            -DMNN_ARM82=ON -DMNN_LOW_MEMORY=ON -DMNN_SEP_BUILD=ON \
+            -DMNN_BUILD_DIFFUSION=ON -DMNN_BUILD_LLM=ON -DMNN_LLM_BUILD_DEMO=OFF -DMNN_BUILD_OPENCV=OFF
+          cmake --build /tmp/mnn-android-build --target MNN llm --parallel 2
           mkdir -p native/mnnarm64/prebuilt/include native/mnnarm64/prebuilt/lib/arm64-v8a
           cp -R /tmp/MNN/include/MNN native/mnnarm64/prebuilt/include/
           MNN_SO="$(find /tmp/mnn-android-build -type f -name libMNN.so | head -n 1)"
