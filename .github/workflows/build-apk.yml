@@ -200,16 +200,6 @@ jobs:
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' import-individual-review.log; then exit 1; fi
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' autopilot-pipeline.log; then exit 1; fi
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' autopilot-memory.log; then exit 1; fi
-      - name: Run the connected agent validation graph on the autonomy branch
-        if: github.ref_name == 'karma/advanced-autonomy-integration-20261118'
-        run: |
-          set -euo pipefail
-          # checkout defaults to a single branch. Expose its exact commit to inventory.
-          git update-ref refs/remotes/origin/"$GITHUB_REF_NAME" "$GITHUB_SHA"
-          mkdir -p "$RUNNER_TEMP/karma-fixture-data"
-          export XDG_DATA_HOME="$RUNNER_TEMP/karma-fixture-data"
-          python3 autopilot/supervisor.py --godot "$GITHUB_WORKSPACE/Godot_v4.5.2-stable_linux.x86_64" --budget-seconds 180
-
       - name: Test KARMA ONE intermediate rendering and cache
         run: |
           set -euo pipefail
@@ -284,6 +274,18 @@ jobs:
           KARMA_INTEGRATION_EVIDENCE_DIR="$PWD/build/integration-proof" timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_universal_android_integration.gd 2>&1 | tee universal-android-integration.log
           grep -q 'UNIVERSAL_ANDROID_INTEGRATION_OK' universal-android-integration.log
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' universal-android-integration.log; then exit 1; fi
+      - name: Run the connected agent validation graph on the autonomy branch
+        if: github.ref_name == 'karma/advanced-autonomy-integration-20261118'
+        run: |
+          set -euo pipefail
+          # checkout defaults to a single branch. Expose its exact commit to inventory.
+          git update-ref refs/remotes/origin/"$GITHUB_REF_NAME" "$GITHUB_SHA"
+          command -v ffmpeg
+          command -v ffprobe
+          mkdir -p "$RUNNER_TEMP/karma-fixture-data"
+          export XDG_DATA_HOME="$RUNNER_TEMP/karma-fixture-data"
+          python3 autopilot/supervisor.py --godot "$GITHUB_WORKSPACE/Godot_v4.5.2-stable_linux.x86_64" --budget-seconds 180
+
       - name: Smoke-test KARMA ONE startup before APK export
         run: |
           set -euo pipefail
