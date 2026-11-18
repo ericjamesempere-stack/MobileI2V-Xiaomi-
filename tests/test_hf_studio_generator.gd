@@ -25,6 +25,14 @@ class VisionTransport extends "res://scripts/hf_studio_generator.gd":
         jobs += 1
         return {"ok": false, "error_kind": "hidden_server_error"}
 
+class VisionFailover extends "res://scripts/hf_studio_generator.gd":
+    var called: Array[String] = []
+    func _vision_request_at(endpoint: String, _images: Array[Image], _prompt: String) -> Dictionary:
+        called.append(endpoint)
+        if endpoint == VISION_URL:
+            return {"ok": false, "error_kind": "hidden_server_error", "error": "server unavailable"}
+        return {"ok": false, "error_kind": "transport", "http_status": 503, "error": "backup unavailable"}
+
 func _initialize() -> void:
     call_deferred("run")
 
@@ -61,6 +69,19 @@ func run() -> void:
     assert(vision.upload_count == 5 and vision.jobs == 1)
     assert(outage["http_status"] == 503 and outage["error"].contains("envoi des images"))
     vision.free()
+    var failover := VisionFailover.new()
+    root.add_child(failover)
+    failover.remote_vision_consent = true
+    failover.vision_backup_urls.assign(["https://backup-one.example", "https://backup-two.example", "https://backup-three.example", "http://unsafe.example"])
+    var sample := Image.create(8, 8, false, Image.FORMAT_RGB8)
+    sample.fill(Color.RED)
+    var failed: Dictionary = await failover.analyze_scene(sample, "riding a motorcycle")
+    assert(not failed.get("ok", false))
+    assert(failover.called.size() == 4)
+    assert(failover.called[0] == failover.VISION_URL)
+    assert(failover.called[1] == "https://backup-one.example")
+    assert(failed.get("attempts", []).size() == 4)
+    failover.free()
     var editor := FakeEditor.new()
     root.add_child(editor)
     var reference := Image.create(8, 8, false, Image.FORMAT_RGB8)
