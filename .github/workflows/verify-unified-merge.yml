@@ -13,6 +13,7 @@ on:
       - 'scripts/karma_lyrics_sync_bridge_v6.gd'
       - 'tests/test_unified_storyboard_wiring.gd'
       - 'tests/test_fidelity_prompt_wiring.gd'
+      - 'tests/test_intermediate_fidelity_completion.gd'
       - 'tests/test_reference_fidelity_gate.gd'
       - 'tests/test_generated_frame_validator.gd'
       - 'tests/test_karma_lyrics_bridge_v6.gd'
@@ -39,6 +40,8 @@ jobs:
         run: ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --import --quit
       - name: Test unified storyboard script and entrypoints
         run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_unified_storyboard_wiring.gd
+      - name: Test intermediate fidelity completion gate
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_intermediate_fidelity_completion.gd
       - name: Test fidelity instructions reach remote and local image engines
         run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_fidelity_prompt_wiring.gd
       - name: Test reference fidelity gate
