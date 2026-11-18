@@ -26,6 +26,9 @@ func run() -> void:
     assert(engine._loopback("http://127.0.0.1:8080"))
     assert(not (await engine._local_request("https://example.com", "/health"))["ok"])
     assert(not (await engine._local_request("http://127.0.0.1:8080", "/unknown"))["ok"])
+    var huge: String = "x".repeat(8000001)
+    var oversized: Dictionary = await engine._local_request("http://127.0.0.1:8081", "/generate", {"prompt": huge})
+    assert(not oversized["ok"] and oversized["error"] == "local_payload_too_large")
     # Model discovery never silently selects an ambiguous or invalid model.
     assert(not engine.select_active_model({})["ok"])
     assert(not engine.select_active_model({"data": []})["ok"])
