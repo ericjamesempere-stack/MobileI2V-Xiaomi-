@@ -61,7 +61,7 @@ jobs:
       - name: Download real licensed model at pinned revision
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          REVISION: ${{ inputs.model_revision }}
+          REVISION: ${{ github.event.inputs.model_revision || '451f4fe16113bff5a5d2269ed5ad43b0592e9a14' }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
