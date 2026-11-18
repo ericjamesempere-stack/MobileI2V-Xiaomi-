@@ -21,14 +21,13 @@ Date : 2026-11-18. Ce registre distingue correction committée et validation ex�
 - **Règle :** ne pas modifier les étapes validées sans justification et nouveaux tests. Ne pas déclencher de compilation APK sans autorisation explicite.
 
 ## Étape 10 — Agents et orchestrateur
-- **Statut : INVENTAIRE STATIQUE PARTIEL ; NON VALIDÉ**. La validation dynamique 9G reste une dépendance.
-- **Entrée Android :** `scripts/storyboard.gd` instancie `scripts/universal_board_pipeline.gd`, reçoit `stage_changed` et transmet les états à `session_agent`.
-- **Planification :** `scripts/board_generation_plan.gd` fournit `remote_frame`, `make_plan`, `validate_drawings` et `calculate_density`.
-- **Génération :** `scripts/universal_board_pipeline.gd` choisit `scripts/local_studio_generator.gd` ou `scripts/hf_studio_generator.gd` selon `local_inference` ; ces moteurs sont déjà présents, pas à recréer.
-- **État persistant :** `scripts/karma_studio_session.gd` sauvegarde `karma_agents.json` via fichier temporaire puis renommage. `record_frame` initialise `human_approved=false` ; `record_user_approval` inscrit l'empreinte et l'approbation ; `record_video_result` exige un fichier MP4 existant avec signature `ftyp` et taille supérieure à 1024 octets avant de déclarer `encoded_native`.
-- **Risques à vérifier :** propagation des erreurs des moteurs et repli réel ; persistance après fermeture Android ; cohérence empreinte/validation après modification des dessins ; refus d'export si approbation périmée ; confirmation MP4 réelle. L'existence des méthodes ne prouve pas ces comportements en production.
-- **Actions suivantes :** exécuter les tests Godot sans APK, puis tests ciblés d'intégration sur la même branche ; ne pas fusionner les branches divergentes sans inventaire de leurs changements.
-- **Aucune compilation APK autorisée par ce registre.**
+
+- **Statut** — Intégration committée, verrouillage en attente du contrôle CI.
+- **Commit d’intégration** — `bfab3df999f38df6d2bcf401ff76da7ea02cd97d`. Work Gallery, repli V61 avec désactivation, diagnostics visuels consultatifs et contrôle 9G réutilisé pour l’approbation des exports.
+- **Contrôles locaux** — 36 scripts Godot 4.6.3, contrôles Python et transports simulés réussis. Le MP4 de régression a été généré puis décodé sur Linux avec FFmpeg.
+- **Premier contrôle CI** — Le job Godot 4.5.2 a passé les contrôles de revue 9G et le registre des agents, puis le test d’intégration MP4 a échoué car FFmpeg était absent. Le job Android s’est arrêté avant les tests unitaires, sur HTTP 429 lors de la résolution des dépendances Gradle. [Exécution 44260572129](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44260572129).
+- **Correctifs CI** — Installation conditionnelle de FFmpeg avec vérification SHA256 reprise du workflow du dépôt. Nouvelle tentative Gradle uniquement si Maven Central renvoie HTTP 429.
+- **APK** — Compilation en attente de la réussite des contrôles Godot et Android. Validation matérielle Xiaomi 14T Pro à effectuer.
 
 ## Étape 11 — Génération universelle
 - **Statut : À FAIRE** ; dépend de la vérification des moteurs et des flux Android.
