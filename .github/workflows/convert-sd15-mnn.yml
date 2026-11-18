@@ -53,10 +53,14 @@ jobs:
           import os
           from huggingface_hub import snapshot_download
           snapshot_download(repo_id=os.environ['MODEL_ID'], revision=os.environ['REVISION'],
+                            allow_patterns=['model_index.json', 'scheduler/*.json', 'tokenizer/*', 'text_encoder/config.json', 'text_encoder/model.safetensors', 'unet/config.json', 'unet/diffusion_pytorch_model.safetensors', 'vae/config.json', 'vae/diffusion_pytorch_model.safetensors', 'feature_extractor/*.json', 'safety_checker/config.json', 'safety_checker/model.safetensors'],
                             local_dir='/tmp/karma-sd15-source',
                             token=os.environ.get('HF_TOKEN') or None)
           PY
           test -s /tmp/karma-sd15-source/model_index.json
+          test -s /tmp/karma-sd15-source/unet/diffusion_pytorch_model.safetensors
+          test -s /tmp/karma-sd15-source/text_encoder/model.safetensors
+          test -s /tmp/karma-sd15-source/vae/diffusion_pytorch_model.safetensors
       - name: Convert genuine weights using official MNN scripts
         run: |
           set -euo pipefail
