@@ -353,14 +353,16 @@ jobs:
           fi
           "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk | tee apk-badging.txt
           grep -q "package: name='com.ericjamesempere.mobilei2v'" apk-badging.txt
-          grep -q "versionCode='15'" apk-badging.txt
-          grep -q "versionName='1.6.0" apk-badging.txt
+          version_code=$(sed -n 's/^version\/code=\([0-9][0-9]*\)$/\1/p' export_presets.cfg)
+          version_name=$(sed -n 's/^version\/name="\(.*\)"$/\1/p' export_presets.cfg)
+          test -n "$version_code"
+          test -n "$version_name"
+          grep -Fq "versionCode='$version_code'" apk-badging.txt
+          grep -Fq "versionName='$version_name'" apk-badging.txt
           grep -q 'launchable-activity:' apk-badging.txt
-          unzip -l build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk | grep -q 'lib/arm64-v8a/libgodot_android.so'
-          if unzip -l build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk | grep -q 'lib/armeabi-v7a/'; then
-            echo 'Unexpected 32-bit ARM libraries in ARM64-only APK' >&2
-            exit 1
-          fi
+          grep -Fxq "native-code: 'arm64-v8a'" apk-badging.txt
+          unzip -Z1 build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk > apk-entries.txt
+          grep -Fxq 'lib/arm64-v8a/libgodot_android.so' apk-entries.txt
           stat -c 'APK size: %s bytes' build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk
           sha256sum build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk
 
@@ -385,6 +387,7 @@ jobs:
               assert any(b'share_last_export' in data for data in dex), 'MP4 share method absent'
               assert any(b'Lcom/mobilei2v/encoder/ReferenceImageImporter;' in data for data in dex), 'Native reference importer absent'
               assert any(b'pick_reference_image' in data for data in dex), 'Native photo picker absent'
+              assert any(b'prefer_document_image_picker' in data for data in dex), 'Android document picker bridge absent'
               assert any(b'Lcom/mobilei2v/encoder/ReferenceImagePickerActivity;' in data for data in dex), 'Durable receiver absent'
               assert any(b'Lcom/mobilei2v/encoder/SharedImageReceiverActivity;' in data for data in dex), 'Shared image receiver absent'
               assert any(b'peek_shared_image_result' in data for data in dex), 'Shared image bridge absent'
