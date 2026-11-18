@@ -2506,9 +2506,14 @@ func _universal_ready_for_review() -> bool:
             return false
     # Bind timing too: restoring/reordering cannot change the approved action.
     var cursor: int = 0
-    if plan.size() != int(universal_plan.get("video_frames", 0)):
+    var expected_frames: int = int(universal_plan.get("video_frames", 0))
+    if expected_frames <= 0 or plan.size() != expected_frames:
         return false
+    # A corrupted/restored timeline must never reach the exporter or index a
+    # drawing outside the approved storyboard.
     for frame in range(plan.size()):
+        if not plan[frame] is int or int(plan[frame]) < 0 or int(plan[frame]) >= paths.size():
+            return false
         while cursor + 1 < entries.size() and int(entries[cursor + 1]["video_frame"]) <= frame:
             cursor += 1
         if int(plan[frame]) != cursor:
