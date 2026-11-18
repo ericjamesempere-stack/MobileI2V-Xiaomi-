@@ -346,6 +346,14 @@ func decode_local_drawing(body: String) -> Dictionary:
 func redraw(reference: Image, instruction: String, style: String, _previous: Image = null, variation: bool = false) -> Dictionary:
     if reference == null or reference.is_empty():
         return {"ok": false, "error": "Image de référence manquante."}
+    # Explicit offline camera requests are fulfilled by Godot before probing any model.
+    # Never interpret an arbitrary story as a camera-only transformation.
+    var local_camera: String = instruction.strip_edges().to_lower()
+    if local_camera.begins_with("camera:"):
+        var motion: String = local_camera.trim_prefix("camera:").strip_edges()
+        if motion in ["pan_right", "pan_left", "pan_up", "pan_down", "zoom_in"]:
+            return render_device_camera_frame(reference, 1.0, motion)
+        return {"ok": false, "error": "unsupported_local_motion", "error_kind": "invalid_request", "requires_semantic_generation": true}
     # This API only accepts one source image; no silent approximation of the
     # separate multi-image style-reference capability of the remote adapter.
     if style_reference != null and not style_reference.is_empty():
