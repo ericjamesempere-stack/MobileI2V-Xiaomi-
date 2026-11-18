@@ -1,6 +1,8 @@
 #include <jni.h>
 #include "karma_sd_scheduler.hpp"
 #include <vector>
+#include <algorithm>
+#include <cstring>
 #include <MNN/Interpreter.hpp>
 #include <MNN/Tensor.hpp>
 #include <memory>
@@ -84,5 +86,48 @@ Java_com_mobilei2v_mnn_KarmaMnnBridge_nativeDdimStep(
     if (!result) return nullptr;
     env->SetFloatArrayRegion(result, 0, count, output.data());
     if (env->ExceptionCheck()) return nullptr;
+    return result;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_mobilei2v_mnn_KarmaMnnBridge_nativeSetFloatInput(
+    JNIEnv* env, jclass, jstring name, jfloatArray values) {
+    std::lock_guard<std::mutex> guard(g_lock);
+    if (!g_interpreter || !g_session || !name || !values) { error("graph_or_input_missing"); return JNI_FALSE; }
+    const char* key = env->GetStringUTFChars(name, nullptr);
+    if (!key) { error("invalid_tensor_name"); return JNI_FALSE; }
+    auto* tensor = g_interpreter->getSessionInput(g_session, key);
+    env->ReleaseStringUTFChars(name, key);
+    if (!tensor || tensor->getType().code != halide_type_float || tensor->getType().bits != 32 ||
+        tensor->elementSize() != env->GetArrayLength(values) || tensor->elementSize() <= 0) {
+        error("float_input_shape_or_type_mismatch"); return JNI_FALSE;
+    }
+    MNN::Tensor host(tensor, tensor->getDimensionType());
+    env->GetFloatArrayRegion(values, 0, env->GetArrayLength(values), host.host<float>());
+    if (env->ExceptionCheck()) { error("jni_input_copy_failed"); return JNI_FALSE; }
+    if (!tensor->copyFromHostTensor(&host)) { error("mnn_input_copy_failed"); return JNI_FALSE; }
+    g_last_error.clear();
+    return JNI_TRUE;
+}
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_com_mobilei2v_mnn_KarmaMnnBridge_nativeGetFloatOutput(
+    JNIEnv* env, jclass, jstring name) {
+    std::lock_guard<std::mutex> guard(g_lock);
+    if (!g_interpreter || !g_session || !name) { error("graph_or_output_missing"); return nullptr; }
+    const char* key = env->GetStringUTFChars(name, nullptr);
+    if (!key) { error("invalid_tensor_name"); return nullptr; }
+    auto* tensor = g_interpreter->getSessionOutput(g_session, key);
+    env->ReleaseStringUTFChars(name, key);
+    if (!tensor || tensor->getType().code != halide_type_float || tensor->getType().bits != 32 ||
+        tensor->elementSize() <= 0 || tensor->elementSize() > 16777216) {
+        error("float_output_shape_or_type_mismatch"); return nullptr;
+    }
+    MNN::Tensor host(tensor, tensor->getDimensionType());
+    if (!tensor->copyToHostTensor(&host)) { error("mnn_output_copy_failed"); return nullptr; }
+    jfloatArray result = env->NewFloatArray(tensor->elementSize());
+    if (!result) return nullptr;
+    env->SetFloatArrayRegion(result, 0, tensor->elementSize(), host.host<float>());
+    if (env->ExceptionCheck()) { error("jni_output_copy_failed"); return nullptr; }
+    g_last_error.clear();
     return result;
 }
