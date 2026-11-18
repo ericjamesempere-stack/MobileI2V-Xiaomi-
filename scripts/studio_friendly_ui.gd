@@ -282,6 +282,7 @@ func build(board: Control) -> void:
     board.advanced_panel = advanced.get_parent()
     board.advanced_panel.visible = false
     advanced.add_child(board.local_mode)
+    button(board, advanced, "Tester une vraie image IA sur le téléphone (512 px)", board._test_real_local_diffusion).name = "TestLocalDiffusion"
     text(advanced, "Décoche le mode local pour envoyer tes demandes et images aux services Hugging Face de KARMA ONE. Leurs quotas s'appliquent.", 18, MUTED)
     board.remote_fallback = CheckBox.new()
     board.remote_fallback.text = "Secours IA automatique en ligne (Hugging Face)"
