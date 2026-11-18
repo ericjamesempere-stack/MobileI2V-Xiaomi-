@@ -2,7 +2,7 @@ name: Build Android APK KARMA ONE V60 Simplified Android
 
 on:
   push:
-    branches: [main, karma/storyboard-story-sequence-20261113, karma/v54-approval-safety-20261116, karma/autopilot-v2-20261117, karma/universal-text-entry-v55-20261117, karma/v55-finalisation-20261117, karma/v56-local-engines-20261117, karma/advanced-autonomy-integration-20261118, karma/integration-unified-20261118, karma/step12-visual-quality-gate-20261118]
+    branches: [main, karma/storyboard-story-sequence-20261113, karma/v54-approval-safety-20261116, karma/autopilot-v2-20261117, karma/universal-text-entry-v55-20261117, karma/v55-finalisation-20261117, karma/v56-local-engines-20261117, karma/advanced-autonomy-integration-20261118, karma/integration-unified-20261118, karma/step12-visual-quality-gate-20261118, karma/work-gallery-agent-generation-20261118]
     paths-ignore:
       - '**.md'
       - '.github/workflows/validate-universal-live.yml'
