@@ -407,3 +407,34 @@ func create_reference(description: String, style: String) -> Dictionary:
 func render_device_camera_frame(reference: Image, fraction: float, motion: String = "pan_right") -> Dictionary:
     var engine: RefCounted = load("res://scripts/karma_device_image_engine.gd").new()
     return engine.render_camera_frame(reference, fraction, motion)
+
+# A successful /health response is not proof that a diffusion model can render.
+# This diagnostic performs one real on-device 512px inference, never cloud.
+# The caller must explicitly request it because it can take minutes and heat up.
+func verify_real_local_diffusion() -> Dictionary:
+    var started: int = Time.get_ticks_msec()
+    var health: Dictionary = await _local_request(drawing_base, "/health", {}, true, 4.0)
+    if not health.get("ok", false):
+        return {"ok": false, "inference_verified": false, "provider": "Local Dream MNN", "on_device": true, "error": health.get("error", "local_service_unavailable")}
+    var request: Dictionary = {
+        "prompt": "a single bright yellow banana on a plain blue background, clean cartoon illustration",
+        "negative_prompt": "watermark, text, multiple bananas, people",
+        "width": 512, "height": 512, "steps": 8, "cfg": 5.5, "seed": 24680,
+        "scheduler": "dpm", "use_opencl": use_opencl,
+        "show_diffusion_process": false, "output_format": "png"
+    }
+    var response: Dictionary = await _local_request(drawing_base, "/generate", request, false, 180.0)
+    if not response.get("ok", false):
+        return {"ok": false, "inference_verified": false, "provider": "Local Dream MNN", "on_device": true, "elapsed_ms": Time.get_ticks_msec() - started, "error": response.get("error", "local_inference_failed")}
+    var decoded: Dictionary = decode_local_drawing(str(response.get("body", "")))
+    if not decoded.get("ok", false):
+        return {"ok": false, "inference_verified": false, "provider": "Local Dream MNN", "on_device": true, "elapsed_ms": Time.get_ticks_msec() - started, "error": decoded.get("error", "invalid_generated_image")}
+    var image: Image = decoded.get("image")
+    if image == null or image.is_empty() or image.get_width() != 512 or image.get_height() != 512:
+        return {"ok": false, "inference_verified": false, "error": "unexpected_local_image_dimensions"}
+    var folder: String = "user://local_diffusion_proof"
+    DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder))
+    var file_path: String = folder.path_join("sd15_smoke.png")
+    if image.save_png(file_path) != OK:
+        return {"ok": false, "inference_verified": false, "error": "local_proof_save_failed"}
+    return {"ok": true, "inference_verified": true, "on_device": true, "provider": "Local Dream MNN", "file": file_path, "width": image.get_width(), "height": image.get_height(), "elapsed_ms": Time.get_ticks_msec() - started, "semantic_quality_verified": false}
