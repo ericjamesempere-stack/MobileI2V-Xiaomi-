@@ -63,6 +63,10 @@ func _loopback(base: String) -> bool:
 func _local_request(base: String, path: String, payload: Dictionary = {}, get_request: bool = false, timeout_seconds: float = 900.0) -> Dictionary:
     if not _loopback(base) or path not in ["/v1/models", "/v1/chat/completions", "/generate", "/health", "/tokenize"]:
         return {"ok": false, "error": "Adresse locale invalide. Aucun fichier envoyé."}
+    var body: String = "" if get_request else JSON.stringify(payload)
+    # Reject oversized requests before allocating HTTP resources or sending data.
+    if body.to_utf8_buffer().size() > 8000000:
+        return {"ok": false, "error": "local_payload_too_large", "endpoint": path}
     var http := HTTPRequest.new()
     http.timeout = minf(timeout_seconds, 75.0) if path == "/v1/chat/completions" else timeout_seconds
     http.max_redirects = 0 # Never forward a photo or token outside loopback.
@@ -72,7 +76,7 @@ func _local_request(base: String, path: String, payload: Dictionary = {}, get_re
     var vision_call: bool = path.begins_with("/v1/")
     if vision_call and base == vision_base and not local_token.is_empty():
         headers.append("Authorization: Bearer " + local_token)
-    var error: Error = http.request(base + path, headers, HTTPClient.METHOD_GET if get_request else HTTPClient.METHOD_POST, "" if get_request else JSON.stringify(payload))
+    var error: Error = http.request(base + path, headers, HTTPClient.METHOD_GET if get_request else HTTPClient.METHOD_POST, body)
     if error != OK:
         http.queue_free()
         return {"ok": false, "endpoint": path, "request_error": int(error), "error": "Requête locale impossible : " + base + path + " (erreur %d). Aucun fichier envoyé en ligne." % int(error)}
