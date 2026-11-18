@@ -159,6 +159,8 @@ func _generation_payload(reference: Image, instruction: String, style: String, v
     var directive: String = instruction + " " + _style_instruction(style) + " Preserve the reference identities and anatomy. "
     if not scene_registry.is_empty():
         directive += JSON.stringify({"entities": scene_registry.get("entities", []), "relations": scene_registry.get("relations", [])})
+    if reference_contract.get("ok", false):
+        directive += " " + " ".join(reference_contract.get("constraints", []))
     return {"image": _encode_input(canvas), "prompt": directive, "negative_prompt": "unrequested subjects, duplicate subject, invented body parts, changed identity, text, watermark", "width": 512, "height": 512, "steps": 20, "cfg": 7.5, "seed": randi() if variation else 1234, "scheduler": "dpm", "denoise_strength": 0.6, "use_opencl": use_opencl, "show_diffusion_process": false, "output_format": "png"}
 
 func _compile_local_prompt(reference: Image, instruction: String, style: String) -> Dictionary:
@@ -168,6 +170,8 @@ func _compile_local_prompt(reference: Image, instruction: String, style: String)
     # Never blindly truncate the requested action or submit an oversized prompt.
     var context: String = JSON.stringify({"entities": scene_registry.get("entities", []), "relations": scene_registry.get("relations", [])})
     var prompt: String = "Compile a Stable Diffusion CLIP prompt. Return ONLY JSON {\"prompt\":\"...\"}. Write one concise English visual description, ideally under 40 words. Describe the requested physical state FIRST, then the subject appearance and style. Resolve entity IDs to visible subjects. Preserve counts and non-human anatomy; invent nothing. No instructions, JSON, IDs, panel labels or reference to image numbers inside the prompt. If a transition is requested, describe a single state at the specified fraction, not both endpoints together. The picture anchors appearance; the instruction defines the new action. Style: " + _style_instruction(style) + ". Scene: " + context + ". Requested drawing: " + instruction
+    if reference_contract.get("ok", false):
+        prompt += " Mandatory identity constraints: " + " ".join(reference_contract.get("constraints", []))
     var inputs: Array[Image] = []
     if reference != null and not reference.is_empty():
         inputs.append(reference)
