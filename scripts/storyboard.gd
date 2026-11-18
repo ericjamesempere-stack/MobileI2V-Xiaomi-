@@ -1720,30 +1720,65 @@ func _generate_from_photo() -> void:
 
 func _export_png_sequence() -> void:
     if not _has_current_review():
-        status.text = "Export bloqué : examine et garde chaque dessin, puis confirme la planche."
+        status.text = "Export bloque : examine et valide tous les dessins."
         return
-    if sources.is_empty():
-        status.text = "Prepare et valide d'abord la planche."
-        return
-    var folder: String = "user://exports/mobilei2v_frames"
-    DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder))
-    var saved: int = 0
+    var folder: String = "user://exports/board_%d_%d" % [int(Time.get_unix_time_from_system()), Time.get_ticks_usec()]
+    var exported: Dictionary = _export_approved_png_board(sources, accepted, folder, action_input.text, float(duration_input.value))
+    if exported.get("ok", false):
+        status.text = "%d dessins PNG et planche exportes dans %s." % [int(exported["count"]), folder]
+    else:
+        status.text = "Export PNG impossible : " + str(exported.get("error", "unknown"))
+
+# Saves full-resolution drawings and the preview sheet in a new folder.
+# Never writes into the original project's drawing paths.
+static func _export_approved_png_board(drawings: Array, approvals: Array, folder: String, description: String, seconds: float) -> Dictionary:
+    if drawings.is_empty() or approvals.size() != drawings.size():
+        return {"ok": false, "error": "invalid_board"}
+    for flag in approvals:
+        if flag != true:
+            return {"ok": false, "error": "approval_required"}
+    if DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(folder)):
+        return {"ok": false, "error": "destination_exists"}
+    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
+        return {"ok": false, "error": "destination_unavailable"}
+    var images: Array[Image] = []
+    for i in range(drawings.size()):
+        if not drawings[i] is Texture2D:
+            return {"ok": false, "error": "invalid_drawing_%d" % i}
+        var image: Image = drawings[i].get_image()
+        if image == null or image.is_empty():
+            return {"ok": false, "error": "empty_drawing_%d" % i}
+        images.append(image)
     var exported_paths: Array[String] = []
-    for i in range(sources.size()):
-        if i >= accepted.size() or not accepted[i]:
-            continue
-        var img: Image = sources[i].get_image()
-        if img == null: continue
-        var path: String = "%s/frame_%04d.png" % [folder, saved]
-        if img.save_png(path) == OK:
-            exported_paths.append(path)
-            saved += 1
-    var manifest: Dictionary = {"format": "PNG sequence", "count": saved, "duration_seconds": duration_input.value, "description": action_input.text, "files": exported_paths, "note": "No MP4 encoder is included"}
-    var file := FileAccess.open("user://exports/mobilei2v_manifest.json", FileAccess.WRITE)
-    if file != null:
-        file.store_string(JSON.stringify(manifest, "  "))
-        file.close()
-    status.text = "%d PNG exportes dans %s (dossier interne de l'application). Pas de MP4." % [saved, folder]
+    for i in range(images.size()):
+        var output: String = folder.path_join("drawing_%04d.png" % i)
+        if images[i].save_png(output) != OK:
+            return {"ok": false, "error": "drawing_save_failed_%d" % i}
+        exported_paths.append(output)
+    var columns: int = mini(4, images.size())
+    var rows: int = ceili(float(images.size()) / float(columns))
+    var thumb_w: int = 192
+    var thumb_h: int = 192
+    var sheet: Image = Image.create(columns * thumb_w, rows * thumb_h, false, Image.FORMAT_RGBA8)
+    sheet.fill(Color("eff1fb"))
+    for i in range(images.size()):
+        var thumb: Image = images[i].duplicate()
+        var ratio: float = minf(float(thumb_w - 12) / thumb.get_width(), float(thumb_h - 12) / thumb.get_height())
+        thumb.resize(maxi(1, roundi(thumb.get_width() * ratio)), maxi(1, roundi(thumb.get_height() * ratio)), Image.INTERPOLATE_BILINEAR)
+        thumb.convert(Image.FORMAT_RGBA8)
+        var x: int = (i % columns) * thumb_w + (thumb_w - thumb.get_width()) / 2
+        var y: int = (i / columns) * thumb_h + (thumb_h - thumb.get_height()) / 2
+        sheet.blit_rect(thumb, Rect2i(Vector2i.ZERO, thumb.get_size()), Vector2i(x, y))
+    var sheet_path: String = folder.path_join("storyboard.png")
+    if sheet.save_png(sheet_path) != OK:
+        return {"ok": false, "error": "sheet_save_failed"}
+    var manifest: Dictionary = {"format": "PNG", "count": images.size(), "description": description, "duration_seconds": seconds, "drawings": exported_paths, "storyboard": sheet_path}
+    var manifest_file: FileAccess = FileAccess.open(folder.path_join("manifest.json"), FileAccess.WRITE)
+    if manifest_file == null:
+        return {"ok": false, "error": "manifest_save_failed"}
+    manifest_file.store_string(JSON.stringify(manifest, "  "))
+    manifest_file.close()
+    return {"ok": true, "count": images.size(), "folder": folder, "storyboard": sheet_path}
 
 func _prepare() -> void:
     required_drawing_count = 0
