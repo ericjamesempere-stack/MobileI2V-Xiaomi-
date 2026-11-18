@@ -31,5 +31,13 @@ func _run() -> void:
     var mismatch_paths: Array[String] = [p0]
     var mismatch: Dictionary = validator.inspect(plan, mismatch_paths)
     assert(mismatch.get("error") == "frame_count_mismatch")
+    var storyboard_entries: Array = [{"path": p0, "video_frame": 0}, {"path": p1, "video_frame": 5}]
+    var storyboard_check: Dictionary = validator.inspect_storyboard_entries(storyboard_entries)
+    assert(storyboard_check.get("ok", false), str(storyboard_check))
+    assert(storyboard_check["drawings"] == 2)
+    assert(not storyboard_check["identity_verified"])
+    var broken_entries: Array = [{"path": p0}, {"path": folder + "/missing.png"}]
+    assert(validator.inspect_storyboard_entries(broken_entries).get("error") == "missing_generated_drawing")
+    assert(validator.inspect_storyboard_entries([]).get("error") == "no_generated_drawings")
     print("MOBILEI2V_GENERATED_FRAME_VALIDATOR_OK")
     quit(0)
