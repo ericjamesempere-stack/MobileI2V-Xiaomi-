@@ -8,5 +8,6 @@ func _initialize() -> void:
  assert(node.submit_agent_evidence("poses_ready", {"ok": true, "pose_count": 8}).get("ok", false))
  assert(node.agent_status().get("stage", "") == "poses_ready")
  assert(not node.may_export_approved("approved").get("ok", false))
+ node.free()
  print("STEP09_ORCHESTRATOR_BRIDGE_PASS")
  quit(0)
