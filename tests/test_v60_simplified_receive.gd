@@ -13,7 +13,13 @@ func run() -> void:
     assert(board.wizard_tabs[2].text == "3. Ma vidéo")
     assert(board.wizard_pages[0].is_ancestor_of(board.action_input))
     assert(board.advanced_panel.is_ancestor_of(board.local_mode))
-    assert(board.advanced_panel.is_ancestor_of(board.find_child("GenerateStory",true,false)))
+    # The V60 primary generate action lives on the Create page, not in advanced settings.
+    var generate_button: Button = null
+    for item in board.wizard_buttons:
+        if item.text == "Générer mes dessins avec les agents":
+            generate_button = item
+            break
+    assert(generate_button != null and board.wizard_pages[0].is_ancestor_of(generate_button))
     assert(board.wizard_pages[1].is_ancestor_of(board.contact_sheet))
     assert(board.wizard_pages[2].is_ancestor_of(board.friendly_export))
     assert(not board.advanced_panel.visible)
