@@ -133,7 +133,14 @@ func _vision_request(images: Array[Image], prompt: String) -> Dictionary:
         return {"ok": false, "error": "Aucun modèle local sélectionné."}
     var content: Array = [{"type": "text", "text": prompt}]
     for input in images:
-        content.append({"type": "image_url", "image_url": {"url": "data:image/png;base64," + _encode_input(input)}})
+        # Downsample only the analysis copy: the original photo remains untouched
+        # for identity checks, drawing and export. Bound image-token and upload cost.
+        var analysis_image: Image = input
+        if maxi(input.get_width(), input.get_height()) > 768:
+            analysis_image = input.duplicate()
+            var scale_factor: float = 768.0 / float(maxi(input.get_width(), input.get_height()))
+            analysis_image.resize(maxi(1, roundi(input.get_width() * scale_factor)), maxi(1, roundi(input.get_height() * scale_factor)), Image.INTERPOLATE_LANCZOS)
+        content.append({"type": "image_url", "image_url": {"url": "data:image/png;base64," + _encode_input(analysis_image)}})
     var result: Dictionary = await _local_request(vision_base, "/v1/chat/completions", {"model": local_model, "messages": [{"role": "user", "content": content}], "stream": false, "max_tokens": 4096, "temperature": 0.1})
     if not result.get("ok", false):
         return result
