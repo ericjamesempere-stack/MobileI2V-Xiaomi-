@@ -34,6 +34,14 @@ func build_boards_from_text(description: String, story: String, seconds: float, 
     var absolute_folder: String = ProjectSettings.globalize_path(folder)
     if DirAccess.make_dir_recursive_absolute(absolute_folder) != OK:
         return {"ok": false, "stage": "reference_generation", "error": "project_directory_failed", "ready_for_animation": false}
+    # Keep a deterministic narrative plan alongside the existing real-image pipeline.
+    # This does not replace worker.create_reference or claim inference succeeded.
+    var narrative: Dictionary = load("res://scripts/karma_narrative_image_engine.gd").new().compose(story, style, "", seconds)
+    if not narrative.get("ok", false):
+        return {"ok": false, "stage": "narrative", "error": narrative.get("error", "narrative_invalid"), "ready_for_animation": false}
+    var narrative_path: String = folder.path_join("narrative_image_plan.json")
+    if not _write(narrative_path, narrative):
+        return {"ok": false, "stage": "narrative", "error": "narrative_plan_save_failed", "ready_for_animation": false}
     var reference_path: String = folder.path_join("generated_reference.png")
     var metadata_path: String = folder.path_join("generated_reference.json")
     var identity: String = (description.strip_edges() + "\n" + style + "\n" + str(local_inference)).sha256_text()
