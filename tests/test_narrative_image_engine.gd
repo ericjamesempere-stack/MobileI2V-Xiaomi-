@@ -1,0 +1,15 @@
+extends SceneTree
+func _initialize() -> void:
+    var engine: RefCounted = load("res://scripts/karma_narrative_image_engine.gd").new()
+    var plan: Dictionary = engine.compose("Une banane marche puis tombe et se relève.", "dessin animé", "user://banana.png", 9.0)
+    assert(plan.get("ok", false), "narrative planning failed")
+    var scenes: Array = plan.get("scenes", [])
+    assert(scenes.size() == 3, "existing motion planner must preserve action order")
+    assert(scenes[0]["action"] == "marche" and scenes[1]["action"] == "chute" and scenes[2]["action"] == "releve", "action ordering mismatch")
+    assert(scenes[1]["previous_scene_id"] == scenes[0]["id"], "continuity chain broken")
+    assert(scenes[1]["previous_final_image_required"], "second scene must use actual last image")
+    assert(not engine.ready_for_next_scene(scenes, 1).get("ok", true), "unapproved continuity accepted")
+    assert(plan.get("images_generated", -1) == 0 and not plan.get("inference_verified", true), "fake inference claim")
+    assert(not engine.compose("", "original").get("ok", true), "empty story accepted")
+    print("KARMA_NARRATIVE_IMAGE_ENGINE_OK")
+    quit()
