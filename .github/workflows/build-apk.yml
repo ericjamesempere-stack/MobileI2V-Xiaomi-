@@ -88,7 +88,8 @@ jobs:
           for spec in \
             "tests/test_karma_module_registry.gd:KARMA_MODULE_REGISTRY_OK" \
             "tests/test_karma_optimization_agents.gd:KARMA_OPTIMIZATION_AGENTS_OK" \
-            "tests/test_local_optimization_wiring.gd:KARMA_LOCAL_OPTIMIZATION_WIRING_OK"; do
+            "tests/test_local_optimization_wiring.gd:KARMA_LOCAL_OPTIMIZATION_WIRING_OK" \
+            "tests/test_engine_routing.gd:KARMA_ENGINE_ROUTING_OK"; do
             script="${spec%%:*}"
             marker="${spec#*:}"
             echo "Validating ${script}" | tee -a karma-agents-validation.log
