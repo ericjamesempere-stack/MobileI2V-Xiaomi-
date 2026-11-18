@@ -14,6 +14,8 @@ var optimization_last_plan: Dictionary = {}
 
 func configure_resource_budget(free_mb: int, thermal_level: int, battery_percent: int, plugged_in: bool) -> Dictionary:
     if free_mb <= 0 or thermal_level < 0 or thermal_level > 6 or battery_percent < 0 or battery_percent > 100:
+        # Fail closed: never keep a previously healthy budget after invalid telemetry.
+        resource_budget = {"ok": false, "mode": "paused", "max_edge": 0, "parallel_inference": 0, "reason": "invalid_resource_telemetry"}
         return {"ok": false, "error": "invalid_resource_telemetry"}
     resource_budget = optimization_agents.device_budget(free_mb, thermal_level, battery_percent, plugged_in)
     return resource_budget.duplicate(true)
