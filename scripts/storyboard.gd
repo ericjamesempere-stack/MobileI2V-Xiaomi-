@@ -2385,6 +2385,11 @@ func _draw_remote_story() -> void:
         status.text = "%d poses affichées ; fidélité non validée. Examine les dessins et refais les poses signalées. %s" % [paths.size(), str(universal_quality.get("error", ""))]
     else:
         status.text = "%d dessins, poses et intermédiaires. Agrandis-les, garde ou refuse chaque dessin, puis confirme la planche après les contrôles de fidélité." % paths.size()
+    if not visual_warnings.is_empty():
+        var affected: Dictionary = {}
+        for warning in visual_warnings:
+            affected[int(warning.get("index", -1))] = true
+        status.text += " Attention : %d dessin(s) présentent des anomalies visuelles potentielles. Vérifie-les individuellement avant de les garder." % affected.size()
 
 func _universal_drawing_entries() -> Array:
     return _entries_for_universal_plan(universal_plan, universal_folder)
