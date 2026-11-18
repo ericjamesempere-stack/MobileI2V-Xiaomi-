@@ -32,8 +32,8 @@ jobs:
       - name: Import project
         run: ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --import --quit
       - name: Test reference fidelity gate
-        run: ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_reference_fidelity_gate.gd
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_reference_fidelity_gate.gd
       - name: Test generated storyboard frames
-        run: ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_generated_frame_validator.gd
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_generated_frame_validator.gd
       - name: Test lyrics synchronization bridge
-        run: ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_karma_lyrics_bridge_v6.gd
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_karma_lyrics_bridge_v6.gd
