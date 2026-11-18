@@ -22,9 +22,10 @@ func _run() -> void:
         "The two banana characters raise their arms in surprise; preserve their identity and scene.",
         "Small red devil horns grow on top of both banana characters; preserve the rest of their anatomy."
     ]
-    var previous: Image = first["image"] if first.get("ok", false) and first.get("image") is Image else source
+    var permanent_reference: Image = first["image"] if first.get("ok", false) and first.get("image") is Image else source
+    var previous: Image = permanent_reference
     for i in range(steps.size()):
-        var response: Dictionary = await worker.redraw(previous, steps[i], "cartoon", previous)
+        var response: Dictionary = await worker.redraw(permanent_reference, steps[i], "cartoon", previous)
         _record("edit_%02d" % i, response, generated)
         if response.get("ok", false) and response.get("image") is Image:
             previous = response["image"]
