@@ -303,7 +303,14 @@ jobs:
             log="step12-${spec%.gd}.log"
             timeout 45s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script "res://tests/$spec" 2>&1 | tee "$log"
             if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' "$log"; then exit 1; fi
+            case "$spec" in
+              test_generated_frame_validator.gd) marker="MOBILEI2V_GENERATED_FRAME_VALIDATOR_OK" ;;
+              test_unified_storyboard_wiring.gd) marker="PASS unified storyboard wiring: methods present" ;;
+              test_reference_review_pipeline.gd) marker="REFERENCE_IMPORT_SUBJECT_PROMPT_AND_REVIEW_GATE_OK" ;;
+            esac
+            grep -Fq "$marker" "$log" || { echo "::error::Step 12 success marker missing: $marker"; exit 1; }
           done
+          echo "STEP12_VISUAL_QUALITY_GATE_OK"
 
       - name: Test integrated universal Android screen through MP4
         timeout-minutes: 3
