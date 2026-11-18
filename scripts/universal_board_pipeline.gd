@@ -7,7 +7,20 @@ const REVISION := "v54-registry-density-1"
 var invocation_running: bool = false
 
 func _ready() -> void:
-    worker = load("res://scripts/local_studio_generator.gd" if local_inference else "res://scripts/hf_studio_generator.gd").new()
+    # Tests may inject a deterministic worker before entering the scene tree.
+    # Do not overwrite it with a real network engine.
+    if worker != null:
+        if worker.get_parent() == null:
+            add_child(worker)
+        return
+    var engine_script: Script = load("res://scripts/local_studio_generator.gd" if local_inference else "res://scripts/hf_studio_generator.gd")
+    if engine_script == null or not engine_script.can_instantiate():
+        push_error("KARMA ONE: engine script cannot instantiate; check preceding GDScript parse errors.")
+        return
+    worker = engine_script.new()
+    if worker == null:
+        push_error("KARMA ONE: engine instance creation failed.")
+        return
     add_child(worker)
 
 # Text-only entry point: create a real reference with the selected image model,
