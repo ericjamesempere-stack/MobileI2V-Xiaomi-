@@ -3102,7 +3102,7 @@ func _may_use_remote_fallback(failure: Dictionary) -> bool:
     var kind: String = str(failure.get("error_kind", "")).to_lower()
     var detail: String = str(failure.get("error", "")).to_lower()
     var status_code: int = int(failure.get("http_status", 0))
-    if kind in ["authentication", "safety", "quota", "rate_limit", "budget", "unsupported_scene_registry"]:
+    if kind in ["authentication", "safety", "quota", "rate_limit", "budget", "invalid_request", "unsupported_scene_registry"]:
         return false
     if status_code in [400, 401, 402, 403, 409, 422, 429]:
         return false
@@ -3379,6 +3379,9 @@ static func _validated_export_timeline(timeline: Array, drawing_count: int, appr
 # Explicit user-triggered diagnostic: one genuine local diffusion image.
 # No remote fallback and no automatic reattempt on thermal or model failures.
 func _test_real_local_diffusion() -> void:
+    if OS.get_name() != "Android":
+        status.text = "Ce test de génération sur téléphone doit être exécuté sur Android."
+        return
     if ai_running or disk_drawing_running or exporting_video or photo_importing:
         status.text = "Une autre opération est déjà en cours."
         return
