@@ -132,3 +132,4 @@ func test_idea_entry() -> void:
     board.queue_free()
     await process_frame
     print("UNIVERSAL_IDEA_ENTRY_WIRING_OK: SIMULATED image creation; idea-only, optional subject, reference reuse, import guard and failure preservation")
+    quit(0)
