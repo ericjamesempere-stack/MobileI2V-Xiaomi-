@@ -63,7 +63,7 @@ func _local_request(base: String, path: String, payload: Dictionary = {}, get_re
     if not _loopback(base) or path not in ["/v1/models", "/v1/chat/completions", "/generate", "/health", "/tokenize"]:
         return {"ok": false, "error": "Adresse locale invalide. Aucun fichier envoyé."}
     var http := HTTPRequest.new()
-    http.timeout = timeout_seconds
+    http.timeout = minf(timeout_seconds, 75.0) if path == "/v1/chat/completions" else timeout_seconds
     http.max_redirects = 0 # Never forward a photo or token outside loopback.
     http.body_size_limit = 18000000
     add_child(http)
@@ -201,7 +201,16 @@ func _vision_request(images: Array[Image], prompt: String) -> Dictionary:
         return {"ok": false, "error": "Aucun modèle local sélectionné."}
     var content: Array = [{"type": "text", "text": prompt}]
     for input in images:
-        content.append({"type": "image_url", "image_url": {"url": "data:image/png;base64," + _encode_input(input)}})
+        if input == null or input.is_empty():
+            return {"ok": false, "error": "invalid_analysis_image"}
+        var analysis_image: Image = input
+        var target: Dictionary = optimization_agents.vision_plan(input.get_width(), input.get_height(), resource_budget)
+        if not target.get("ok", false):
+            return target
+        if int(target["width"]) != input.get_width() or int(target["height"]) != input.get_height():
+            analysis_image = input.duplicate()
+            analysis_image.resize(int(target["width"]), int(target["height"]), Image.INTERPOLATE_LANCZOS)
+        content.append({"type": "image_url", "image_url": {"url": "data:image/png;base64," + _encode_input(analysis_image)}})
     var result: Dictionary = await _local_request(vision_base, "/v1/chat/completions", {"model": local_model, "messages": [{"role": "user", "content": content}], "stream": false, "max_tokens": 4096, "temperature": 0.1})
     if not result.get("ok", false):
         return result
