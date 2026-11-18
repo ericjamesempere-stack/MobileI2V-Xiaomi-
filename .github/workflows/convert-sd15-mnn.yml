@@ -1,0 +1,72 @@
+name: KARMA ONE - SD15 real model conversion (manual, NO APK)
+on:
+  workflow_dispatch:
+    inputs:
+      model_revision:
+        description: 'Exact Hugging Face model commit SHA (40 hex), required'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  convert-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      EXPECTED_REPO: ericjamesempere-stack/MobileI2V-Xiaomi-
+      MODEL_ID: stable-diffusion-v1-5/stable-diffusion-v1-5
+    steps:
+      - name: Enforce single target repository and branch
+        shell: bash
+        env:
+          REVISION: ${{ inputs.model_revision }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "$EXPECTED_REPO"
+          test "$GITHUB_REF_NAME" = "karma/step12-consolidation-20261118"
+          [[ "$REVISION" =~ ^[0-9a-fA-F]{40}$ ]] || { echo "Exact model commit SHA required"; exit 1; }
+          echo KARMA_SD_REPOSITORY_LOCK_OK
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check disk before downloading multi-GB weights
+        run: |
+          set -euo pipefail
+          df -h .
+          AVAILABLE="$(df -Pk . | awk 'NR==2 {print $4}')"
+          test "$AVAILABLE" -ge 20971520 || { echo "::error::At least 20 GiB free disk required for model conversion"; exit 1; }
+      - name: Prepare pinned MNN source and conversion dependencies
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://github.com/alibaba/MNN.git /tmp/MNN
+          git -C /tmp/MNN checkout 40ad7e340cdf5cb29fe9d5f1f9eec794adbaef6d
+          python3 -m pip install --user 'huggingface_hub>=0.25,<1' 'diffusers>=0.30,<1' 'transformers>=4.44,<5' 'onnx>=1.16,<2' 'onnxruntime>=1.18,<2' 'safetensors>=0.4,<1' 'accelerate>=0.33,<2' 'sentencepiece>=0.2,<1'
+          cmake -S /tmp/MNN -B /tmp/MNN/build -G Ninja -DMNN_BUILD_CONVERTER=ON -DMNN_BUILD_TEST=OFF -DMNN_BUILD_BENCHMARK=OFF
+          cmake --build /tmp/MNN/build --target MNNConvert --parallel 2
+      - name: Download real licensed model at pinned revision
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          REVISION: ${{ inputs.model_revision }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from huggingface_hub import snapshot_download
+          snapshot_download(repo_id=os.environ['MODEL_ID'], revision=os.environ['REVISION'],
+                            local_dir='/tmp/karma-sd15-source',
+                            token=os.environ.get('HF_TOKEN') or None)
+          PY
+          test -s /tmp/karma-sd15-source/model_index.json
+      - name: Convert genuine weights using official MNN scripts
+        run: |
+          set -euo pipefail
+          bash tools/convert_sd15_to_mnn.sh /tmp/MNN /tmp/karma-sd15-source /tmp/karma-sd15-onnx /tmp/karma-sd15-mnn
+          python3 tools/verify_mnn_sd_export.py --model-dir /tmp/karma-sd15-mnn
+          echo KARMA_SD15_CONVERTED_FILES_VERIFIED
+      - name: Publish real converted graphs (not an APK)
+        uses: actions/upload-artifact@v4
+        with:
+          name: karma-sd15-real-mnn-models
+          path: /tmp/karma-sd15-mnn/
+          if-no-files-found: error
+          retention-days: 1
