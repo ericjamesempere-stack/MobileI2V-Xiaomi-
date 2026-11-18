@@ -9,6 +9,22 @@ class FakeEditor extends "res://scripts/hf_studio_generator.gd":
         image.fill(Color.YELLOW)
         return {"ok": true, "data": [{"status": "success", "image": Marshalls.raw_to_base64(image.save_png_to_buffer())}]}
 
+class VisionTransport extends "res://scripts/hf_studio_generator.gd":
+    var upload_statuses: Array[int] = []
+    var jobs: int = 0
+    var upload_count: int = 0
+
+    func _upload_images(_base: String, _images: Array[Image]) -> Dictionary:
+        upload_count += 1
+        var code: int = upload_statuses.pop_front()
+        if code == 200:
+            return {"ok": true, "files": []}
+        return _http_failure(code, 0)
+
+    func _call_api(_base: String, _api: String, _data: Array) -> Dictionary:
+        jobs += 1
+        return {"ok": false, "error_kind": "hidden_server_error"}
+
 func _initialize() -> void:
     call_deferred("run")
 
@@ -28,6 +44,21 @@ func run() -> void:
     assert(client.result_stream_url(client.VISION_URL, "add_message", "event", "session") == client.VISION_URL + "/gradio_api/queue/data?session_hash=session")
     assert(client.result_stream_url(client.EDIT_URL, "edit_image", "event", "") == client.EDIT_URL + "/gradio_api/call/edit_image/event")
     client.free()
+    var vision := VisionTransport.new()
+    root.add_child(vision)
+    vision.upload_statuses.assign([503, 200])
+    var unavailable: Dictionary = await vision._vision_request([], "test")
+    assert(vision.upload_count == 2 and vision.jobs == 1)
+    assert(unavailable["error_kind"] == "hidden_server_error" and unavailable["error"].contains("Qwen3-VL"))
+    vision.upload_statuses.assign([429])
+    var quota: Dictionary = await vision._vision_request([], "test")
+    assert(vision.upload_count == 3 and vision.jobs == 1)
+    assert(quota["error_kind"] == "quota")
+    vision.upload_statuses.assign([503, 503])
+    var outage: Dictionary = await vision._vision_request([], "test")
+    assert(vision.upload_count == 5 and vision.jobs == 1)
+    assert(outage["http_status"] == 503 and outage["error"].contains("envoi des images"))
+    vision.free()
     var editor := FakeEditor.new()
     root.add_child(editor)
     var reference := Image.create(8, 8, false, Image.FORMAT_RGB8)

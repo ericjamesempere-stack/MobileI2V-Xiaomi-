@@ -321,18 +321,18 @@ func _upload_images(base: String, images: Array[Image]) -> Dictionary:
     var err: Error = http.request_raw(base + "/gradio_api/upload", _headers(["Content-Type: multipart/form-data; boundary=" + boundary]), HTTPClient.METHOD_POST, body)
     if err != OK:
         http.queue_free()
-        return {"ok": false, "error": "Upload AnyPose impossible."}
+        return {"ok": false, "error": "Envoi des images impossible."}
     var response: Array = await http.request_completed
     http.queue_free()
     if int(response[0]) != HTTPRequest.RESULT_SUCCESS or int(response[1]) != 200:
         return _http_failure(int(response[1]), int(response[0]))
     var paths: Variant = JSON.parse_string((response[3] as PackedByteArray).get_string_from_utf8())
     if not paths is Array or paths.size() != images.size():
-        return {"ok": false, "error": "Reponse upload AnyPose incompatible."}
+        return {"ok": false, "error": "Réponse d’envoi des images incompatible."}
     var files: Array = []
     for path in paths:
         if not path is String or path.is_empty():
-            return {"ok": false, "error": "Fichier AnyPose manquant."}
+            return {"ok": false, "error": "Fichier image manquant dans la réponse."}
         files.append({"path": path, "meta": {"_type": "gradio.FileData"}})
     return {"ok": true, "files": files}
 
@@ -574,6 +574,18 @@ func vision_provider_id() -> String:
 
 func _vision_request(images: Array[Image], prompt: String) -> Dictionary:
     var upload: Dictionary = await _upload_images(VISION_URL, images)
+    # An upload failure precedes inference. Retry a temporary gateway outage
+    # once here, never resubmit a job whose execution state may be unknown.
+    if not upload.get("ok", false) and int(upload.get("http_status", 0)) in [502, 503, 504]:
+        await get_tree().create_timer(1.0).timeout
+        upload = await _upload_images(VISION_URL, images)
     if not upload.get("ok", false):
+        upload["error"] = "Qwen3-VL — envoi des images : " + str(upload.get("error", "échec de l’envoi."))
         return upload
-    return await _call_api(VISION_URL, "add_message", [{"files": upload["files"], "text": prompt}])
+    var result: Dictionary = await _call_api(VISION_URL, "add_message", [{"files": upload["files"], "text": prompt}])
+    if not result.get("ok", false):
+        if result.get("error_kind", "") == "hidden_server_error":
+            result["error"] = "Qwen3-VL a interrompu l’analyse sans détail. Réessaie plus tard ou utilise les moteurs locaux si configurés."
+        else:
+            result["error"] = "Qwen3-VL — analyse : " + str(result.get("error", "échec de l’analyse."))
+    return result
