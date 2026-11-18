@@ -28,7 +28,10 @@ Date : 2026-11-18. Ce registre distingue correction committée et validation ex�
 - **Premier contrôle CI** — Le job Godot 4.5.2 a passé les contrôles de revue 9G et le registre des agents, puis le test d’intégration MP4 a échoué car FFmpeg était absent. Le job Android s’est arrêté avant les tests unitaires, sur HTTP 429 lors de la résolution des dépendances Gradle. [Exécution 44260572129](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44260572129).
 - **Correctifs CI** — Installation conditionnelle de FFmpeg avec vérification SHA256 reprise du workflow du dépôt. Nouvelle tentative Gradle uniquement si Maven Central renvoie HTTP 429.
 - **Contrôles de validation** — Réussite des jobs Godot 4.5.2 (36 scripts, contrôles Python et transports simulés) et Android (profil ARM64 et `testDebugUnitTest`) au commit `dba278abd8761610c1e863a42bc32267790bd6de`. [Exécution 44261921954](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44261921954).
-- **APK** — Préconditions de compilation réunies. Validation matérielle Xiaomi 14T Pro à effectuer.
+- **Exécution ARM64** — Tentative unique sur `0731367885df4fd773e11ca557c869c8c88b1281`. Arrêt avant export APK au test `test_friendly_studio.gd:51` dans « Test real image service protocol without GPU calls ». [Exécution 44262509434](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44262509434).
+- **Cause et correction** — Le partage des données Godot entre tests reproduit l’assertion quand Friendly Studio charge la planche persistée par V60. Le workflow attribue maintenant à chacun des sept scripts de cette étape son propre `XDG_DATA_HOME`. Les sept scripts passent localement sous Godot 4.6.3, même avec la fixture V60 toujours présente dans le répertoire parent.
+- **Artefact de diagnostic** — ID 14409460942, expiration le 2 décembre 2026 à 07:58:07 UTC. [Journaux du build](https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/actions/runs/44262509434/artifacts/14409460942).
+- **APK** — Aucun APK produit. Validation matérielle Xiaomi 14T Pro à effectuer.
 
 ## Étape 11 — Génération universelle
 - **Statut : À FAIRE** ; dépend de la vérification des moteurs et des flux Android.
