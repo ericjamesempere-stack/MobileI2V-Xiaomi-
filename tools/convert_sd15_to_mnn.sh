@@ -17,7 +17,13 @@ test -x "$MNN/build/MNNConvert" || { echo "Build MNNConvert in MNN/build first" 
 mkdir -p "$ONNX" "$OUTPUT"
 cd "$MNN/transformers/diffusion/export"
 python3 onnx_export.py --model_path "$MODEL" --output_path "$ONNX" --opset 18
+for graph in text_encoder unet vae_decoder; do
+  test -s "$ONNX/$graph/model.onnx" || { echo "Missing real ONNX graph: $graph" >&2; exit 1; }
+done
 python3 convert_mnn.py "$ONNX" "$OUTPUT" "--weightQuantBits=8"
+for graph in text_encoder unet vae_decoder; do
+  test -s "$OUTPUT/$graph.mnn" || { echo "MNN conversion failed: $graph" >&2; exit 1; }
+done
 cd - >/dev/null
 python3 "$(dirname "$0")/verify_mnn_sd_export.py" --model-dir "$OUTPUT"
 echo KARMA_SD_REAL_CONVERSION_FILES_OK
