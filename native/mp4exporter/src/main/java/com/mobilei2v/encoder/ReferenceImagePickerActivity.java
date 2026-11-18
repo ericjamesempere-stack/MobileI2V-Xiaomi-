@@ -22,7 +22,7 @@ public final class ReferenceImagePickerActivity extends Activity {
     static synchronized boolean launch(Activity host, String role) {
         if (host == null) return false;
         String id = UUID.randomUUID().toString();
-        prefs(host).edit().clear().putString("request", id).putString("role", role)
+        prefs(host).edit().remove("result").putString("request", id).putString("role", role)
             .putString("stage", "opening").commit();
         host.runOnUiThread(() -> {
             try {
