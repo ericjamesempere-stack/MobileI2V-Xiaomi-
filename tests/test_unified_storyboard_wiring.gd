@@ -27,6 +27,8 @@ func _initialize() -> void:
     assert(source.contains("inspect_visual_change(reference, candidate_sources[i].get_image())"))
     assert(source.contains('universal_quality["visual_diagnostics"] = visual_warnings'))
     assert(source.contains('universal_quality["identity_verified"] = false'))
+    assert(source.contains("if not visual_warnings.is_empty():"))
+    assert(source.contains("anomalies visuelles potentielles"))
     board.free()
     print("PASS unified storyboard wiring: methods present")
     quit(0)
