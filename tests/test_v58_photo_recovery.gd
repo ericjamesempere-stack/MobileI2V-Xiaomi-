@@ -3,6 +3,10 @@ extends SceneTree
 func _initialize() -> void:
     call_deferred("run")
 func run() -> void:
+    for script_path in ["storyboard.gd", "android_image_reader.gd", "local_studio_generator.gd"]:
+        var source_code: String = FileAccess.get_file_as_string("res://scripts/" + script_path)
+        assert(not source_code.is_empty())
+        assert(not source_code.contains("native.has_method("), "Android plugin methods bypass Object.has_method: " + script_path)
     var board: Node = load("res://scripts/storyboard.gd").new()
     root.add_child(board)
     await process_frame
@@ -20,6 +24,16 @@ func run() -> void:
     assert(board.preview.texture.get_width() == 320)
     var original: String = board.imported_path
     assert(FileAccess.file_exists(original))
+    # Simulate a native selector whose return callback is lost after focus returns.
+    board.photo_importing = true
+    board.photo_app_focused = false
+    board._update_photo_import_progress("selecting", board.PHOTO_IMPORT_TIMEOUT + 1.0)
+    assert(board.photo_importing and board.photo_import_clock == 0.0)
+    board.photo_app_focused = true
+    board._update_photo_import_progress("selecting", board.PHOTO_IMPORT_TIMEOUT + 1.0)
+    assert(not board.photo_importing and board.status.text.contains("selecting"))
+    assert(not board.find_child("ChoosePhoto", true, false).disabled)
+    assert(board.imported_path == original and board.preview.texture != null)
     board.action_input.text = "Une banane danse."
     board._save()
     var snapshot: String = original.get_base_dir().path_join("project.json")

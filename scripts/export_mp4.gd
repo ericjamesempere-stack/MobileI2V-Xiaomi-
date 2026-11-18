@@ -72,6 +72,12 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
     if board_images.is_empty() or timeline.is_empty():
         _set_status("MP4 impossible : planche vide.")
         return
+    # Validate every referenced drawing before opening the native encoder.
+    # A missing later frame must not leave a partial video on the device.
+    var preflight: Dictionary = _preflight_board_sources(board_images, timeline)
+    if not preflight.get("ok", false):
+        _set_status("MP4 impossible : " + str(preflight.get("error", "invalid_board")))
+        return
     var native_encoder: Object = _get_encoder()
     if native_encoder == null:
         _set_status("Encodeur MP4 Android indisponible. Utilise l'export AVI local.")
@@ -131,9 +137,12 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
             await get_tree().process_frame
     var result: String = str(encoder.call("finish"))
     exporting = false
-    if not result.is_empty() and written == total:
+    var verified: Dictionary = _verify_mp4_file(result, written, total)
+    if verified.get("ok", false):
         last_output = result
-    _set_status("MP4 : " + result if not result.is_empty() and written == total else "MP4 incomplet : %d/%d images." % [written, total])
+        _set_status("MP4 exporte et fichier verifie : " + result)
+    else:
+        _set_status("MP4 non confirme : " + str(verified.get("error", "unknown")) + " (%d/%d images)." % [written, total])
 
 
 
@@ -157,3 +166,48 @@ func _fit_canvas(source: Image) -> Image:
 
 func _get_encoder() -> Object:
     return Engine.get_singleton("MP4Exporter") if Engine.has_singleton("MP4Exporter") else null
+
+# Read-only preflight. Does not resize, overwrite or mutate source drawings.
+func _preflight_board_sources(board_images: Array, timeline: Array) -> Dictionary:
+    if board_images.is_empty() or timeline.is_empty():
+        return {"ok": false, "error": "empty_board_or_timeline"}
+    var inspected: Dictionary = {}
+    for value in timeline:
+        if not (value is int or value is float) or float(value) != float(int(value)):
+            return {"ok": false, "error": "invalid_timeline_index"}
+        var index: int = int(value)
+        if index < 0 or index >= board_images.size():
+            return {"ok": false, "error": "timeline_out_of_range"}
+        if inspected.has(index):
+            continue
+        var image: Image = _read_drawing(board_images[index])
+        if image == null or image.is_empty() or image.get_width() < 1 or image.get_height() < 1:
+            return {"ok": false, "error": "unreadable_drawing_%d" % index}
+        inspected[index] = true
+    return {"ok": true, "inspected": inspected.size()}
+
+# Container-level check only: full decoder playback must still be verified on Android.
+static func _verify_mp4_file(path: String, written: int, expected: int) -> Dictionary:
+    if expected <= 0 or written != expected:
+        return {"ok": false, "error": "frame_count_incomplete"}
+    if path.strip_edges().is_empty():
+        return {"ok": false, "error": "missing_output_path"}
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        return {"ok": false, "error": "output_not_readable"}
+    var size: int = file.get_length()
+    if size < 32:
+        file.close()
+        return {"ok": false, "error": "output_too_small"}
+    var header: PackedByteArray = file.get_buffer(mini(4096, size))
+    file.close()
+    # ISO BMFF requires a valid top-level box header and usually an ftyp box.
+    if header.size() < 12:
+        return {"ok": false, "error": "invalid_mp4_header"}
+    var box_size: int = (int(header[0]) << 24) | (int(header[1]) << 16) | (int(header[2]) << 8) | int(header[3])
+    if box_size < 8 or box_size > size:
+        return {"ok": false, "error": "invalid_mp4_box_size"}
+    var box_type: String = header.slice(4, 8).get_string_from_ascii()
+    if box_type != "ftyp":
+        return {"ok": false, "error": "missing_mp4_ftyp"}
+    return {"ok": true, "bytes": size}

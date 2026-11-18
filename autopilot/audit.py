@@ -11,12 +11,12 @@ from urllib.parse import quote
 from datetime import datetime, timezone
 
 REPO = os.environ.get('GITHUB_REPOSITORY', 'ericjamesempere-stack/MobileI2V-Xiaomi-')
-BRANCH = os.environ.get('KARMA_TARGET_BRANCH', 'karma/v55-finalisation-20261117')
+BRANCH = os.environ.get('KARMA_TARGET_BRANCH', 'karma/v60-simplified-assisted-20261117')
 # This version's Android workflow includes parser, native, approval and MP4 checks.
 # Historical V53/V54 evidence is preserved separately in validation/autopilot-v2.
-WORKFLOWS = [os.environ.get('KARMA_BUILD_WORKFLOW', 'Build Android APK KARMA ONE V57 Local')]
+WORKFLOWS = [os.environ.get('KARMA_BUILD_WORKFLOW', 'Build Android APK KARMA ONE V60 Simplified Android')]
 
-def get(path):
+def get(path, timeout=25):
     if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', REPO):
         raise ValueError('invalid_repository')
     headers = {'Accept':'application/vnd.github+json', 'User-Agent':'karma-autopilot-audit'}
@@ -24,14 +24,14 @@ def get(path):
     if token:
         headers['Authorization'] = 'Bearer ' + token
     request = urllib.request.Request('https://api.github.com/repos/' + REPO + '/' + path, headers=headers)
-    with urllib.request.urlopen(request, timeout=25) as response:
+    with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.load(response)
 
-def audit(commit_sha=None):
+def audit(commit_sha=None, timeout=25):
     sha = commit_sha or get('branches/' + quote(BRANCH,safe=''))['commit']['sha']
     if not re.fullmatch(r'[0-9a-f]{40,64}',sha):
         raise ValueError('invalid_commit')
-    runs = get('actions/runs?head_sha=' + sha + '&per_page=100')['workflow_runs']
+    runs = get('actions/runs?head_sha=' + sha + '&per_page=100', timeout=timeout)['workflow_runs']
     checks = []
     for name in WORKFLOWS:
         candidates = [r for r in runs if r.get('name') == name and r.get('head_sha') == sha]

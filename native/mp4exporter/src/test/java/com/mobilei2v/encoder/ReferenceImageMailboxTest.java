@@ -44,6 +44,21 @@ public class ReferenceImageMailboxTest {
         assertEquals("", ReferenceImagePickerActivity.consume(context));
         assertFalse(ReferenceImagePickerActivity.stage(context, old, "saving"));
     }
+    @Test public void emptySuccessfulResultEnablesPersistentDocumentFallback() throws Exception {
+        Activity host = Robolectric.buildActivity(Activity.class).setup().get();
+        Context context = host.getApplicationContext();
+        SharedPreferences prefs = context.getSharedPreferences("karma_photo_import_v58", 0);
+        assertTrue(ReferenceImagePickerActivity.launch(host, "reference"));
+        String id = prefs.getString("request", "");
+        android.content.Intent intent = new android.content.Intent(host, ReferenceImagePickerActivity.class).putExtra("request", id);
+        ReferenceImagePickerActivity receiver = Robolectric.buildActivity(ReferenceImagePickerActivity.class, intent).setup().get();
+        receiver.onActivityResult(31, Activity.RESULT_OK, new android.content.Intent());
+        JSONObject result = new JSONObject(ReferenceImagePickerActivity.consume(context));
+        assertEquals("error", result.getString("state"));
+        assertTrue(prefs.getBoolean("force_document_picker", false));
+        assertTrue(ReferenceImagePickerActivity.launch(host, "style"));
+        assertTrue(prefs.getBoolean("force_document_picker", false));
+    }
     @Test public void receiverHandlesCancellationAfterActivityRecreation() throws Exception {
         Activity host = Robolectric.buildActivity(Activity.class).setup().get();
         ReferenceImagePickerActivity.launch(host, "reference");

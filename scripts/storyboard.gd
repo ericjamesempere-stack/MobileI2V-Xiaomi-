@@ -13,6 +13,7 @@ var ai_drawings_count: SpinBox
 var ai_endpoint: LineEdit
 var ai_token_input: LineEdit
 var local_mode: CheckBox
+var remote_fallback: CheckBox
 var local_auth_input: LineEdit
 var local_engine_status: Label
 var last_local_probe: Dictionary = {}
@@ -105,7 +106,7 @@ func _ready() -> void:
     if OS.get_name() == "Android":
         picker.current_dir = "/storage/emulated/0/Pictures"
     picker.use_native_dialog = true
-    picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp;Images;image/png,image/jpeg,image/webp"])
+    picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp,*.bmp,*.tga,*.svg,*.heic,*.heif,*.avif,*.gif;Images compatibles (selon décodeur Android)", "*.*;Tous les fichiers (validation après sélection)"])
     picker.file_selected.connect(_image_chosen)
     picker.canceled.connect(_native_image_cancelled)
     add_child(picker)
@@ -143,12 +144,6 @@ func _ready() -> void:
     pose_http.timeout = 45.0
     add_child(pose_http)
     pose_http.request_completed.connect(_pose_completed)
-    if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
-        var native: Object = Engine.get_singleton("MP4Exporter")
-        if not native.has_method("consume_reference_image_result") and native.has_signal("reference_image_selected"):
-            native.connect("reference_image_selected", Callable(self, "_image_chosen"), CONNECT_DEFERRED)
-            native.connect("reference_image_error", Callable(self, "_native_image_error"), CONNECT_DEFERRED)
-            native.connect("reference_image_cancelled", Callable(self, "_native_image_cancelled"), CONNECT_DEFERRED)
     review_check.toggled.connect(_review_confirmation_changed)
     _load_saved()
     if not sources.is_empty():
@@ -504,18 +499,11 @@ func _export_board_mp4() -> void:
     exporter.set("status_label", status)
     exporter.set("hold_keyframes", v5_sheet_loaded)
     add_child(exporter)
-    var indices: Array = []
-    # Export only approved drawings, preserving the planned temporal order.
-    for item in plan:
-        var frame_id: int = int(item)
-        if frame_id >= 0 and frame_id < sources.size() and frame_id < accepted.size() and accepted[frame_id]:
-            indices.append(frame_id)
+    # An invalid timeline must not silently fall back to an unordered export.
+    # Preserve the precise sequence approved by the user.
+    var indices: Array = _validated_export_timeline(plan, sources.size(), accepted)
     if indices.is_empty():
-        for i in range(sources.size()):
-            if i < accepted.size() and accepted[i]:
-                indices.append(i)
-    if indices.is_empty():
-        status.text = "Aucun dessin valide a exporter."
+        status.text = "Export bloque : chronologie de la planche absente ou invalide. Revalide la planche."
         exporter.queue_free()
         return
     exporting_video = true
@@ -772,15 +760,16 @@ func _choose_image(as_style: bool = false, native_role: String = "") -> void:
     chatgpt_import_role = native_role
     photo_import_clock = 0.0
     if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
+        # Godot 4.5 dispatches Android plugin methods through JNISingleton.callp.
+        # They are absent from Object.has_method(), despite being callable.
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("pick_reference_image"):
-            photo_importing = true
-            status.text = "Ouverture de la galerie…"
-            photo_import_stage = "opening"
-            photo_importing = bool(native.call("pick_reference_image_for_role", native_role if not native_role.is_empty() else "style" if as_style else "reference")) if native.has_method("pick_reference_image_for_role") else bool(native.call("pick_reference_image"))
-            status.text = "Choisis une image dans ta galerie." if photo_importing else "La galerie n'a pas pu s'ouvrir. Réessaie."
-            if not photo_importing:
-                importing_style_reference = false
+        var role: String = native_role
+        if role.is_empty():
+            role = "style" if as_style else "reference"
+        photo_import_stage = "opening"
+        photo_importing = bool(native.call("pick_reference_image_for_role", role))
+        if photo_importing:
+            status.text = "Choisis une image dans ta galerie."
             return
     # Native Android document/photo picker uses a user-selected URI; do not
     # request broad storage permissions merely to choose one image.
@@ -829,7 +818,7 @@ func _image_chosen(path: String) -> void:
         return
     var img: Image = load("res://scripts/android_image_reader.gd").read_image(path)
     if img == null or img.is_empty():
-        status.text = "ERREUR PHOTO : impossible de lire le fichier. Essaie JPG ou PNG."
+        status.text = "ERREUR PHOTO : format non décodable ou fichier inaccessible. Essaie la galerie Android ou convertis en PNG/JPG/WEBP. Ton projet est conservé."
         return
     var max_side: int = maxi(img.get_width(), img.get_height())
     if max_side > 4096:
@@ -1727,30 +1716,65 @@ func _generate_from_photo() -> void:
 
 func _export_png_sequence() -> void:
     if not _has_current_review():
-        status.text = "Export bloqué : examine et garde chaque dessin, puis confirme la planche."
+        status.text = "Export bloque : examine et valide tous les dessins."
         return
-    if sources.is_empty():
-        status.text = "Prepare et valide d'abord la planche."
-        return
-    var folder: String = "user://exports/mobilei2v_frames"
-    DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder))
-    var saved: int = 0
+    var folder: String = "user://exports/board_%d_%d" % [int(Time.get_unix_time_from_system()), Time.get_ticks_usec()]
+    var exported: Dictionary = _export_approved_png_board(sources, accepted, folder, action_input.text, float(duration_input.value))
+    if exported.get("ok", false):
+        status.text = "%d dessins PNG et planche exportes dans %s." % [int(exported["count"]), folder]
+    else:
+        status.text = "Export PNG impossible : " + str(exported.get("error", "unknown"))
+
+# Saves full-resolution drawings and the preview sheet in a new folder.
+# Never writes into the original project's drawing paths.
+static func _export_approved_png_board(drawings: Array, approvals: Array, folder: String, description: String, seconds: float) -> Dictionary:
+    if drawings.is_empty() or approvals.size() != drawings.size():
+        return {"ok": false, "error": "invalid_board"}
+    for flag in approvals:
+        if flag != true:
+            return {"ok": false, "error": "approval_required"}
+    if DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(folder)):
+        return {"ok": false, "error": "destination_exists"}
+    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder)) != OK:
+        return {"ok": false, "error": "destination_unavailable"}
+    var images: Array[Image] = []
+    for i in range(drawings.size()):
+        if not drawings[i] is Texture2D:
+            return {"ok": false, "error": "invalid_drawing_%d" % i}
+        var image: Image = drawings[i].get_image()
+        if image == null or image.is_empty():
+            return {"ok": false, "error": "empty_drawing_%d" % i}
+        images.append(image)
     var exported_paths: Array[String] = []
-    for i in range(sources.size()):
-        if i >= accepted.size() or not accepted[i]:
-            continue
-        var img: Image = sources[i].get_image()
-        if img == null: continue
-        var path: String = "%s/frame_%04d.png" % [folder, saved]
-        if img.save_png(path) == OK:
-            exported_paths.append(path)
-            saved += 1
-    var manifest: Dictionary = {"format": "PNG sequence", "count": saved, "duration_seconds": duration_input.value, "description": action_input.text, "files": exported_paths, "note": "No MP4 encoder is included"}
-    var file := FileAccess.open("user://exports/mobilei2v_manifest.json", FileAccess.WRITE)
-    if file != null:
-        file.store_string(JSON.stringify(manifest, "  "))
-        file.close()
-    status.text = "%d PNG exportes dans %s (dossier interne de l'application). Pas de MP4." % [saved, folder]
+    for i in range(images.size()):
+        var output: String = folder.path_join("drawing_%04d.png" % i)
+        if images[i].save_png(output) != OK:
+            return {"ok": false, "error": "drawing_save_failed_%d" % i}
+        exported_paths.append(output)
+    var columns: int = mini(4, images.size())
+    var rows: int = ceili(float(images.size()) / float(columns))
+    var thumb_w: int = 192
+    var thumb_h: int = 192
+    var sheet: Image = Image.create(columns * thumb_w, rows * thumb_h, false, Image.FORMAT_RGBA8)
+    sheet.fill(Color("eff1fb"))
+    for i in range(images.size()):
+        var thumb: Image = images[i].duplicate()
+        var ratio: float = minf(float(thumb_w - 12) / thumb.get_width(), float(thumb_h - 12) / thumb.get_height())
+        thumb.resize(maxi(1, roundi(thumb.get_width() * ratio)), maxi(1, roundi(thumb.get_height() * ratio)), Image.INTERPOLATE_BILINEAR)
+        thumb.convert(Image.FORMAT_RGBA8)
+        var x: int = (i % columns) * thumb_w + (thumb_w - thumb.get_width()) / 2
+        var y: int = (i / columns) * thumb_h + (thumb_h - thumb.get_height()) / 2
+        sheet.blit_rect(thumb, Rect2i(Vector2i.ZERO, thumb.get_size()), Vector2i(x, y))
+    var sheet_path: String = folder.path_join("storyboard.png")
+    if sheet.save_png(sheet_path) != OK:
+        return {"ok": false, "error": "sheet_save_failed"}
+    var manifest: Dictionary = {"format": "PNG", "count": images.size(), "description": description, "duration_seconds": seconds, "drawings": exported_paths, "storyboard": sheet_path}
+    var manifest_file: FileAccess = FileAccess.open(folder.path_join("manifest.json"), FileAccess.WRITE)
+    if manifest_file == null:
+        return {"ok": false, "error": "manifest_save_failed"}
+    manifest_file.store_string(JSON.stringify(manifest, "  "))
+    manifest_file.close()
+    return {"ok": true, "count": images.size(), "folder": folder, "storyboard": sheet_path}
 
 func _prepare() -> void:
     required_drawing_count = 0
@@ -1904,7 +1928,7 @@ func _load_saved(save_path: String = SAVE) -> void:
         if stored is Dictionary:
             universal_plan = stored
         var guide: Image = load("res://scripts/android_image_reader.gd").read_image(style_reference_path) if not style_reference_path.is_empty() else null
-        _configure_universal_pipeline(guide)
+        _configure_universal_pipeline(guide, universal_folder.ends_with("_remote_fallback"))
         var ledger_path: String = universal_folder.path_join("karma_agents.json")
         var ledger: Variant = JSON.parse_string(FileAccess.get_file_as_string(ledger_path)) if FileAccess.file_exists(ledger_path) else null
         if ledger is Dictionary:
@@ -2081,19 +2105,27 @@ func _create_remote_reference(description_override: String = "") -> void:
     var worker: Node = _make_drawing_worker()
     worker.hf_token = ai_token_input.text.strip_edges()
     add_child(worker)
+    var result: Dictionary
     if worker.has_method("inspect_local_engines"):
         var probe: Dictionary = await worker.inspect_local_engines(false, true)
         _remember_local_probe(probe)
-        if not probe.get("ok", false):
+        result = await worker.create_reference(description, _selected_drawing_style()) if probe.get("ok", false) else {
+            "ok": false, "error": probe.get("message", "Moteur image indisponible."),
+            "http_status": probe.get("drawing", {}).get("http_status", 0)
+        }
+        if _may_use_remote_fallback(result):
+            status.text = "Moteur local indisponible. Bascule vers le moteur distant existant…"
             worker.queue_free()
-            ai_running = false
-            status.text = probe["message"] + " Ton projet est conservé."
-            return
-    var result: Dictionary = await worker.create_reference(description, _selected_drawing_style())
+            worker = _make_remote_drawing_worker()
+            worker.hf_token = ai_token_input.text.strip_edges()
+            add_child(worker)
+            result = await worker.create_reference(description, _selected_drawing_style())
+    else:
+        result = await worker.create_reference(description, _selected_drawing_style())
     worker.queue_free()
     ai_running = false
     if not result.get("ok", false):
-        status.text = str(result.get("error", "Generation echouee.")) + " Ta photo et tes dessins existants sont conserves."
+        status.text = str(result.get("error", "Génération échouée.")) + " Tu peux utiliser « Préparer et ouvrir ChatGPT » et réimporter l’image. Ton projet est conservé."
         return
     # The model may return a success flag with no valid image. Never replace
     # the user's existing photo with empty or tiny pixels.
@@ -2112,8 +2144,10 @@ func _create_remote_reference(description_override: String = "") -> void:
     if generated_image.save_png(path) != OK:
         status.text = "Sauvegarde impossible."
         return
+    var previous_reference: String = imported_path
     await _image_chosen(path)
-    _reuse_reference_drawing()
+    if imported_path == previous_reference or preview.texture == null:
+        return
     status.text = "Ton image est prête et sauvegardée ! Passe à ton histoire."
 
 func _reuse_reference_drawing() -> void:
@@ -2141,10 +2175,12 @@ func _make_universal_pipeline() -> Node:
     engine.local_inference = local_mode.button_pressed
     return engine
 
-func _configure_universal_pipeline(style_image: Image = null) -> void:
+func _configure_universal_pipeline(style_image: Image = null, force_remote: bool = false) -> void:
     if is_instance_valid(universal_pipeline):
         universal_pipeline.queue_free()
     universal_pipeline = _make_universal_pipeline()
+    if force_remote:
+        universal_pipeline.local_inference = false
     add_child(universal_pipeline)
     universal_pipeline.worker.hf_token = ai_token_input.text.strip_edges()
     universal_pipeline.worker.style_reference = style_image
@@ -2238,8 +2274,14 @@ func _draw_remote_story() -> void:
         if style_image == null:
             status.text = "La référence de style est manquante. Réimporte-la avant de générer."
             return
+    var fidelity_contract: Dictionary = load("res://scripts/ReferenceFidelityGate.gd").build_request_from_image(reference, story)
+    if not fidelity_contract.get("ok", false):
+        status.text = "Référence invalide : " + str(fidelity_contract.get("error", "unknown"))
+        return
     var signature: String = _universal_signature()
     var folder: String = "user://projects/universal_" + signature.substr(0, 24)
+    var previous_pipeline: Node = universal_pipeline
+    universal_pipeline = null
     _configure_universal_pipeline(style_image)
     ai_running = true
     last_ai_sequence_ok = false
@@ -2248,46 +2290,117 @@ func _draw_remote_story() -> void:
         # starting a missing engine must not exhaust the correction budget.
         var probe: Dictionary = await universal_pipeline.worker.inspect_local_engines()
         _remember_local_probe(probe)
-        if not probe.get("ok", false):
-            ai_running = false
-            status.text = probe["message"] + " Tes dessins sont conservés."
-            return
-    var result: Dictionary = await universal_pipeline.build_boards(reference, story, float(duration_input.value), _selected_drawing_style(), folder, 2147483647 if local_mode.button_pressed else int(ai_drawings_count.value))
+        if not probe.get("ok", false) or style_image != null:
+            var failure: Dictionary = {
+                "http_status": probe.get("vision", {}).get("http_status", 0),
+                "error": probe.get("message", "Moteur local indisponible.")
+            }
+            var drawing_status: int = probe.get("drawing", {}).get("http_status", 0)
+            if failure["http_status"] == 0 or drawing_status in [400, 401, 403, 422]:
+                failure["http_status"] = drawing_status
+            if probe.get("ok", false):
+                failure["error"] = "Le moteur local ne prend pas en charge une référence de style séparée."
+            if not _may_use_remote_fallback(failure):
+                ai_running = false
+                _restore_previous_pipeline(previous_pipeline)
+                status.text = str(failure["error"]) + " Projet conservé. Le secours Hugging Face s'autorise dans Réglages et outils."
+                return
+            status.text = "Moteur local indisponible. Bascule vers le moteur distant existant…"
+            _configure_universal_pipeline(style_image, true)
+            folder += "_remote_fallback"
+    var result: Dictionary = await universal_pipeline.build_boards(reference, story, float(duration_input.value), _selected_drawing_style(), folder, 2147483647 if universal_pipeline.local_inference else int(ai_drawings_count.value))
+    if universal_pipeline.local_inference and not result.get("ok", false):
+        var detail: Dictionary = result.get("detail", {})
+        var engine_failure: Dictionary = detail.get("engine_failure", detail)
+        var http_status: int = engine_failure.get("http_status", 0)
+        var transport_failed: bool = http_status >= 500 or int(engine_failure.get("network_result", -1)) > 0 or int(engine_failure.get("request_error", 0)) != 0
+        if transport_failed and _may_use_remote_fallback(engine_failure):
+            # The two workers use different cache and review bindings. Keep local
+            # drawings resumable on disk and verify the remote plan independently.
+            status.text = "Connexion locale interrompue. Reprise en ligne ; les dessins locaux restent sauvegardés."
+            _configure_universal_pipeline(style_image, true)
+            folder += "_remote_fallback"
+            var remote_result: Dictionary = await universal_pipeline.build_boards(reference, story, float(duration_input.value), _selected_drawing_style(), folder, int(ai_drawings_count.value))
+            var remote_generation: Dictionary = remote_result.get("generation", remote_result.get("detail", {}))
+            if not remote_generation.get("paths", []).is_empty() or detail.get("paths", []).is_empty():
+                result = remote_result
+            else:
+                _configure_universal_pipeline(style_image)
+                folder = folder.trim_suffix("_remote_fallback")
     ai_running = false
     if result.get("stage", "") == "budget":
+        _restore_previous_pipeline(previous_pipeline)
         status.text = "L'analyse prévoit %d poses clés ; ta limite est %d. Augmente la limite dans Réglages et outils, puis relance : l'analyse est sauvegardée." % [int(result["required"]), int(result["budget"])]
         return
     if not result.has("plan"):
+        _restore_previous_pipeline(previous_pipeline)
         status.text = "Analyse IA non aboutie ; tes dessins sont conservés. " + str(result.get("detail", {}).get("error", result.get("error", "Service indisponible.")))
         return
     var generation: Dictionary = result.get("generation", result.get("detail", {}))
     var generated_paths: Array = generation.get("paths", [])
     if generated_paths.is_empty():
+        _restore_previous_pipeline(previous_pipeline)
         status.text = "Aucun nouveau dessin ; ton projet est conservé. " + str(generation.get("error", "Génération indisponible."))
         return
+    # Validate the actual generated files before replacing the user's visible
+    # storyboard. A missing/corrupt frame must not erase a previous project or
+    # produce an empty timeline that later indexes entries[0].
+    var candidate_entries: Array = _entries_for_universal_plan(result["plan"], folder)
+    var file_review: Dictionary = load("res://scripts/GeneratedFrameValidator.gd").inspect_storyboard_entries(candidate_entries)
+    if not file_review.get("ok", false):
+        _restore_previous_pipeline(previous_pipeline)
+        status.text = "Contrôle des dessins échoué (" + str(file_review.get("error", "unknown")) + ") ; projet précédent conservé."
+        return
+    var candidate_sources: Array[Texture2D] = []
+    var candidate_paths: Array[String] = []
+    for entry in candidate_entries:
+        var candidate_path: String = str(entry.get("path", ""))
+        var candidate_texture: Texture2D = _drawing_thumbnail(candidate_path)
+        if candidate_texture == null:
+            _restore_previous_pipeline(previous_pipeline)
+            status.text = "Dessin illisible : projet précédent conservé. Relance pour reprendre la génération."
+            return
+        candidate_sources.append(candidate_texture)
+        candidate_paths.append(candidate_path)
+    if candidate_paths.is_empty():
+        _restore_previous_pipeline(previous_pipeline)
+        status.text = "Aucune image exploitable : projet précédent conservé. Relance pour reprendre."
+        return
+    if is_instance_valid(previous_pipeline):
+        previous_pipeline.queue_free()
     universal_folder = folder
     universal_plan = result["plan"]
     universal_quality = result.get("quality", {"ok": false, "fidelity_verified": false})
+    # This contract is a constraint checklist, not proof of visual fidelity.
+    universal_quality["reference_contract"] = fidelity_contract
+    # Diagnostics are advisory: an unchanged pose can be intentional.
+    # Never substitute pixel metrics for semantic identity/pose verification.
+    var visual_warnings: Array = []
+    var frame_validator = load("res://scripts/GeneratedFrameValidator.gd")
+    for i in range(candidate_sources.size()):
+        var visual: Dictionary = frame_validator.inspect_visual_change(reference, candidate_sources[i].get_image())
+        if not visual.get("ok", false):
+            visual_warnings.append({"index": i, "reason": visual.get("error", "visual_check_failed")})
+        else:
+            for warning in visual.get("warnings", []):
+                visual_warnings.append({"index": i, "reason": warning})
+    universal_quality["visual_diagnostics"] = visual_warnings
+    universal_quality["identity_verified"] = false
+    universal_quality["pose_verified"] = false
     universal_style = _selected_drawing_style()
     universal_input_signature = signature
-    sources.clear()
-    paths.clear()
+    sources = candidate_sources
+    paths = candidate_paths
     accepted.clear()
     plan.clear()
     session_agent = load("res://scripts/karma_studio_session.gd").new()
     session_agent.state = {"version": 2, "story": story, "duration": duration_input.value, "count": universal_plan["keyposes"], "frames": {}, "semantic_analysis": universal_plan["semantic_analysis"], "identity_verified": false, "agents": {"scenario": "live_vision_model", "pose": "universal_physical_phases", "image": "running", "quality": "pending", "recovery": "saving", "video": "waiting_for_user"}}
     # Review and export share the same chronological set of actual drawings.
     # A generated in-between must never be silently discarded or bypass review.
-    var entries: Array = _universal_drawing_entries()
-    for entry in entries:
-        var path: String = entry["path"]
-        var texture: Texture2D = _drawing_thumbnail(path)
-        if texture == null:
-            break
-        sources.append(texture)
-        paths.append(str(path))
+    var entries: Array = candidate_entries
+    for i in range(paths.size()):
         accepted.append(false)
-        session_agent.record_frame(paths.size() - 1, str(path), {"identity_verified": false})
+        session_agent.record_frame(i, paths[i], {"identity_verified": false})
     required_drawing_count = int(universal_plan["keyposes"]) + int(universal_plan.get("intermediate_drawings", 0))
     var cursor: int = 0
     for frame in range(int(universal_plan["video_frames"])):
@@ -2320,16 +2433,28 @@ func _draw_remote_story() -> void:
         status.text = "%d poses affichées ; fidélité non validée. Examine les dessins et refais les poses signalées. %s" % [paths.size(), str(universal_quality.get("error", ""))]
     else:
         status.text = "%d dessins, poses et intermédiaires. Agrandis-les, garde ou refuse chaque dessin, puis confirme la planche après les contrôles de fidélité." % paths.size()
+    if not visual_warnings.is_empty():
+        var affected: Dictionary = {}
+        for warning in visual_warnings:
+            affected[int(warning.get("index", -1))] = true
+        status.text += " Attention : %d dessin(s) présentent des anomalies visuelles potentielles. Vérifie-les individuellement avant de les garder." % affected.size()
+
+func _restore_previous_pipeline(previous: Node) -> void:
+    universal_pipeline.queue_free()
+    universal_pipeline = previous
 
 func _universal_drawing_entries() -> Array:
+    return _entries_for_universal_plan(universal_plan, universal_folder)
+
+func _entries_for_universal_plan(board_plan: Dictionary, board_folder: String) -> Array:
     var entries: Array = []
-    for board in universal_plan.get("boards", []):
-        var path: String = universal_folder.path_join("pose_%04d.png" % int(board["index"]))
+    for board in board_plan.get("boards", []):
+        var path: String = board_folder.path_join("pose_%04d.png" % int(board["index"]))
         if FileAccess.file_exists(path):
             entries.append({"path": path, "video_frame": int(board["video_frame"]), "keypose_index": int(board["index"])})
-    var schedule: Dictionary = load("res://scripts/karma_intermediate_agent.gd").new().schedule(universal_plan)
+    var schedule: Dictionary = load("res://scripts/karma_intermediate_agent.gd").new().schedule(board_plan)
     for task in schedule.get("tasks", []):
-        var path: String = universal_folder.path_join(str(task["id"]) + ".png")
+        var path: String = board_folder.path_join(str(task["id"]) + ".png")
         if FileAccess.file_exists(path):
             entries.append({"path": path, "video_frame": int(task["target_frame"]), "task": task})
     entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["video_frame"]) < int(b["video_frame"]))
@@ -2407,10 +2532,9 @@ func _process(delta: float) -> void:
     _poll_photo_import(delta)
     if Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("consume_chatgpt_share_result"):
-            var shared: String = str(native.call("consume_chatgpt_share_result"))
-            if shared.begins_with("error:"):
-                status.text = "Partage vers ChatGPT impossible (" + shared + "). La consigne reste copiée et le projet conservé."
+        var shared: String = str(native.call("consume_chatgpt_share_result"))
+        if shared.begins_with("error:"):
+            status.text = "Partage vers ChatGPT impossible (" + shared + "). La consigne reste copiée et le projet conservé."
 
     if not shared_image_deferred:
         _poll_shared_image()
@@ -2463,6 +2587,7 @@ func _sync_friendly_ui() -> void:
     duration_input.editable = not busy
     ai_drawings_count.editable = not busy
     local_mode.disabled = busy
+    remote_fallback.disabled = busy or not local_mode.button_pressed
     local_auth_input.editable = not busy
     busy_bar.visible = busy
     if busy:
@@ -2520,8 +2645,7 @@ func _friendly_restore() -> void:
 func _cancel_photo_import() -> void:
     if Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("cancel_reference_image_import"):
-            native.call("cancel_reference_image_import")
+        native.call("cancel_reference_image_import")
     if picker != null:
         picker.hide()
     _native_image_cancelled()
@@ -2554,23 +2678,26 @@ func _poll_photo_import(delta: float) -> void:
     var phase: String = ""
     if Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("consume_reference_image_result"):
-            # Also recover a pending result after Android recreated Godot.
-            var result: String = str(native.call("consume_reference_image_result"))
-            if not result.is_empty():
-                _consume_photo_result(result, true)
-                return
-        if photo_importing and native.has_method("reference_image_import_status"):
+        # Also recover a pending result after Android recreated Godot.
+        var result: String = str(native.call("consume_reference_image_result"))
+        if not result.is_empty():
+            _consume_photo_result(result, true)
+            return
+        if photo_importing:
             phase = str(native.call("reference_image_import_status"))
     if not photo_importing:
         return
+    _update_photo_import_progress(phase, delta)
+
+func _update_photo_import_progress(phase: String, delta: float) -> void:
     if phase != photo_import_stage:
         photo_import_stage = phase
         photo_import_clock = 0.0
-    # Time spent choosing a document belongs to the user, not the decoder.
     if phase == "selecting":
         status.text = "Galerie ouverte : choisis une image ou reviens pour annuler."
-        return
+        # The picker can lose its callback. Count the wait once Godot regains focus.
+        if not photo_app_focused:
+            return
     if phase == "decoding":
         status.text = "Photo reçue : décodage Android en cours…"
     elif phase == "saving":
@@ -2581,8 +2708,14 @@ func _poll_photo_import(delta: float) -> void:
     var limit_seconds: float = 120.0 if phase in ["decoding", "saving"] else PHOTO_IMPORT_TIMEOUT
     if photo_import_clock >= limit_seconds:
         var failed_stage: String = phase if not phase.is_empty() else "retour du sélecteur / résultat natif absent"
+        var alternate_picker: bool = false
+        if phase not in ["decoding", "saving"] and Engine.has_singleton("MP4Exporter"):
+            var native: Object = Engine.get_singleton("MP4Exporter")
+            native.call("prefer_document_image_picker")
+            alternate_picker = true
         _cancel_photo_import()
-        status.text = "Le chargement ne répond pas à l'étape : " + failed_stage + ". Projet précédent conservé. Réessaie une image locale."
+        var retry: String = "Réessaie avec le sélecteur de fichiers alternatif." if alternate_picker else "Réessaie avec une photo stockée sur l'appareil."
+        status.text = "La galerie Android ne répond pas (" + failed_stage + "). " + retry + " Projet conservé."
 
 func _native_image_error(message: String) -> void:
     chatgpt_import_role = ""
@@ -2827,6 +2960,9 @@ func _make_mp4_exporter() -> Node:
     return load("res://scripts/export_mp4.gd").new()
 
 func _regenerate_universal_drawing() -> void:
+    if universal_folder.ends_with("_remote_fallback") and local_mode.button_pressed and not remote_fallback.button_pressed:
+        status.text = "Pour refaire ce dessin en ligne, autorise le secours Hugging Face dans Réglages et outils."
+        return
     if universal_plan.is_empty() or universal_input_signature != _universal_signature() or not is_instance_valid(universal_pipeline):
         status.text = "Les paramètres ont changé. Relance la création pour préparer le bon plan."
         return
@@ -2930,10 +3066,19 @@ func _drawing_thumbnail(path: String) -> Texture2D:
         image.resize(maxi(1, roundi(image.get_width() * factor)), maxi(1, roundi(image.get_height() * factor)), Image.INTERPOLATE_LANCZOS)
     return ImageTexture.create_from_image(image)
 
+func _may_use_remote_fallback(failure: Dictionary) -> bool:
+    return remote_fallback.button_pressed and not failure.get("ok", false) \
+        and int(failure.get("http_status", 0)) not in [400, 401, 403, 422] \
+        and failure.get("error_kind", "") not in ["authentication", "safety"]
+
+func _make_remote_drawing_worker() -> Node:
+    return load("res://scripts/hf_studio_generator.gd").new()
+
 func _make_drawing_worker() -> Node:
-    var worker: Node = load("res://scripts/local_studio_generator.gd" if local_mode.button_pressed else "res://scripts/hf_studio_generator.gd").new()
-    if worker.has_method("configure_local"):
-        worker.configure_local(local_auth_input.text)
+    if not local_mode.button_pressed:
+        return _make_remote_drawing_worker()
+    var worker: Node = load("res://scripts/local_studio_generator.gd").new()
+    worker.configure_local(local_auth_input.text)
     return worker
 
 func _chatgpt_context() -> Dictionary:
@@ -2962,13 +3107,12 @@ func _send_chatgpt_request(kind: String = "board") -> void:
     _save()
     if Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("share_chatgpt_reference"):
-            var shared_path: String = "" if kind == "reference" else ProjectSettings.globalize_path(imported_path) if not imported_path.is_empty() else ""
-            if bool(native.call("share_chatgpt_reference", shared_path, prompt)):
-                status.text = "Demande préparée pour ChatGPT. Lance la génération dans ChatGPT, enregistre l'image, puis reviens l'importer ici."
-            else:
-                status.text = "Partage indisponible. La consigne est copiée ; ouvre ChatGPT et joins ta référence."
-            return
+        var shared_path: String = "" if kind == "reference" else ProjectSettings.globalize_path(imported_path) if not imported_path.is_empty() else ""
+        if bool(native.call("share_chatgpt_reference", shared_path, prompt)):
+            status.text = "Demande préparée pour ChatGPT. Lance la génération dans ChatGPT, enregistre l'image, puis reviens l'importer ici."
+        else:
+            status.text = "Partage indisponible. La consigne est copiée ; ouvre ChatGPT et joins ta référence."
+        return
     OS.shell_open("https://chatgpt.com/")
     status.text = "Consigne copiée. Colle-la dans ChatGPT et joins ta référence. Puis enregistre et importe le résultat ici."
 
@@ -3074,14 +3218,12 @@ func _poll_shared_image() -> void:
         return
     if Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("peek_shared_image_result"):
-            _offer_shared_image(str(native.call("peek_shared_image_result")))
+        _offer_shared_image(str(native.call("peek_shared_image_result")))
 
 func _ack_shared_image(id: String) -> void:
     if Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("acknowledge_shared_image"):
-            native.call("acknowledge_shared_image", id)
+        native.call("acknowledge_shared_image", id)
 
 func _offer_shared_image(encoded: String) -> void:
     if encoded.is_empty() or is_instance_valid(shared_image_dialog):
@@ -3174,7 +3316,23 @@ func _apply_shared_image(path: String, role: String) -> void:
 func _play_last_mp4() -> void:
     if Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("play_last_export") and bool(native.call("play_last_export")):
+        if bool(native.call("play_last_export")):
             status.text = "Ouverture de ta vidéo dans le lecteur Android."
             return
     status.text = "Crée d'abord une vidéo MP4. Les vidéos déjà enregistrées restent dans Movies/KARMA ONE."
+
+# Pure validation shared with regression tests; never invents an export order.
+static func _validated_export_timeline(timeline: Array, drawing_count: int, approvals: Array) -> Array:
+    if timeline.is_empty() or drawing_count <= 0 or approvals.size() != drawing_count:
+        return []
+    for approved in approvals:
+        if approved != true:
+            return []
+    var valid: Array = []
+    for frame_id in timeline:
+        if not (frame_id is int or frame_id is float):
+            return []
+        if int(frame_id) != float(frame_id) or int(frame_id) < 0 or int(frame_id) >= drawing_count:
+            return []
+        valid.append(int(frame_id))
+    return valid

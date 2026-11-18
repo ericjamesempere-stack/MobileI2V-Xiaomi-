@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """KarmaWan V2: bounded deterministic executors; no autonomous LLM or code mutation."""
 from __future__ import annotations
+from contextlib import contextmanager
 import argparse
 import hashlib
 import json
@@ -11,6 +12,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import time
 import zipfile
 
@@ -23,6 +25,14 @@ GODOT_TESTS = {
     'universal_contract': ('tests/test_universal_board_contract.gd', 'UNIVERSAL_BOARD_CONTRACT_OK'),
     'intermediate': ('tests/test_karma_intermediate_agent.gd', 'V54_INTERMEDIATE_AGENT_CONTRACT_OK'),
     'integration': ('tests/test_universal_android_integration.gd', 'UNIVERSAL_ANDROID_INTEGRATION_OK'),
+    'agent_supervisor': ('tests/test_karma_agent_supervisor.gd', 'PASS karma_agent_supervisor'),
+    'agent_control': ('tests/test_karma_control_lab.gd', 'PASS karma_control_lab'),
+    'agent_learning': ('tests/test_karma_agent_learning_lab.gd', 'PASS karma_agent_learning_lab'),
+    'agent_experience': ('tests/test_karma_agent_experience.gd', 'PASS karma_agent_experience'),
+    'code_test': ('tests/test_karma_code_test_agent.gd', 'PASS karma_code_test_agent'),
+    'technical_memory': ('tests/test_karma_technical_memory.gd', 'AUTOPILOT_TECHNICAL_MEMORY_OK'),
+    'photo_recovery': ('tests/test_v58_photo_recovery.gd', 'V58_PHOTO_RECOVERY_OK'),
+    'assisted_receive': ('tests/test_v60_simplified_receive.gd', 'V60_SIMPLIFIED_RECEIVE_OK'),
 }
 ERRORS = re.compile(r'SCRIPT ERROR|Parse Error|Assertion failed|Failed to load script|INVALID SCRIPT|INVALID MAIN SCENE|\bERROR:|\bFATAL:', re.I)
 ID = re.compile(r'^[a-z][a-z0-9_]{0,63}$')
@@ -35,6 +45,9 @@ TEST_AGENTS = {
     'parse': {'integration','qa'}, 'approval': {'approval','qa','security'},
     'universal_contract': {'motion','integration','qa'},
     'intermediate': {'storyboard','motion','qa'}, 'integration': {'integration','qa'},
+    'agent_supervisor': {'integration'}, 'agent_control': {'security'}, 'agent_learning': {'qa'},
+    'agent_experience': {'qa'}, 'code_test': {'qa'}, 'technical_memory': {'qa'},
+    'photo_recovery': {'integration'}, 'assisted_receive': {'qa'},
 }
 
 def canonical(value):
@@ -71,7 +84,23 @@ class Memory:
             BEGIN SELECT RAISE(ABORT, 'append-only'); END;
           CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, result TEXT NOT NULL);
         ''')
-        self.verify()
+        try:
+            self.verify()
+            self.migrate()
+        except BaseException:
+            self.db.close()
+            raise
+
+    def migrate(self):
+        with self.write_transaction():
+            version = self.db.execute('PRAGMA user_version').fetchone()[0]
+            if version == 0:
+                self.db.execute('''CREATE INDEX IF NOT EXISTS events_attempt_key
+                    ON events(json_extract(payload, '$.key'))
+                    WHERE json_extract(payload, '$.event') = 'attempt' ''')
+                self.db.execute('PRAGMA user_version = 1')
+            elif version != 1:
+                raise ValueError('technical_memory_schema_unsupported')
 
     def verify(self):
         previous = ''
@@ -87,34 +116,64 @@ class Memory:
         self.db.execute('INSERT INTO events(payload,previous,sha) VALUES(?,?,?)',
                         (payload, previous, digest(previous + payload)))
 
-    def append(self, value):
-        with self.db:
-            self._append(value)
-
-    def reserve(self, key, maximum=2):
-        # Reserve before execution; a crash cannot create unlimited retries.
+    @contextmanager
+    def write_transaction(self):
         self.db.execute('BEGIN IMMEDIATE')
         try:
-            used = sum(json.loads(row[0]).get('event') == 'attempt' and
-                       json.loads(row[0]).get('key') == key
-                       for row in self.db.execute('SELECT payload FROM events'))
-            if used >= min(maximum, 2):
-                self.db.rollback()
-                return False
-            self._append({'event': 'attempt', 'key': key, 'attempt': used + 1})
+            yield
             self.db.commit()
-            return True
         except BaseException:
             self.db.rollback()
             raise
 
+    @contextmanager
+    def exclusive_run(self):
+        # A separate SQLite lock keeps this portable and leaves the journal
+        # writable throughout the run. The OS releases the lock on process death.
+        lock = sqlite3.connect(self.path.with_name(self.path.name + '.run-lock'), timeout=0)
+        try:
+            try:
+                lock.execute('BEGIN EXCLUSIVE')
+            except sqlite3.OperationalError as exc:
+                raise ValueError('mission_state_already_in_use') from exc
+            yield
+        finally:
+            lock.close()
+
+    def append(self, value):
+        with self.write_transaction():
+            self._append(value)
+
+    def reserve(self, key, maximum=2):
+        # Reserve before execution; a crash cannot create unlimited retries.
+        with self.write_transaction():
+            used = self.db.execute('''SELECT count(*) FROM events
+                WHERE json_extract(payload, '$.event') = 'attempt'
+                  AND json_extract(payload, '$.key') = ?''', (key,)).fetchone()[0]
+            if used >= min(maximum, 2):
+                return False
+            self._append({'event': 'attempt', 'key': key, 'attempt': used + 1})
+            return True
+
     def cached(self, key):
         row = self.db.execute('SELECT result FROM cache WHERE key=?', (key,)).fetchone()
-        return json.loads(row[0]) if row else None
+        if not row:
+            return None
+        published = self.db.execute('''SELECT 1 FROM events
+            WHERE json_extract(payload, '$.event') = 'result'
+              AND json_extract(payload, '$.key') = ?
+              AND json_extract(payload, '$.checkpoint_sha256') = ?
+            LIMIT 1''', (key, digest(row[0]))).fetchone()
+        return json.loads(row[0]) if published else None
 
-    def save_success(self, key, result):
-        with self.db:
-            self.db.execute('INSERT OR REPLACE INTO cache VALUES(?,?)', (key, canonical(result)))
+    def finish(self, event, result=None):
+        # Publish the success checkpoint and its journal entry together.
+        with self.write_transaction():
+            if result is not None:
+                encoded = canonical(result)
+                event = dict(event, checkpoint_sha256=digest(encoded))
+                self.db.execute('INSERT OR REPLACE INTO cache VALUES(?,?)', (event['key'], encoded))
+            self._append(event)
 
     def close(self):
         self.db.close()
@@ -125,6 +184,11 @@ def validate_tasks(tasks, agents):
     for t in tasks:
         if not isinstance(t, dict) or not ID.fullmatch(str(t.get('id', ''))):
             raise ValueError('invalid_task_id')
+        deps = t.get('dependencies', [])
+        if not isinstance(deps, list) or any(not isinstance(d, str) for d in deps):
+            raise ValueError('invalid_dependencies')
+        if len(set(deps)) != len(deps):
+            raise ValueError('duplicate_dependency')
         if t['id'] in by_id or t.get('agent') not in agents:
             raise ValueError('duplicate_task_or_unknown_agent')
         # No configurable command, script, URL or executable is accepted.
@@ -135,6 +199,8 @@ def validate_tasks(tasks, agents):
         if not isinstance(t.get('max_attempts', 2), int) or not 1 <= t.get('max_attempts', 2) <= 2:
             raise ValueError('invalid_retry_budget')
         executor = t.get('executor', 'unconnected')
+        if not isinstance(executor, str) or executor not in {*EXECUTOR_AGENTS, 'unconnected'}:
+            raise ValueError('unsupported_executor')
         if executor in EXECUTOR_AGENTS and t.get('agent') not in EXECUTOR_AGENTS[executor]:
             raise ValueError('executor_not_authorized_for_role')
         if executor == 'godot':
@@ -164,13 +230,13 @@ def validate_tasks(tasks, agents):
 
 def source_fingerprint(root):
     """Hash actual source and configuration, including edits before commit."""
-    roots = ['scripts', 'tests', 'native', 'addons', 'autopilot', 'scenes', '.github/workflows']
+    roots = ['scripts', 'tests', 'native', 'addons', 'autopilot', 'scenes', 'assets', '.github/workflows']
     paths = [root / 'project.godot', root / 'export_presets.cfg']
     for folder in roots:
         p = root / folder
         if p.is_dir():
             paths.extend(x for x in p.rglob('*') if x.is_file() and
-                         x.suffix.lower() in {'.gd','.py','.java','.gradle','.cfg','.json','.tscn','.yml','.xml'} and
+                         x.suffix.lower() in {'.gd','.py','.java','.gradle','.cfg','.json','.tscn','.yml','.xml','.png','.jpg','.jpeg','.webp','.svg','.tres','.shader','.gdshader'} and
                          '__pycache__' not in x.parts and 'reports' not in x.parts and 'state' not in x.parts)
     return digest(canonical([(str(p.relative_to(root)), file_sha(p)) for p in sorted(set(paths)) if p.is_file()]))
 
@@ -183,24 +249,34 @@ class Supervisor:
         self.godot = godot or os.environ.get('GODOT_BIN', 'godot')
         self.artifacts = artifacts or {}
         self.process = process
+        self.deadline = None
         self.source_sha = source_fingerprint(self.root)
         self.commit = self._git(['rev-parse', 'HEAD']).strip()
         if not re.fullmatch('[0-9a-f]{40,64}', self.commit):
             self.commit = ''
         self._tool_cache = {}
 
+    def _invoke(self, argv, cwd, timeout):
+        if self.deadline is not None:
+            timeout = min(timeout, self.deadline - time.monotonic())
+            if timeout <= 0:
+                raise subprocess.TimeoutExpired(argv, timeout)
+        return self.process(argv, cwd, timeout=timeout)
+
     def _git(self, args):
         git = shutil.which('git')
         if not git:
             return ''
-        r = self.process([git] + args, self.root, timeout=15)
+        r = self._invoke([git] + args, self.root, timeout=15)
         return r.stdout if r.returncode == 0 else ''
 
     def tool(self, name):
         name = self.godot if name == 'godot' else name
         if name not in self._tool_cache:
             found = shutil.which(name)
-            # Tool bytes are part of cache identity; a replaced tool invalidates success.
+            # Resolve symlinks so changing the invoked tool invalidates its identity.
+            if found:
+                found = str(Path(found).resolve())
             self._tool_cache[name] = (found, file_sha(found) if found else '')
         return self._tool_cache[name]
 
@@ -216,18 +292,36 @@ class Supervisor:
         p = self.artifacts.get(name)
         return Path(p).resolve() if p else None
 
-    def key(self, t):
+    def key(self, t, dependency_keys=()):
         dependencies = {'godot':['godot'], 'video':['ffprobe','ffmpeg'], 'apk':['apksigner'], 'inventory':['git']}
         tools = [(n, self.tool(n)[1]) for n in dependencies.get(t.get('executor'), [])]
         p = self._artifact(t)
         source = file_sha(p) if p and p.is_file() else ''
         return digest(canonical({'task': t, 'source': self.source_sha, 'commit': self.commit,
-                                 'artifact': source, 'tools': tools}))
+                                 'artifact': source, 'tools': tools, 'dependencies': dependency_keys}))
+
+    @staticmethod
+    def _write_atomic(path, data):
+        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as handle:
+            temp = Path(handle.name)
+            try:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+                os.replace(temp, path)
+            finally:
+                temp.unlink(missing_ok=True)
 
     def _write_evidence(self, tid, evidence):
-        path = self.report_dir / (tid + '.json')
-        path.write_text(json.dumps(evidence, indent=2) + '\n', encoding='utf-8')
-        return {'path':str(path), 'sha256':file_sha(path)}
+        return self._write_evidence_path(self.report_dir, tid, evidence)
+
+    @staticmethod
+    def _write_evidence_path(directory, tid, evidence):
+        data = (json.dumps(evidence, indent=2) + '\n').encode()
+        sha = digest(data)
+        path = directory / (tid + '-' + sha + '.json')
+        Supervisor._write_atomic(path, data)
+        return {'path': str(path), 'sha256': sha}
 
     @staticmethod
     def _cache_valid(result):
@@ -250,7 +344,7 @@ class Supervisor:
             script, marker = GODOT_TESTS[t['test']]
             if not (self.root / script).is_file():
                 return self.result('BLOCKED', 'allowlisted_test_missing', 'TEST_INTEGRATION')
-            r = self.process([exe,'--headless','--path',str(self.root),'--script','res://' + script], self.root, timeout=120)
+            r = self._invoke([exe,'--headless','--path',str(self.root),'--script','res://' + script], self.root, timeout=120)
             output = r.stdout + r.stderr
             ok = r.returncode == 0 and marker in output and not ERRORS.search(output)
             # Keep fingerprints and fixed categories, never arbitrary exception/output text.
@@ -264,7 +358,7 @@ class Supervisor:
             ffmpeg, _ = self.tool('ffmpeg')
             if not p or not p.is_file() or not probe or not ffmpeg:
                 return self.result('BLOCKED', 'mp4_or_video_tools_missing', 'FICHIER_MP4_DECODE')
-            r = self.process([probe,'-v','error','-select_streams','v:0','-count_frames',
+            r = self._invoke([probe,'-v','error','-select_streams','v:0','-count_frames',
                               '-show_entries','stream=codec_name,pix_fmt,width,height,r_frame_rate,avg_frame_rate,nb_frames,nb_read_frames,duration:format=duration',
                               '-of','json',str(p)], self.root, timeout=120)
             try:
@@ -281,7 +375,7 @@ class Supervisor:
                         ok = ok and actual == expected[field]
             except (ValueError, KeyError, IndexError, TypeError):
                 return self.result('FAIL', 'invalid_video_metadata', 'FICHIER_MP4_DECODE')
-            decoded = self.process([ffmpeg,'-v','error','-xerror','-i',str(p),'-f','null','-'], self.root, timeout=120)
+            decoded = self._invoke([ffmpeg,'-v','error','-xerror','-i',str(p),'-f','null','-'], self.root, timeout=120)
             ok = ok and decoded.returncode == 0
             return self.result('PASS' if ok else 'FAIL', 'h264_decoded' if ok else 'video_verification_failed',
                                'FICHIER_MP4_DECODE', details={'streams':data['streams'],'format':data.get('format',{}),
@@ -305,14 +399,19 @@ class Supervisor:
             if not signer:
                 return self.result('BLOCKED', 'apksigner_missing_signature_unverified', 'APK_PACKAGE_INSPECTION',
                                    details={'abi':abis,'archive_valid':True,'native_plugins_present':True,'file_sha256':file_sha(p)})
-            signed = self.process([signer,'verify','--verbose','--print-certs',str(p)], self.root, timeout=60)
+            signed = self._invoke([signer,'verify','--verbose','--print-certs',str(p)], self.root, timeout=60)
             certificates = re.findall(r'certificate SHA-256 digest: ([0-9a-fA-F:]+)', signed.stdout)
             return self.result('PASS' if signed.returncode == 0 else 'FAIL', 'apk_signature_verified' if signed.returncode == 0 else 'apk_signature_failed',
                                'APK_PACKAGE_INSPECTION', details={'abi':abis,'file_sha256':file_sha(p),'certificate_sha256':certificates,'device_test':False})
         if kind == 'github_audit':
             from autopilot.audit import audit
             try:
-                evidence = audit(commit_sha=self.commit)
+                remaining = self.deadline - time.monotonic() if self.deadline is not None else 25
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired('github_audit', remaining)
+                evidence = audit(commit_sha=self.commit, timeout=min(25, remaining))
+            except subprocess.TimeoutExpired:
+                raise
             except Exception:
                 return self.result('BLOCKED', 'github_read_unavailable', 'GITHUB_ACTIONS_EVIDENCE')
             ok = evidence['all_success']
@@ -321,40 +420,69 @@ class Supervisor:
             return result
         return self.result('NOT_TESTED', 'executor_not_connected', 'UNCONNECTED_ROLE')
 
-    def run(self, tasks):
+    def run(self, tasks, budget_seconds=1800):
+        with self.memory.exclusive_run():
+            try:
+                return self._run(tasks, budget_seconds)
+            finally:
+                self.deadline = None
+
+    def _run(self, tasks, budget_seconds):
         agents = {a['id'] for a in json.loads(REGISTRY.read_text())['agents']}
         ordered = validate_tasks(tasks, agents)
-        results = {}
+        results, keys = {}, {}
+        self.deadline = time.monotonic() + budget_seconds
         for t in ordered:
-            key = self.key(t)
+            tid = t['id']
+            deps = t.get('dependencies', [])
+            key = self.key(t, [keys[d] for d in deps])
+            keys[tid] = key
             cache = self.memory.cached(key)
-            if any(results[d]['status'] != 'PASS' for d in t.get('dependencies', [])):
+            promote = False
+            if any(results[d]['status'] != 'PASS' for d in deps):
                 result = self.result('BLOCKED', 'dependency_not_passed', 'DEPENDENCY_GATE')
             elif t.get('cache', True) and t.get('executor') != 'github_audit' and cache and self._cache_valid(cache):
                 result = dict(cache, cached=True)
+            elif time.monotonic() >= self.deadline:
+                result = self.result('BLOCKED', 'mission_time_budget_exhausted', 'EXECUTION_BUDGET')
             elif not self.memory.reserve(key, t.get('max_attempts', 2)):
                 result = self.result('BLOCKED', 'attempt_budget_exhausted', 'CORRECTION_BUDGET')
             else:
+                # All connected executors are read-only or use local fixture output.
+                started = time.monotonic()
                 try:
                     result = self.execute(t)
-                except subprocess.TimeoutExpired:
-                    result = self.result('FAIL', 'executor_timeout', 'EXECUTOR_FAILURE')
+                except subprocess.TimeoutExpired as exc:
+                    output = b''.join(part or b'' for part in (exc.stdout, exc.stderr) if not isinstance(part, str))
+                    text_output = output.decode(errors='replace') + ''.join(
+                        part for part in (exc.stdout, exc.stderr) if isinstance(part, str))
+                    if t.get('executor') == 'godot' and ERRORS.search(text_output):
+                        result = self.result('FAIL', 'godot_test_failed_before_timeout', 'TEST_INTEGRATION',
+                                             details={'test': t['test'], 'output_sha256': digest(text_output)})
+                    elif time.monotonic() >= self.deadline:
+                        result = self.result('BLOCKED', 'mission_time_budget_exhausted', 'EXECUTION_BUDGET')
+                    else:
+                        result = self.result('FAIL', 'executor_timeout', 'EXECUTOR_FAILURE')
                 except Exception:
                     result = self.result('BLOCKED', 'executor_exception_no_private_output_saved', 'EXECUTOR_FAILURE')
-                # Evidence stores only structured technical results.
-                result['artifacts'] = [self._write_evidence(t['id'], result)]
-                if result['status'] == 'PASS':
-                    self.memory.save_success(key, result)
+                result['elapsed_ms'] = round((time.monotonic() - started) * 1000)
+                result['agent'] = t['agent']
+                result['dependencies'] = deps
+                result['artifacts'] = [self._write_evidence(tid, result)]
+                promote = result['status'] == 'PASS' and t.get('cache', True) and t.get('executor') != 'github_audit'
             result['agent'] = t['agent']
-            results[t['id']] = result
-            self.memory.append({'event':'result','key':key,'task_id':t['id'],'status':result['status'],
+            result['dependencies'] = deps
+            results[tid] = result
+            self.memory.finish({'event':'result','key':key,'task_id':tid,'status':result['status'],
                                 'reason':result['reason'],'source_sha':self.source_sha,'commit_sha':self.commit,
-                                'signature':digest(result['reason']),'cached':result.get('cached',False)})
-        path = self.report_dir / 'latest.json'
-        path.write_text(json.dumps({'version':'AUTOPILOT_V2','tasks':results,
-                         'limitations':['Deterministic executors, not trained autonomous LLM agents',
-                                        'Tests with fixtures do not prove real image inference or Xiaomi operation',
-                                        'No code modification, merge, push, publication or paid-service tool exists']},indent=2)+'\n')
+                                'signature':digest(result['reason']),'cached':result.get('cached',False),
+                                'evidence_sha256':[a['sha256'] for a in result['artifacts']]},
+                               result if promote else None)
+        report = {'version':'AUTOPILOT_V3','tasks':results,
+                  'limitations':['Deterministic executors',
+                                 'Fixture tests do not prove real image inference or Xiaomi operation',
+                                 'Candidate integration requires a separate human decision']}
+        self._write_atomic(self.report_dir / 'latest.json', (json.dumps(report, indent=2) + '\n').encode())
         return results
 
 
@@ -364,15 +492,19 @@ def main():
     ap.add_argument('--state', type=Path)
     ap.add_argument('--report-dir', type=Path)
     ap.add_argument('--godot')
+    ap.add_argument('--budget-seconds', type=int, default=1800, choices=range(1, 1801), metavar='1..1800')
     ap.add_argument('--mp4', type=Path)
     ap.add_argument('--apk', type=Path)
     args = ap.parse_args()
     sup = Supervisor(state=args.state,report_dir=args.report_dir,godot=args.godot,
                      artifacts={k:v for k,v in {'mp4':args.mp4,'apk':args.apk}.items() if v})
     try:
-        result = sup.run(json.loads(args.tasks.read_text())['tasks'])
+        result = sup.run(json.loads(args.tasks.read_text())['tasks'], budget_seconds=args.budget_seconds)
         print(json.dumps({tid:{'status':r['status'],'reason':r['reason'],'cached':r.get('cached',False)} for tid,r in result.items()},indent=2))
         return 0 if all(r['status'] == 'PASS' for r in result.values()) else 1
+    except ValueError as exc:
+        print(json.dumps({'status': 'BLOCKED', 'reason': str(exc)}), file=sys.stderr)
+        return 2
     finally:
         sup.memory.close()
 

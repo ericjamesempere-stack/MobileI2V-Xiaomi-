@@ -81,6 +81,12 @@ func _build_boards(reference: Image, story: String, seconds: float, style: Strin
         return {"ok": false, "stage": "analysis", "detail": plan, "drawings_unchanged": true, "ready_for_animation": false}
     if plan["keyposes"] > maximum_keyposes:
         return {"ok": false, "stage": "budget", "plan": plan, "error": "keypose_budget_exceeded", "required": plan["keyposes"], "budget": maximum_keyposes, "drawings_unchanged": true}
+    # Single authoritative contract for remote and local generation. This is
+    # prompt guidance only; the live vision review still determines fidelity.
+    var fidelity_contract: Dictionary = load("res://scripts/ReferenceFidelityGate.gd").build_request_from_image(reference, story)
+    if not fidelity_contract.get("ok", false):
+        return {"ok": false, "stage": "reference_fidelity", "error": fidelity_contract.get("error", "invalid_reference"), "drawings_unchanged": true, "ready_for_animation": false}
+    worker.reference_contract = fidelity_contract
     var generation: Dictionary = await generate_keyposes(reference, plan, style, folder)
     if not generation.get("ok", false):
         return {"ok": false, "stage": "generation", "plan": plan, "detail": generation, "ready_for_animation": false}
@@ -113,7 +119,8 @@ func _build_boards(reference: Image, story: String, seconds: float, style: Strin
         if intermediate_review.get("ok", false) and intermediate_review.get("failed", []).is_empty() and next_remaining >= remaining:
             return {"ok": false, "stage": "intermediate_fidelity_review", "error": "local_intermediate_no_progress", "plan": plan, "generation": generation, "quality": review, "intermediates": intermediate_result, "intermediate_review": intermediate_review, "human_approved": false, "ready_for_animation": false}
         remaining = next_remaining
-    return {"ok": intermediate_review.get("ok", false), "stage": "intermediate_fidelity_review", "plan": plan, "generation": generation, "quality": review, "intermediates": intermediate_result, "intermediate_review": intermediate_review, "human_approved": false, "ready_for_animation": false, "intermediates_generated_this_pass": generated_total}
+    var all_intermediates_verified: bool = _intermediate_review_complete(intermediate_review)
+    return {"ok": all_intermediates_verified, "stage": "intermediate_fidelity_review", "plan": plan, "generation": generation, "quality": review, "intermediates": intermediate_result, "intermediate_review": intermediate_review, "human_approved": false, "ready_for_animation": false, "intermediates_generated_this_pass": generated_total}
 
 func _write(path: String, value: Dictionary) -> bool:
     var file := FileAccess.open(path + ".part", FileAccess.WRITE)
@@ -135,7 +142,7 @@ func prepare(reference: Image, story: String, seconds: float, folder: String) ->
             return prepare_from_scene(reference, scene, seconds, folder)
     var response: Dictionary = await worker.analyze_scene(reference, story)
     if not response.get("ok", false):
-        return {"ok": false, "error": response.get("error", "vision_unavailable"), "semantic_analysis": false, "drawings_unchanged": true}
+        return {"ok": false, "error": response.get("error", "vision_unavailable"), "semantic_analysis": false, "drawings_unchanged": true, "http_status": response.get("http_status", 0), "network_result": response.get("network_result", -1), "request_error": response.get("request_error", 0)}
     var scene: Dictionary = response["scene"]
     scene["story"] = story
     return prepare_from_scene(reference, scene, seconds, folder)
@@ -260,6 +267,7 @@ func generate_keyposes(reference: Image, plan: Dictionary, style: String, folder
     var previous: Image = null
     var pending: Array = []
     var failure: String = ""
+    var engine_failure: Dictionary = {}
     var reused: int = 0
     var session: RefCounted = load("res://scripts/karma_studio_session.gd").new()
     for i in range(plan["boards"].size()):
@@ -282,6 +290,7 @@ func generate_keyposes(reference: Image, plan: Dictionary, style: String, folder
                 var response: Dictionary = await worker.redraw_batch(reference, briefs, style, _trusted_previous(folder, i, plan, style))
                 if not response.get("ok", false):
                     failure = str(response.get("error", "generation_failed"))
+                    engine_failure = {"ok": false, "http_status": response.get("http_status", 0), "network_result": response.get("network_result", -1), "request_error": response.get("request_error", 0), "error_kind": response.get("error_kind", "")}
                     break
                 pending = response["images"].duplicate()
                 if response.has("sheet"):
@@ -302,6 +311,8 @@ func generate_keyposes(reference: Image, plan: Dictionary, style: String, folder
         stage_changed.emit("generation", paths.size(), plan["keyposes"])
         previous = image
     var result: Dictionary = {"ok": failure.is_empty() and paths.size() == plan["keyposes"], "paths": paths, "keyposes_required": plan["keyposes"], "keyposes_generated": paths.size(), "reused": reused, "intermediates_required": plan["intermediate_drawings"], "intermediates_generated": 0, "semantic_analysis": plan["semantic_analysis"], "analysis_origin": plan["analysis_origin"], "automatic_fidelity_check": "unavailable", "fidelity_verified": false, "human_approved": false, "ready_for_animation": false, "error": failure, "engines": worker.engine_status.duplicate(true)}
+    if not engine_failure.is_empty():
+        result["engine_failure"] = engine_failure
     _write(folder.path_join("generation.json"), result)
     return result
 
@@ -330,10 +341,17 @@ func repair_keypose(reference: Image, plan: Dictionary, style: String, folder: S
     if not quality.get("ok", false):
         return {"ok": false, "error": "repair_technical_quality_failed_original_kept"}
     var path: String = folder.path_join("pose_%04d.png" % index)
-    if FileAccess.file_exists(path):
-        DirAccess.copy_absolute(path, folder.path_join("before_repair_%04d_%s.png" % [index, FileAccess.get_sha256(path).substr(0, 12)]))
+    var meta_path: String = folder.path_join("pose_%04d.json" % index)
+    var original_hash: String = FileAccess.get_sha256(path)
+    var backup: String = folder.path_join("before_repair_%04d_%s.png" % [index, original_hash.substr(0, 12)])
+    var backup_meta: String = folder.path_join("before_repair_%04d_%s.json" % [index, original_hash.substr(0, 12)])
+    # Never replace the only good copy of a drawing or its metadata.
+    if DirAccess.copy_absolute(path, backup) != OK or not FileAccess.file_exists(meta_path) or DirAccess.copy_absolute(meta_path, backup_meta) != OK:
+        return {"ok": false, "error": "repair_backup_failed_original_kept"}
     if not _save_drawing(image, plan, index, style, folder, quality, defect):
-        return {"ok": false, "error": "repair_save_failed"}
+        DirAccess.copy_absolute(backup, path)
+        DirAccess.copy_absolute(backup_meta, meta_path)
+        return {"ok": false, "error": "repair_save_failed_original_restored"}
     for p in other_hashes:
         if FileAccess.get_sha256(p) != other_hashes[p]:
             return {"ok": false, "error": "unrelated_drawing_changed"}
@@ -438,3 +456,7 @@ func review_and_correct(reference: Image, plan: Dictionary, style: String, folde
     review["repairs"] = attempts
     review["human_approved"] = false
     return review
+
+# A successful API response is not the same as a successful fidelity review.
+static func _intermediate_review_complete(review: Dictionary) -> bool:
+    return review.get("ok", false) and review.get("fidelity_verified", false) and review.get("failed", []).is_empty() and review.get("pending", []).is_empty()

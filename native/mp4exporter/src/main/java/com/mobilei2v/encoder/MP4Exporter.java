@@ -58,6 +58,9 @@ public final class MP4Exporter extends GodotPlugin {
     @UsedByGodot public void cancel_reference_image_import() {
         ReferenceImagePickerActivity.cancel(getGodot().getContext());
     }
+    @UsedByGodot public void prefer_document_image_picker() {
+        ReferenceImagePickerActivity.preferDocumentPicker(getGodot().getContext());
+    }
     @UsedByGodot public boolean pick_reference_image() {
         return pick_reference_image_for_role("reference");
     }

@@ -44,6 +44,12 @@ func run() -> void:
     assert(not (await router.redraw(reference, "blocked", "original"))["ok"])
     assert(router.calls == ["qwen"])
     router.free()
+    router = RoutedEditor.new()
+    router.first_failure = "authentication"
+    root.add_child(router)
+    assert(not (await router.redraw(reference, "falls", "original"))["ok"])
+    assert(router.calls == ["qwen"], "Do not retry authentication failures on another provider")
+    router.free()
     var worker: Node = load("res://scripts/hf_studio_generator.gd").new()
     var sheet := Image.create(1024, 1024, false, Image.FORMAT_RGB8)
     var colors: Array[Color] = [Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW]

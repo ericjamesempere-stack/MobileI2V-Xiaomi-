@@ -91,7 +91,7 @@ func build(board: Control) -> void:
     shell.add_theme_constant_override("separation", 12)
     margin.add_child(shell)
     text(shell, "KARMA ONE", 36, PURPLE)
-    text(shell, "Imagine. Dessine. Anime. · V60", 21, MUTED)
+    text(shell, "Imagine. Dessine. Anime. · V60 · 1.6.2", 21, MUTED)
     var tabs := HBoxContainer.new()
     tabs.add_theme_constant_override("separation", 8)
     shell.add_child(tabs)
@@ -272,6 +272,7 @@ func build(board: Control) -> void:
     film.add_child(board.review_check)
     board.friendly_export = button(board, board.wizard_pages[2], "Créer ma vidéo MP4", board._friendly_export, true)
     board.friendly_export.name = "CreateMovie"
+    button(board, board.wizard_pages[2], "Exporter les dessins et la planche PNG", board._export_png_sequence, false)
     button(board, board.wizard_pages[2], "Lire ma dernière vidéo", board._play_last_mp4).name = "PlayMovie"
     button(board, board.wizard_pages[2], "Partager ma vidéo", board._share_last_mp4)
     button(board, board.wizard_pages[2], "Améliorer mon histoire", func() -> void: board._go_step(1))
@@ -283,7 +284,11 @@ func build(board: Control) -> void:
     button(board, advanced, "Créer avec le moteur configuré", board._create_remote_reference).name = "ConfiguredReference"
     button(board, advanced, "Créer les dessins avec le moteur configuré", board._friendly_generate).name = "GenerateStory"
     advanced.add_child(board.local_mode)
-    text(advanced, "Mode local : MNN Chat et Local Dream nécessitent des modèles installés. Décoche pour utiliser les services distants ; leurs quotas s'appliquent. Aucune bascule automatique.", 18, MUTED)
+    text(advanced, "Décoche le mode local pour envoyer tes demandes et images aux services Hugging Face de KARMA ONE. Leurs quotas s'appliquent.", 18, MUTED)
+    board.remote_fallback = CheckBox.new()
+    board.remote_fallback.text = "Autoriser le secours Hugging Face pour cette session"
+    advanced.add_child(board.remote_fallback)
+    text(advanced, "Si le moteur local est indisponible, Créer peut envoyer ta demande et tes images aux services Hugging Face.", 18, MUTED)
     text(advanced, "Durée personnalisée (secondes)", 20)
     board.duration_input = SpinBox.new()
     board.duration_input.min_value = 1
@@ -297,7 +302,7 @@ func build(board: Control) -> void:
     board.ai_drawings_count.value = 24
     advanced.add_child(board.ai_drawings_count)
     text(advanced, "Installation des moteurs locaux", 20)
-    text(advanced, "À installer une seule fois : MNN Chat avec un modèle vision et Local Dream avec un modèle SD1.5 CPU prenant en charge img2img. Ouvre les moteurs et garde leurs services actifs. Télécharge les modèles en Wi-Fi. Aucun abonnement ni appel en ligne automatique dans ce mode ; le calcul utilise ton téléphone.", 18, MUTED)
+    text(advanced, "À installer une seule fois : MNN Chat avec un modèle vision et Local Dream avec un modèle SD1.5 CPU prenant en charge img2img. Ouvre les moteurs et garde leurs services actifs. Télécharge les modèles en Wi-Fi.", 18, MUTED)
     text(advanced, "Sur Xiaomi MediaTek : commence par CPU. Les modèles DiT et NPU réservés aux Snapdragon ne sont pas sélectionnés par KARMA ONE. La qualité et la vitesse restent à vérifier avec tes images.", 18, MUTED)
     button(board, advanced, "Vérifier les moteurs du téléphone", board._check_local_engines).name = "CheckLocalEngines"
     board.local_engine_status = text(advanced, "Connexion locale non vérifiée. Ce contrôle ne génère aucune image.", 18, MUTED)

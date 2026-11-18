@@ -76,8 +76,7 @@ func inspect_local_engines(include_vision: bool = true, include_drawing: bool = 
     var failures: Array[String] = []
     if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("local_engine_installation_status"):
-            report["android_apps"] = JSON.parse_string(str(native.call("local_engine_installation_status")))
+        report["android_apps"] = JSON.parse_string(str(native.call("local_engine_installation_status")))
     if include_vision:
         var response: Dictionary = await _local_request(vision_base, "/v1/models", {}, true, 4.0)
         var parsed := JSON.new()
@@ -119,7 +118,7 @@ func _ensure_drawing_service() -> Dictionary:
     if drawing_probe_base == drawing_base:
         return {"ok": true}
     var result: Dictionary = await inspect_local_engines(false, true)
-    return {"ok": result["ok"], "error": result["message"]}
+    return {"ok": result["ok"], "error": result["message"], "http_status": result["drawing"].get("http_status", 0), "network_result": result["drawing"].get("network_result", -1)}
 
 func _vision_request(images: Array[Image], prompt: String) -> Dictionary:
     # MNN Chat exposes an OpenAI-compatible API. Select an actually loaded
@@ -127,7 +126,7 @@ func _vision_request(images: Array[Image], prompt: String) -> Dictionary:
     if local_model.is_empty():
         var discovery: Dictionary = await inspect_local_engines(true, false)
         if not discovery.get("ok", false):
-            return {"ok": false, "error": discovery["message"]}
+            return {"ok": false, "error": discovery["message"], "http_status": discovery["vision"].get("http_status", 0), "network_result": discovery["vision"].get("network_result", -1)}
     if local_model.is_empty():
         return {"ok": false, "error": "Aucun modèle local sélectionné."}
     var content: Array = [{"type": "text", "text": prompt}]
@@ -159,6 +158,8 @@ func _generation_payload(reference: Image, instruction: String, style: String, v
     var directive: String = instruction + " " + _style_instruction(style) + " Preserve the reference identities and anatomy. "
     if not scene_registry.is_empty():
         directive += JSON.stringify({"entities": scene_registry.get("entities", []), "relations": scene_registry.get("relations", [])})
+    if reference_contract.get("ok", false):
+        directive += " " + " ".join(reference_contract.get("constraints", []))
     return {"image": _encode_input(canvas), "prompt": directive, "negative_prompt": "unrequested subjects, duplicate subject, invented body parts, changed identity, text, watermark", "width": 512, "height": 512, "steps": 20, "cfg": 7.5, "seed": randi() if variation else 1234, "scheduler": "dpm", "denoise_strength": 0.6, "use_opencl": use_opencl, "show_diffusion_process": false, "output_format": "png"}
 
 func _compile_local_prompt(reference: Image, instruction: String, style: String) -> Dictionary:
@@ -168,6 +169,8 @@ func _compile_local_prompt(reference: Image, instruction: String, style: String)
     # Never blindly truncate the requested action or submit an oversized prompt.
     var context: String = JSON.stringify({"entities": scene_registry.get("entities", []), "relations": scene_registry.get("relations", [])})
     var prompt: String = "Compile a Stable Diffusion CLIP prompt. Return ONLY JSON {\"prompt\":\"...\"}. Write one concise English visual description, ideally under 40 words. Describe the requested physical state FIRST, then the subject appearance and style. Resolve entity IDs to visible subjects. Preserve counts and non-human anatomy; invent nothing. No instructions, JSON, IDs, panel labels or reference to image numbers inside the prompt. If a transition is requested, describe a single state at the specified fraction, not both endpoints together. The picture anchors appearance; the instruction defines the new action. Style: " + _style_instruction(style) + ". Scene: " + context + ". Requested drawing: " + instruction
+    if reference_contract.get("ok", false):
+        prompt += " Mandatory identity constraints: " + " ".join(reference_contract.get("constraints", []))
     var inputs: Array[Image] = []
     if reference != null and not reference.is_empty():
         inputs.append(reference)

@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "tasks": [
     {
       "id": "inventory",
@@ -104,6 +104,120 @@
       "inputs": {
         "test": "integration"
       },
+      "max_attempts": 2
+    },
+    {
+      "id": "agent_supervisor",
+      "agent": "integration",
+      "executor": "godot",
+      "test": "agent_supervisor",
+      "dependencies": [
+        "parse"
+      ],
+      "objective": "Engine proof, stage transitions and export approval",
+      "acceptance_criteria": [
+        "Engine proof, stage transitions and export approval"
+      ],
+      "max_attempts": 2
+    },
+    {
+      "id": "agent_control",
+      "agent": "security",
+      "executor": "godot",
+      "test": "agent_control",
+      "dependencies": [
+        "agent_supervisor"
+      ],
+      "objective": "Guard, diagnostic, recovery, benchmark and optimizer contracts",
+      "acceptance_criteria": [
+        "Guard, diagnostic, recovery, benchmark and optimizer contracts"
+      ],
+      "max_attempts": 2
+    },
+    {
+      "id": "agent_experience",
+      "agent": "qa",
+      "executor": "godot",
+      "test": "agent_experience",
+      "dependencies": [
+        "parse"
+      ],
+      "objective": "Verified experience retention and recommendation",
+      "acceptance_criteria": [
+        "Verified experience retention and recommendation"
+      ],
+      "max_attempts": 2
+    },
+    {
+      "id": "code_test",
+      "agent": "qa",
+      "executor": "godot",
+      "test": "code_test",
+      "dependencies": [
+        "agent_control"
+      ],
+      "objective": "Fail-closed quality, evidence and regression decisions",
+      "acceptance_criteria": [
+        "Fail-closed quality, evidence and regression decisions"
+      ],
+      "max_attempts": 2
+    },
+    {
+      "id": "agent_learning",
+      "agent": "qa",
+      "executor": "godot",
+      "test": "agent_learning",
+      "dependencies": [
+        "agent_experience",
+        "code_test"
+      ],
+      "objective": "Benchmark, experience, reload and independent code-test collaboration",
+      "acceptance_criteria": [
+        "Benchmark, experience, reload and independent code-test collaboration"
+      ],
+      "max_attempts": 2
+    },
+    {
+      "id": "technical_memory",
+      "agent": "qa",
+      "executor": "godot",
+      "test": "technical_memory",
+      "dependencies": [
+        "parse"
+      ],
+      "objective": "Godot runtime evidence and retry reservation",
+      "acceptance_criteria": [
+        "Godot runtime evidence and retry reservation"
+      ],
+      "max_attempts": 2
+    },
+    {
+      "id": "photo_recovery",
+      "agent": "integration",
+      "executor": "godot",
+      "test": "photo_recovery",
+      "dependencies": [
+        "parse"
+      ],
+      "objective": "Photo persistence and preview via Godot fixture",
+      "acceptance_criteria": [
+        "Photo persistence and preview via Godot fixture"
+      ],
+      "max_attempts": 2
+    },
+    {
+      "id": "assisted_receive",
+      "agent": "qa",
+      "executor": "godot",
+      "test": "assisted_receive",
+      "dependencies": [
+        "photo_recovery",
+        "approval"
+      ],
+      "objective": "Three-step assisted storyboard and simulated Android reception",
+      "acceptance_criteria": [
+        "Three-step assisted storyboard and simulated Android reception"
+      ],
       "max_attempts": 2
     }
   ]

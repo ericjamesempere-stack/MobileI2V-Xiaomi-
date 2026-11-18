@@ -1,0 +1,74 @@
+name: Verify KARMA ONE unified modules
+on:
+  push:
+    branches: [karma/integration-unified-20261118, karma/step12-visual-quality-gate-20261118]
+    paths:
+      - 'scripts/storyboard.gd'
+      - 'scripts/universal_board_pipeline.gd'
+      - 'scripts/hf_studio_generator.gd'
+      - 'scripts/local_studio_generator.gd'
+      - 'scripts/ReferenceFidelityGate.gd'
+      - 'scripts/GeneratedFrameValidator.gd'
+      - 'scripts/AnimationContactSheet.gd'
+      - 'scripts/karma_lyrics_sync_bridge_v6.gd'
+      - 'tests/test_unified_storyboard_wiring.gd'
+      - 'tests/test_fidelity_prompt_wiring.gd'
+      - 'tests/test_intermediate_fidelity_completion.gd'
+      - 'scripts/android_image_reader.gd'
+      - 'tests/test_universal_image_import_formats.gd'
+      - 'tests/test_universal_subject_contracts.gd'
+      - 'tests/test_mp4_approved_timeline.gd'
+      - 'scripts/export_mp4.gd'
+      - 'tests/test_mp4_source_preflight.gd'
+      - 'tests/test_mp4_output_container.gd'
+      - 'tests/test_png_board_export.gd'
+      - 'tests/test_reference_fidelity_gate.gd'
+      - 'tests/test_generated_frame_validator.gd'
+      - 'tests/test_karma_lyrics_bridge_v6.gd'
+      - '.github/workflows/verify-unified-merge.yml'
+  pull_request:
+    branches: [karma/integration-unified-20261118]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: karma-unified-tests-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  godot-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.5.2 headless
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.5.2-stable_linux.x86_64
+      - name: Import project
+        run: ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --import --quit
+      - name: Test unified storyboard script and entrypoints
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_unified_storyboard_wiring.gd
+      - name: Test PNG drawing and storyboard export
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_png_board_export.gd
+      - name: Test MP4 output container verification
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_mp4_output_container.gd
+      - name: Test MP4 source image preflight
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_mp4_source_preflight.gd
+      - name: Test approved MP4 timeline integrity
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_mp4_approved_timeline.gd
+      - name: Test universal subjects and requested transformations
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_universal_subject_contracts.gd
+      - name: Test PNG JPEG WebP import and invalid files
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_universal_image_import_formats.gd
+      - name: Test intermediate fidelity completion gate
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_intermediate_fidelity_completion.gd
+      - name: Test fidelity instructions reach remote and local image engines
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_fidelity_prompt_wiring.gd
+      - name: Test reference fidelity gate
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_reference_fidelity_gate.gd
+      - name: Test generated storyboard frames
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_generated_frame_validator.gd
+      - name: Test lyrics synchronization bridge
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_karma_lyrics_bridge_v6.gd

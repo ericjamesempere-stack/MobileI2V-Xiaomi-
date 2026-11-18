@@ -1,0 +1,28 @@
+extends SceneTree
+
+func _initialize() -> void:
+    var board = load("res://scripts/storyboard.gd")
+    assert(board != null)
+    var image := Image.create(48, 32, false, Image.FORMAT_RGBA8)
+    image.fill(Color(0.3, 0.4, 0.8))
+    var tex: Texture2D = ImageTexture.create_from_image(image)
+    var originals: PackedByteArray = image.get_data()
+    var folder := "user://png_board_test_%d" % Time.get_ticks_usec()
+    assert(board._export_approved_png_board([tex, tex], [true, false], folder, "test", 2.0).get("error", "") == "approval_required")
+    assert(not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(folder)))
+    var result: Dictionary = board._export_approved_png_board([tex, tex], [true, true], folder, "test", 2.0)
+    assert(result.get("ok", false))
+    assert(result.get("count", 0) == 2)
+    for i in range(2):
+        var saved := Image.new()
+        assert(saved.load(folder.path_join("drawing_%04d.png" % i)) == OK)
+        assert(saved.get_width() == 48 and saved.get_height() == 32)
+    var sheet := Image.new()
+    assert(sheet.load(folder.path_join("storyboard.png")) == OK)
+    assert(sheet.get_width() == 384 and sheet.get_height() == 192)
+    var manifest: Variant = JSON.parse_string(FileAccess.get_file_as_string(folder.path_join("manifest.json")))
+    assert(manifest is Dictionary and manifest.get("count", 0) == 2)
+    assert(tex.get_image().get_data() == originals)
+    assert(board._export_approved_png_board([tex], [true], folder, "test", 2.0).get("error", "") == "destination_exists")
+    print("PNG_BOARD_EXPORT_OK")
+    quit(0)
