@@ -119,7 +119,8 @@ func _build_boards(reference: Image, story: String, seconds: float, style: Strin
         if intermediate_review.get("ok", false) and intermediate_review.get("failed", []).is_empty() and next_remaining >= remaining:
             return {"ok": false, "stage": "intermediate_fidelity_review", "error": "local_intermediate_no_progress", "plan": plan, "generation": generation, "quality": review, "intermediates": intermediate_result, "intermediate_review": intermediate_review, "human_approved": false, "ready_for_animation": false}
         remaining = next_remaining
-    return {"ok": intermediate_review.get("ok", false), "stage": "intermediate_fidelity_review", "plan": plan, "generation": generation, "quality": review, "intermediates": intermediate_result, "intermediate_review": intermediate_review, "human_approved": false, "ready_for_animation": false, "intermediates_generated_this_pass": generated_total}
+    var all_intermediates_verified: bool = intermediate_review.get("ok", false) and intermediate_review.get("fidelity_verified", false) and intermediate_review.get("failed", []).is_empty() and intermediate_review.get("pending", []).is_empty()
+    return {"ok": all_intermediates_verified, "stage": "intermediate_fidelity_review", "plan": plan, "generation": generation, "quality": review, "intermediates": intermediate_result, "intermediate_review": intermediate_review, "human_approved": false, "ready_for_animation": false, "intermediates_generated_this_pass": generated_total}
 
 func _write(path: String, value: Dictionary) -> bool:
     var file := FileAccess.open(path + ".part", FileAccess.WRITE)
