@@ -4,8 +4,11 @@ on:
     branches: [karma/integration-unified-20261118]
     paths:
       - 'scripts/ReferenceFidelityGate.gd'
+      - 'scripts/GeneratedFrameValidator.gd'
+      - 'scripts/AnimationContactSheet.gd'
       - 'scripts/karma_lyrics_sync_bridge_v6.gd'
       - 'tests/test_reference_fidelity_gate.gd'
+      - 'tests/test_generated_frame_validator.gd'
       - 'tests/test_karma_lyrics_bridge_v6.gd'
       - '.github/workflows/verify-unified-merge.yml'
   workflow_dispatch:
@@ -30,5 +33,7 @@ jobs:
         run: ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --import --quit
       - name: Test reference fidelity gate
         run: ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_reference_fidelity_gate.gd
+      - name: Test generated storyboard frames
+        run: ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_generated_frame_validator.gd
       - name: Test lyrics synchronization bridge
         run: ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_karma_lyrics_bridge_v6.gd
