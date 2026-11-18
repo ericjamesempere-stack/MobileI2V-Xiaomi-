@@ -43,7 +43,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-dir", required=True, type=Path)
     for key in REQUIRED:
-        parser.add_argument("--" + key.replace("_", "-"), default=key + (".json" if key == "tokenizer" else ".mnn"))
+        parser.add_argument("--" + key.replace("_", "-"), default=key + (".mtok" if key == "tokenizer" else ".mnn"))
     args = parser.parse_args()
     names = {key: getattr(args, key) for key in REQUIRED}
     manifest = create_manifest(args.model_dir, names)
