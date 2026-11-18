@@ -20,13 +20,13 @@ func _initialize() -> void:
     for method in required:
         if not board.has_method(method):
             push_error("missing storyboard wiring: " + method)
-            var source: String = FileAccess.get_file_as_string("res://scripts/storyboard.gd")
+            board.free()
+            quit(1)
+            return
+    var source: String = FileAccess.get_file_as_string("res://scripts/storyboard.gd")
     assert(source.contains("inspect_visual_change(reference, candidate_sources[i].get_image())"))
     assert(source.contains('universal_quality["visual_diagnostics"] = visual_warnings'))
     assert(source.contains('universal_quality["identity_verified"] = false'))
-    board.free()
-            quit(1)
-            return
     board.free()
     print("PASS unified storyboard wiring: methods present")
     quit(0)
