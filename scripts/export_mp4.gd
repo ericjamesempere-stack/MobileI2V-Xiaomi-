@@ -72,6 +72,12 @@ func export_board_mp4(board_images: Array, timeline: Array, duration: float) -> 
     if board_images.is_empty() or timeline.is_empty():
         _set_status("MP4 impossible : planche vide.")
         return
+    # Validate every referenced drawing before opening the native encoder.
+    # A missing later frame must not leave a partial video on the device.
+    var preflight: Dictionary = _preflight_board_sources(board_images, timeline)
+    if not preflight.get("ok", false):
+        _set_status("MP4 impossible : " + str(preflight.get("error", "invalid_board")))
+        return
     var native_encoder: Object = _get_encoder()
     if native_encoder == null:
         _set_status("Encodeur MP4 Android indisponible. Utilise l'export AVI local.")
@@ -157,3 +163,22 @@ func _fit_canvas(source: Image) -> Image:
 
 func _get_encoder() -> Object:
     return Engine.get_singleton("MP4Exporter") if Engine.has_singleton("MP4Exporter") else null
+
+# Read-only preflight. Does not resize, overwrite or mutate source drawings.
+func _preflight_board_sources(board_images: Array, timeline: Array) -> Dictionary:
+    if board_images.is_empty() or timeline.is_empty():
+        return {"ok": false, "error": "empty_board_or_timeline"}
+    var inspected: Dictionary = {}
+    for value in timeline:
+        if not (value is int or value is float) or float(value) != float(int(value)):
+            return {"ok": false, "error": "invalid_timeline_index"}
+        var index: int = int(value)
+        if index < 0 or index >= board_images.size():
+            return {"ok": false, "error": "timeline_out_of_range"}
+        if inspected.has(index):
+            continue
+        var image: Image = _read_drawing(board_images[index])
+        if image == null or image.is_empty() or image.get_width() < 1 or image.get_height() < 1:
+            return {"ok": false, "error": "unreadable_drawing_%d" % index}
+        inspected[index] = true
+    return {"ok": true, "inspected": inspected.size()}
