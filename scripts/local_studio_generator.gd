@@ -19,18 +19,23 @@ func configure_resource_budget(free_mb: int, thermal_level: int, battery_percent
     return resource_budget.duplicate(true)
 
 func _apply_image_optimization(payload: Dictionary) -> Dictionary:
+    # Reject invalid requests before changing any caller-owned data.
+    for key in ["width", "height", "steps"]:
+        if payload.has(key) and (not payload[key] is int or int(payload[key]) <= 0):
+            return {"ok": false, "error": "invalid_image_parameter", "parameter": key}
     var plan: Dictionary = optimization_agents.image_plan(resource_budget)
     optimization_last_plan = plan.duplicate(true)
     if not plan.get("ok", false):
         return {"ok": false, "error": plan.get("error", "device_not_ready")}
-    # Keep the original 512px canvas and fidelity defaults; only reduce work
-    # when measured constraints require it. Do not claim quantization support.
+    # Keep the original canvas and fidelity defaults; reduce work only when
+    # resource constraints demand it. Never mutate the source request.
+    var optimized: Dictionary = payload.duplicate(true)
     var edge: int = mini(512, int(plan.get("target_edge", 512)))
-    payload["width"] = mini(int(payload.get("width", 512)), edge)
-    payload["height"] = mini(int(payload.get("height", 512)), edge)
+    optimized["width"] = mini(int(optimized.get("width", 512)), edge)
+    optimized["height"] = mini(int(optimized.get("height", 512)), edge)
     if resource_budget.get("mode", "balanced") == "economy":
-        payload["steps"] = mini(int(payload.get("steps", 20)), 12)
-    return {"ok": true, "payload": payload, "plan": plan}
+        optimized["steps"] = mini(int(optimized.get("steps", 20)), 12)
+    return {"ok": true, "payload": optimized, "plan": plan}
 
 const LOCAL_REVISION := "mnn-localdream-v3-clip-prompts"
 var drawing_probe_base: String = ""
