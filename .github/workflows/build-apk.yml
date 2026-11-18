@@ -138,6 +138,17 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Select Java 17 for Android Robolectric tests
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Confirm Java 17 test runtime
+        run: |
+          java -version
+          test "${JAVA_HOME:+set}" = "set"
+          test "$(java -XshowSettings:properties -version 2>&1 | sed -n 's/.*java.specification.version = //p' | head -1)" = "17"
+
       - name: Verify native MP4 Gradle dependencies
         run: |
           set -euo pipefail
