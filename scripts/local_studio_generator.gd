@@ -393,3 +393,9 @@ func create_reference(description: String, style: String) -> Dictionary:
         return optimized
     var result: Dictionary = await _local_request(drawing_base, "/generate", optimized["payload"])
     return decode_local_drawing(result["body"]) if result.get("ok", false) else result
+
+# Built-in offline renderer for simple camera-only shots. Not a diffusion model.
+# Call only when the requested operation is explicitly a camera movement.
+func render_device_camera_frame(reference: Image, fraction: float, motion: String = "pan_right") -> Dictionary:
+    var engine: RefCounted = load("res://scripts/karma_device_image_engine.gd").new()
+    return engine.render_camera_frame(reference, fraction, motion)
