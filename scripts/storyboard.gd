@@ -2271,6 +2271,10 @@ func _draw_remote_story() -> void:
     # storyboard. A missing/corrupt frame must not erase a previous project or
     # produce an empty timeline that later indexes entries[0].
     var candidate_entries: Array = _entries_for_universal_plan(result["plan"], folder)
+    var file_review: Dictionary = load("res://scripts/GeneratedFrameValidator.gd").inspect_storyboard_entries(candidate_entries)
+    if not file_review.get("ok", false):
+        status.text = "Contrôle des dessins échoué (" + str(file_review.get("error", "unknown")) + ") ; projet précédent conservé."
+        return
     var candidate_sources: Array[Texture2D] = []
     var candidate_paths: Array[String] = []
     for entry in candidate_entries:
