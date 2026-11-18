@@ -269,6 +269,17 @@ jobs:
           timeout 30s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_local_prompt.gd 2>&1 | tee local-prompt.log
           grep -q 'LOCAL_PROMPT_BUDGET_OK' local-prompt.log
           if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' local-prompt.log; then exit 1; fi
+      - name: Step 12 interchangeable optimization agents and local wiring
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          for entry in 'test_karma_module_registry.gd:KARMA_MODULE_REGISTRY_OK' 'test_karma_optimization_agents.gd:KARMA_OPTIMIZATION_AGENTS_OK' 'test_local_optimization_wiring.gd:KARMA_LOCAL_OPTIMIZATION_WIRING_OK'; do
+            script="${entry%%:*}"
+            marker="${entry#*:}"
+            timeout 30s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script "res://tests/$script" 2>&1 | tee "step12-${script%.gd}.log"
+            grep -q "$marker" "step12-${script%.gd}.log"
+            if grep -Ei 'SCRIPT ERROR|Assertion failed|Parse Error|ERROR:' "step12-${script%.gd}.log"; then exit 1; fi
+          done
       - name: Test integrated universal Android screen through MP4
         timeout-minutes: 3
         run: |
