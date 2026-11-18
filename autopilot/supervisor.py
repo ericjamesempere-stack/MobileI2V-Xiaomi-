@@ -291,10 +291,14 @@ class Supervisor:
                 temp.unlink(missing_ok=True)
 
     def _write_evidence(self, tid, evidence):
+        return self._write_evidence_path(self.report_dir, tid, evidence)
+
+    @staticmethod
+    def _write_evidence_path(directory, tid, evidence):
         data = (json.dumps(evidence, indent=2) + '\n').encode()
         sha = digest(data)
-        path = self.report_dir / (tid + '-' + sha + '.json')
-        self._write_atomic(path, data)
+        path = directory / (tid + '-' + sha + '.json')
+        Supervisor._write_atomic(path, data)
         return {'path': str(path), 'sha256': sha}
 
     @staticmethod
