@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22.1)
 project(karma_mnn_arm64 LANGUAGES CXX)
-if(NOT ANDROID OR NOT CMAKE_ANDROID_ARCH_ABI STREQUAL "arm64-v8a")
+if(NOT ANDROID OR NOT ANDROID_ABI STREQUAL "arm64-v8a")
   message(FATAL_ERROR "KARMA MNN native backend only supports Android arm64-v8a")
 endif()
 set(MNN_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/prebuilt" CACHE PATH "MNN Android arm64 prebuilt SDK")
