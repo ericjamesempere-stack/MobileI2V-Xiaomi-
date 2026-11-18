@@ -153,7 +153,13 @@ jobs:
         run: |
           set -euo pipefail
           gradle -p native/mp4exporter assembleDebug testDebugUnitTest --no-daemon
-          test -s native/mp4exporter/build/outputs/aar/mp4exporter-debug.aar
+          # Gradle names the AAR from rootProject.name (MobileI2VMP4),
+          # not from the source folder name (mp4exporter).
+          mapfile -t aar_files < <(find native/mp4exporter/build/outputs/aar -maxdepth 1 -type f -name '*-debug.aar')
+          test "${#aar_files[@]}" -eq 1
+          test -s "${aar_files[0]}"
+          unzip -t "${aar_files[0]}" >/dev/null
+          echo "Validated MP4 AAR: ${aar_files[0]}"
 
       - name: Publish agents validation log
         if: always()
