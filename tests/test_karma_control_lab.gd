@@ -13,6 +13,7 @@ func _initialize() -> void:
     var bench: RefCounted = load("res://scripts/karma_benchmark_agent.gd").new()
     var optimizer: RefCounted = load("res://scripts/karma_optimizer_agent.gd").new()
     var lab: RefCounted = load("res://scripts/karma_agent_control_lab.gd").new()
+    check(not guard.authorize("code_test", "merge_protected_branch", {"session_valid": true}).get("ok", false), "protected merge allowed")
     check(not guard.authorize("image", "encode", {"session_valid": true}).get("ok", false), "image agent can encode")
     check(not guard.authorize("video", "encode", {"session_valid": true, "user_approved": true, "approved_fingerprint": "a", "current_fingerprint": "b"}).get("ok", false), "stale approval accepted")
     check(guard.authorize("video", "encode", {"session_valid": true, "user_approved": true, "approved_fingerprint": "a", "current_fingerprint": "a"}).get("ok", false), "valid approval blocked")
