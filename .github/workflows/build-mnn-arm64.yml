@@ -4,6 +4,10 @@ on:
     branches: [karma/step12-consolidation-20261118]
     paths:
       - '.github/workflows/build-mnn-arm64.yml'
+      - 'native/mnnarm64/src/karma_sd_scheduler.hpp'
+      - 'native/mnnarm64/src/karma_mnn_jni.cpp'
+      - 'native/mnnarm64/src/KarmaMnnBridge.java'
+      - 'tests/test_mnn_ddim_scheduler.cpp'
   workflow_dispatch:
 permissions:
   contents: read
@@ -13,6 +17,11 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - name: Validate DDIM scheduler numerically on host
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -I native/mnnarm64/src tests/test_mnn_ddim_scheduler.cpp -o /tmp/karma-ddim-test
+          /tmp/karma-ddim-test
       - name: Setup Android NDK r27c
         uses: nttld/setup-ndk@v1
         id: ndk
