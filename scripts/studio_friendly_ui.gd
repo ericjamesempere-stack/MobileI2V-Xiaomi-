@@ -140,8 +140,8 @@ func build(board: Control) -> void:
     board.character_description.custom_minimum_size.y = 120
     board.character_description.placeholder_text = "Un renard, un paysage, un véhicule, plusieurs sujets…"
     board.invent_box.add_child(board.character_description)
-    text(board.invent_box, "Avec ChatGPT : tu lances la génération dans ChatGPT puis tu importes son image ici. Ton abonnement garde ses propres limites ; aucun appel ZeroGPU par ce bouton.", 18, MUTED)
-    button(board, board.invent_box, "Créer cette image dans ChatGPT", board._send_chatgpt_reference, true).name = "ChatGPTReference"
+    text(board.invent_box, "Le moteur image configuré crée la référence ; aucun compte ChatGPT requis.", 18, MUTED)
+    button(board, board.invent_box, "Générer mon image avec les agents", board._create_remote_reference, true).name = "AgentReference"
 
     board.invent_box.visible = false
     board.preview = TextureRect.new()
@@ -188,7 +188,7 @@ func build(board: Control) -> void:
     button(board, person, "Importer une référence de style", board._choose_style_reference).name = "ChooseStyleReference"
     button(board, person, "Retirer la référence de style", board._remove_style_reference)
     text(person, "Le style est facultatif. Original conserve le style de ta référence.", 18)
-    text(person, "Le bouton Préparer et ouvrir ChatGPT partage la référence et la consigne avec l’application choisie. Tu lances la génération dans ChatGPT ; les limites de ton compte s’appliquent.", 18, MUTED)
+    text(person, "Photo depuis la galerie Android ou création avec le moteur image configuré.", 18, MUTED)
 
     var story: VBoxContainer = card(board.wizard_pages[0], "Que va-t-il se passer ?", "Raconte une petite aventure. Tu peux commencer par un exemple.")
     board.action_input = TextEdit.new()
@@ -212,8 +212,10 @@ func build(board: Control) -> void:
         preset.custom_minimum_size.y = 60
         preset.add_theme_font_size_override("font_size", 19)
     board.choice_summary = text(story, "", 19, MUTED)
-    var chatgpt: VBoxContainer = card(board.wizard_pages[1], "Mes dessins", "Depuis ChatGPT : Partager → KARMA ONE, puis choisir Planche. Tu peux aussi enregistrer et importer l’image. Chaque dessin doit être examiné avant la vidéo.")
-    button(board, board.wizard_pages[0], "Préparer et ouvrir ChatGPT", board._send_chatgpt_board, true).name = "ChatGPTBoard"
+    var chatgpt := VBoxContainer.new() # Legacy grid controls for saved projects
+    chatgpt.visible = false
+    board.wizard_pages[1].add_child(chatgpt)
+    button(board, board.wizard_pages[0], "Générer mes dessins avec les agents", board._friendly_generate, true).name = "AgentBoard"
     button(board, board.wizard_pages[0], "Voir mes dessins", func() -> void: board._go_step(1), true).name = "NextStory"
     var grid_shape := HBoxContainer.new()
     var grid_toggle := Button.new()
@@ -236,9 +238,6 @@ func build(board: Control) -> void:
     board.chatgpt_rows.value = 2
     grid_shape.add_child(board.chatgpt_rows)
     text(chatgpt, "Grille automatique par défaut : 4 × 2. Vérifie les dessins après import.", 18, MUTED)
-    button(board, chatgpt, "Importer la planche de ChatGPT", board._choose_chatgpt_board).name = "ImportChatGPTBoard"
-    button(board, chatgpt, "Importer le dessin refait", board._choose_chatgpt_replacement).name = "ImportChatGPTRedo"
-    button(board, chatgpt, "Voir l’image partagée en attente", board._reopen_shared_image).name = "SharedImagePending"
     button(board, board.wizard_pages[1], "Revoir mon image de départ", func() -> void: board._go_step(0))
 
     var film: VBoxContainer = card(board.wizard_pages[2], "Ton histoire prend forme", "Regarde les dessins avant de créer ta vidéo.")
