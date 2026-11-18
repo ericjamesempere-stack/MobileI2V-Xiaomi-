@@ -1,5 +1,10 @@
 name: KARMA ONE - SD15 real model conversion (manual, NO APK)
 on:
+  push:
+    branches:
+      - karma/step12-consolidation-20261118
+    paths:
+      - .github/workflows/convert-sd15-mnn.yml
   workflow_dispatch:
     inputs:
       model_revision:
@@ -15,11 +20,12 @@ jobs:
     env:
       EXPECTED_REPO: ericjamesempere-stack/MobileI2V-Xiaomi-
       MODEL_ID: stable-diffusion-v1-5/stable-diffusion-v1-5
+      PINNED_MODEL_REVISION: 451f4fe16113bff5a5d2269ed5ad43b0592e9a14
     steps:
       - name: Enforce single target repository and branch
         shell: bash
         env:
-          REVISION: ${{ inputs.model_revision }}
+          REVISION: ${{ github.event.inputs.model_revision || '451f4fe16113bff5a5d2269ed5ad43b0592e9a14' }}
         run: |
           set -euo pipefail
           test "$GITHUB_REPOSITORY" = "$EXPECTED_REPO"
