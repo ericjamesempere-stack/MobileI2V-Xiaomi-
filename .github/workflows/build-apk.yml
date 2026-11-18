@@ -6,6 +6,11 @@ on:
     paths:
       - '.github/workflows/build-apk.yml'
       - 'scripts/local_studio_generator.gd'
+      - 'scripts/studio_friendly_ui.gd'
+      - 'scripts/storyboard.gd'
+      - 'scripts/universal_board_pipeline.gd'
+      - 'scripts/reference_visual_analysis.gd'
+      - 'scripts/hf_studio_generator.gd'
       - 'scripts/karma_optimization_agents.gd'
       - 'scripts/karma_module_registry.gd'
       - 'tests/test_local_optimization_wiring.gd'
