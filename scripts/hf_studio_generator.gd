@@ -282,7 +282,13 @@ func redraw(reference: Image, story: String, style: String, previous: Image = nu
             return result
         engine_status[engine] = {"status": "unavailable", "error": result.get("error", "Erreur IA"), "error_kind": result.get("error_kind", "unknown"), "quota_detail": result.get("quota_detail", "")}
         failures.append(engine + ": " + str(result.get("error", "Erreur IA")))
-    return {"ok": false, "error": "Aucun moteur n'a produit ce dessin. " + " | ".join(failures), "engines": engine_status.duplicate(true)}
+    var kinds: Array[String] = []
+    for engine_name in ["qwen", "anypose"]:
+        var failure_kind: String = str(engine_status.get(engine_name, {}).get("error_kind", ""))
+        if not failure_kind.is_empty():
+            kinds.append(failure_kind)
+    var summary_kind: String = "quota" if kinds.has("quota") else ("transport" if kinds.has("transport") else ("provider_unavailable" if not kinds.is_empty() else "unknown"))
+    return {"ok": false, "error": "Aucun moteur n'a produit ce dessin. " + " | ".join(failures), "error_kind": summary_kind, "engines": engine_status.duplicate(true)}
 
 func _redraw_qwen(reference: Image, story: String, style: String, previous: Image, new_variation: bool) -> Dictionary:
     var payload: Dictionary = build_edit_payload(reference, story, style, previous)
