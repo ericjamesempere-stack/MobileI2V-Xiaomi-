@@ -454,6 +454,8 @@ func assess_keyposes(reference: Image, frames: Array[Image], expected: Array) ->
     var images: Array[Image] = [reference]
     images.append_array(frames)
     var prompt: String = "Image 1 is the original reference. Images 2 onward are candidate drawings in order. Inspect, do not assume correctness. For EACH candidate check exact subject identities and counts, requested physical state and contacts, object shapes, scene geometry, perspective and invariant attributes. Requested camera changes and transformations are allowed, unrequested changes are defects. If uncertain, say so. Return ONLY JSON: {frames:[{index:zero_based_integer,identity_match:boolean,count_match:boolean,action_match:boolean,environment_match:boolean,perspective_match:boolean,uncertain:boolean,defects:[string]}]}. Expected drawings: " + JSON.stringify(expected) + ". Scene registry: " + JSON.stringify(scene_registry)
+    if reference_contract.get("ok", false):
+        prompt += " Reference identity constraints to check explicitly: " + " ".join(reference_contract.get("constraints", []))
     var response: Dictionary = await _vision_request(images, prompt)
     if not response.get("ok", false):
         vision_failed = true
