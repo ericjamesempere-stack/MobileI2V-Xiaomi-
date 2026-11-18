@@ -1,0 +1,34 @@
+name: Verify KARMA ONE unified modules
+on:
+  push:
+    branches: [karma/integration-unified-20261118]
+    paths:
+      - 'scripts/ReferenceFidelityGate.gd'
+      - 'scripts/karma_lyrics_sync_bridge_v6.gd'
+      - 'tests/test_reference_fidelity_gate.gd'
+      - 'tests/test_karma_lyrics_bridge_v6.gd'
+      - '.github/workflows/verify-unified-merge.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: karma-unified-tests-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  godot-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.5.2 headless
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.5.2-stable_linux.x86_64
+      - name: Import project
+        run: ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --import --quit
+      - name: Test reference fidelity gate
+        run: ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_reference_fidelity_gate.gd
+      - name: Test lyrics synchronization bridge
+        run: ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_karma_lyrics_bridge_v6.gd
