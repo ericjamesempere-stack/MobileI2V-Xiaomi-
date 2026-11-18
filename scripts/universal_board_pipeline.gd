@@ -336,10 +336,17 @@ func repair_keypose(reference: Image, plan: Dictionary, style: String, folder: S
     if not quality.get("ok", false):
         return {"ok": false, "error": "repair_technical_quality_failed_original_kept"}
     var path: String = folder.path_join("pose_%04d.png" % index)
-    if FileAccess.file_exists(path):
-        DirAccess.copy_absolute(path, folder.path_join("before_repair_%04d_%s.png" % [index, FileAccess.get_sha256(path).substr(0, 12)]))
+    var meta_path: String = folder.path_join("pose_%04d.json" % index)
+    var original_hash: String = FileAccess.get_sha256(path)
+    var backup: String = folder.path_join("before_repair_%04d_%s.png" % [index, original_hash.substr(0, 12)])
+    var backup_meta: String = folder.path_join("before_repair_%04d_%s.json" % [index, original_hash.substr(0, 12)])
+    # Never replace the only good copy of a drawing or its metadata.
+    if DirAccess.copy_absolute(path, backup) != OK or not FileAccess.file_exists(meta_path) or DirAccess.copy_absolute(meta_path, backup_meta) != OK:
+        return {"ok": false, "error": "repair_backup_failed_original_kept"}
     if not _save_drawing(image, plan, index, style, folder, quality, defect):
-        return {"ok": false, "error": "repair_save_failed"}
+        DirAccess.copy_absolute(backup, path)
+        DirAccess.copy_absolute(backup_meta, meta_path)
+        return {"ok": false, "error": "repair_save_failed_original_restored"}
     for p in other_hashes:
         if FileAccess.get_sha256(p) != other_hashes[p]:
             return {"ok": false, "error": "unrelated_drawing_changed"}
