@@ -18,6 +18,8 @@ on:
       - 'tests/test_universal_image_import_formats.gd'
       - 'tests/test_universal_subject_contracts.gd'
       - 'tests/test_mp4_approved_timeline.gd'
+      - 'scripts/export_mp4.gd'
+      - 'tests/test_mp4_source_preflight.gd'
       - 'tests/test_reference_fidelity_gate.gd'
       - 'tests/test_generated_frame_validator.gd'
       - 'tests/test_karma_lyrics_bridge_v6.gd'
@@ -44,6 +46,8 @@ jobs:
         run: ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --editor --import --quit
       - name: Test unified storyboard script and entrypoints
         run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_unified_storyboard_wiring.gd
+      - name: Test MP4 source image preflight
+        run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_mp4_source_preflight.gd
       - name: Test approved MP4 timeline integrity
         run: timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_mp4_approved_timeline.gd
       - name: Test universal subjects and requested transformations
