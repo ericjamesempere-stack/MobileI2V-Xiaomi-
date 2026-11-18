@@ -286,7 +286,7 @@ func build(board: Control) -> void:
     text(advanced, "Décoche le mode local pour envoyer tes demandes et images aux services Hugging Face de KARMA ONE. Leurs quotas s'appliquent.", 18, MUTED)
     board.remote_fallback = CheckBox.new()
     board.remote_fallback.text = "Secours IA automatique en ligne (Hugging Face)"
-    board.remote_fallback.button_pressed = true
+    board.remote_fallback.button_pressed = false # User must explicitly authorize photo upload to external AI.
     board.remote_fallback.name = "RemoteFallback"
     advanced.add_child(board.remote_fallback)
     text(advanced, "Si le moteur local échoue, les photos et consignes peuvent être envoyées à Hugging Face. Services soumis à disponibilité et quotas.", 18, MUTED)
