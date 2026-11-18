@@ -44,6 +44,33 @@ jobs:
             echo "::error::Autopilot script errors detected"
             exit 1
           fi
+      - name: Validate module registry, optimization agents and local wiring
+        run: |
+          set -euo pipefail
+          : > karma-agents-validation.log
+          for spec in \
+            "tests/test_karma_module_registry.gd:KARMA_MODULE_REGISTRY_OK" \
+            "tests/test_karma_optimization_agents.gd:KARMA_OPTIMIZATION_AGENTS_OK" \
+            "tests/test_local_optimization_wiring.gd:KARMA_LOCAL_OPTIMIZATION_WIRING_OK"; do
+            script="${spec%%:*}"
+            marker="${spec#*:}"
+            echo "Validating ${script}" | tee -a karma-agents-validation.log
+            timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script "res://${script}" 2>&1 | tee -a karma-agents-validation.log
+            grep -Fq "${marker}" karma-agents-validation.log
+          done
+          if grep -Ei 'SCRIPT ERROR|Parse Error|Invalid call|Invalid assignment|Assertion failed|ERROR:' karma-agents-validation.log; then
+            echo "::error::KARMA agents validation encountered errors"
+            exit 1
+          fi
+      - name: Publish agents validation log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: karma-agents-validation-${{ github.sha }}
+          path: karma-agents-validation.log
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Publish Autopilot test log
         if: always()
         uses: actions/upload-artifact@v4
