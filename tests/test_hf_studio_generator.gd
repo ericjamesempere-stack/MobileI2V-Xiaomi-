@@ -33,6 +33,18 @@ class VisionFailover extends "res://scripts/hf_studio_generator.gd":
             return {"ok": false, "error_kind": "hidden_server_error", "error": "server unavailable"}
         return {"ok": false, "error_kind": "transport", "http_status": 503, "error": "backup unavailable"}
 
+class AdapterContract extends "res://scripts/hf_studio_generator.gd":
+    var calls: Array[Dictionary] = []
+    func _upload_images(_base: String, _images: Array[Image]) -> Dictionary:
+        return {"ok": true, "files": [{"path": "/tmp/test.png", "meta": {"_type": "gradio.FileData"}}]}
+    func _call_api(base: String, api: String, data: Array) -> Dictionary:
+        calls.append({"base": base, "api": api, "data": data})
+        if api == "run_vl":
+            return {"ok": true, "data": ['{"entities":[],"steps":[]}']}
+        if api == "chat":
+            return {"ok": true, "data": ['{"entities":[],"steps":[]}']}
+        return {"ok": true, "data": ["", [], [["user", '{"entities":[],"steps":[]}']], []]}
+
 func _initialize() -> void:
     call_deferred("run")
 
@@ -82,6 +94,19 @@ func run() -> void:
     assert(failover.called[1] == "https://backup-one.example")
     assert(failed.get("attempts", []).size() == 4)
     failover.free()
+    var adapters := AdapterContract.new()
+    root.add_child(adapters)
+    var test_image := Image.create(8, 8, false, Image.FORMAT_RGB8)
+    test_image.fill(Color.BLUE)
+    for endpoint in [adapters.SMOLVLM_URL, adapters.QWEN_VL_URL, adapters.MINICPM_URL]:
+        var checked: Dictionary = await adapters._vision_request_at(endpoint, [test_image], "Return JSON")
+        assert(checked.get("ok", false))
+        assert(adapters.extract_vision_text(checked.get("data", [])).contains("entities"))
+    assert(adapters.calls.size() == 3)
+    assert(adapters.calls[0]["api"] == "chat" and adapters.calls[0]["data"].size() == 2)
+    assert(adapters.calls[1]["api"] == "run_vl" and adapters.calls[1]["data"].size() == 6)
+    assert(adapters.calls[2]["api"] == "handle_submit" and adapters.calls[2]["data"].size() == 8)
+    adapters.free()
     var editor := FakeEditor.new()
     root.add_child(editor)
     var reference := Image.create(8, 8, false, Image.FORMAT_RGB8)
