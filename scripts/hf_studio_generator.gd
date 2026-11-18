@@ -276,7 +276,9 @@ func redraw(reference: Image, story: String, style: String, previous: Image = nu
                 result["engine"] = engine
                 return result
             result = {"ok": false, "error": "Dessin absent ou illisible.", "error_kind": "invalid_image"}
-        if result.get("error_kind", "") in ["authentication", "safety"] or int(result.get("http_status", 0)) in [400, 401, 403, 422]:
+        # Request, authorization, safety and payment failures are not provider outages.
+        # Do not spend another free-provider attempt on an unchanged invalid request.
+        if result.get("error_kind", "") in ["authentication", "safety", "budget", "invalid_request"] or int(result.get("http_status", 0)) in [400, 401, 402, 403, 422]:
             return result
         engine_status[engine] = {"status": "unavailable", "error": result.get("error", "Erreur IA"), "error_kind": result.get("error_kind", "unknown"), "quota_detail": result.get("quota_detail", "")}
         failures.append(engine + ": " + str(result.get("error", "Erreur IA")))
