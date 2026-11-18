@@ -268,8 +268,9 @@ func build(board: Control) -> void:
         var svg: String = '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><rect x="1" y="1" width="26" height="26" rx="7" fill="%s" stroke="#6955da" stroke-width="2"/>%s</svg>' % ["#6955da" if checked else "white", mark]
         if image.load_svg_from_string(svg) == OK:
             board.review_check.add_theme_icon_override(state, ImageTexture.create_from_image(image))
+    board.review_check.visible = false # Legacy state only; final button provides one approval.
     film.add_child(board.review_check)
-    board.friendly_export = button(board, board.wizard_pages[2], "Créer ma vidéo MP4", board._friendly_export, true)
+    board.friendly_export = button(board, board.wizard_pages[2], "Valider et exporter ma vidéo MP4", board._friendly_export, true)
     board.friendly_export.name = "CreateMovie"
     button(board, board.wizard_pages[2], "Exporter les dessins et la planche PNG", board._export_png_sequence, false)
     button(board, board.wizard_pages[2], "Lire ma dernière vidéo", board._play_last_mp4).name = "PlayMovie"
