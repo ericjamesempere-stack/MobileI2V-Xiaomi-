@@ -20,6 +20,7 @@ var engine_status: Dictionary = {}
 var style_reference: Image = null
 var repair_target: Image = null
 var scene_registry: Dictionary = {}
+var reference_contract: Dictionary = {}
 var remote_vision_consent: bool = false
 var vision_failed: bool = false
 var job_folder: String = ""
@@ -46,6 +47,8 @@ func build_edit_payload(reference: Image, story: String, style: String, previous
     var instruction: String = style_text + " Image 1 is the permanent subject reference. " + story
     if not scene_registry.is_empty():
         instruction += " Scene registry (preserve every entity identity and invariant, and only make explicitly allowed changes): " + JSON.stringify({"entities": scene_registry.get("entities", []), "relations": scene_registry.get("relations", [])}) + ". Fixed world elements remain fixed in world space; camera changes may alter their projected image positions."
+    if reference_contract.get("ok", false):
+        instruction += " Reference fidelity requirements: " + " ".join(reference_contract.get("constraints", []))
     var images: Array[String] = [_encode_input(reference)]
     var adapter: String = str(STYLES[style][0]) if STYLES.has(style) else "Style-Transfer"
     var style_image: Image = style_reference
