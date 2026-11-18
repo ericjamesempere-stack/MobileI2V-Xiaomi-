@@ -3,6 +3,10 @@ extends SceneTree
 func _initialize() -> void:
     call_deferred("run")
 func run() -> void:
+    for script_path in ["storyboard.gd", "android_image_reader.gd", "local_studio_generator.gd"]:
+        var source_code: String = FileAccess.get_file_as_string("res://scripts/" + script_path)
+        assert(not source_code.is_empty())
+        assert(not source_code.contains("native.has_method("), "Android plugin methods bypass Object.has_method: " + script_path)
     var board: Node = load("res://scripts/storyboard.gd").new()
     root.add_child(board)
     await process_frame

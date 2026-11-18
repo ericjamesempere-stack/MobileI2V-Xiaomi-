@@ -144,12 +144,6 @@ func _ready() -> void:
     pose_http.timeout = 45.0
     add_child(pose_http)
     pose_http.request_completed.connect(_pose_completed)
-    if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
-        var native: Object = Engine.get_singleton("MP4Exporter")
-        if not native.has_method("consume_reference_image_result") and native.has_signal("reference_image_selected"):
-            native.connect("reference_image_selected", Callable(self, "_image_chosen"), CONNECT_DEFERRED)
-            native.connect("reference_image_error", Callable(self, "_native_image_error"), CONNECT_DEFERRED)
-            native.connect("reference_image_cancelled", Callable(self, "_native_image_cancelled"), CONNECT_DEFERRED)
     review_check.toggled.connect(_review_confirmation_changed)
     _load_saved()
     if not sources.is_empty():
@@ -766,15 +760,16 @@ func _choose_image(as_style: bool = false, native_role: String = "") -> void:
     chatgpt_import_role = native_role
     photo_import_clock = 0.0
     if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
+        # Godot 4.5 dispatches Android plugin methods through JNISingleton.callp.
+        # They are absent from Object.has_method(), despite being callable.
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("pick_reference_image"):
-            photo_importing = true
-            status.text = "Ouverture de la galerie…"
-            photo_import_stage = "opening"
-            photo_importing = bool(native.call("pick_reference_image_for_role", native_role if not native_role.is_empty() else "style" if as_style else "reference")) if native.has_method("pick_reference_image_for_role") else bool(native.call("pick_reference_image"))
-            status.text = "Choisis une image dans ta galerie." if photo_importing else "La galerie n'a pas pu s'ouvrir. Réessaie."
-            if not photo_importing:
-                importing_style_reference = false
+        var role: String = native_role
+        if role.is_empty():
+            role = "style" if as_style else "reference"
+        photo_import_stage = "opening"
+        photo_importing = bool(native.call("pick_reference_image_for_role", role))
+        if photo_importing:
+            status.text = "Choisis une image dans ta galerie."
             return
     # Native Android document/photo picker uses a user-selected URI; do not
     # request broad storage permissions merely to choose one image.
@@ -2537,10 +2532,9 @@ func _process(delta: float) -> void:
     _poll_photo_import(delta)
     if Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("consume_chatgpt_share_result"):
-            var shared: String = str(native.call("consume_chatgpt_share_result"))
-            if shared.begins_with("error:"):
-                status.text = "Partage vers ChatGPT impossible (" + shared + "). La consigne reste copiée et le projet conservé."
+        var shared: String = str(native.call("consume_chatgpt_share_result"))
+        if shared.begins_with("error:"):
+            status.text = "Partage vers ChatGPT impossible (" + shared + "). La consigne reste copiée et le projet conservé."
 
     if not shared_image_deferred:
         _poll_shared_image()
@@ -2651,8 +2645,7 @@ func _friendly_restore() -> void:
 func _cancel_photo_import() -> void:
     if Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("cancel_reference_image_import"):
-            native.call("cancel_reference_image_import")
+        native.call("cancel_reference_image_import")
     if picker != null:
         picker.hide()
     _native_image_cancelled()
@@ -2685,13 +2678,12 @@ func _poll_photo_import(delta: float) -> void:
     var phase: String = ""
     if Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("consume_reference_image_result"):
-            # Also recover a pending result after Android recreated Godot.
-            var result: String = str(native.call("consume_reference_image_result"))
-            if not result.is_empty():
-                _consume_photo_result(result, true)
-                return
-        if photo_importing and native.has_method("reference_image_import_status"):
+        # Also recover a pending result after Android recreated Godot.
+        var result: String = str(native.call("consume_reference_image_result"))
+        if not result.is_empty():
+            _consume_photo_result(result, true)
+            return
+        if photo_importing:
             phase = str(native.call("reference_image_import_status"))
     if not photo_importing:
         return
@@ -2719,9 +2711,8 @@ func _update_photo_import_progress(phase: String, delta: float) -> void:
         var alternate_picker: bool = false
         if phase not in ["decoding", "saving"] and Engine.has_singleton("MP4Exporter"):
             var native: Object = Engine.get_singleton("MP4Exporter")
-            if native.has_method("prefer_document_image_picker"):
-                native.call("prefer_document_image_picker")
-                alternate_picker = true
+            native.call("prefer_document_image_picker")
+            alternate_picker = true
         _cancel_photo_import()
         var retry: String = "Réessaie avec le sélecteur de fichiers alternatif." if alternate_picker else "Réessaie avec une photo stockée sur l'appareil."
         status.text = "La galerie Android ne répond pas (" + failed_stage + "). " + retry + " Projet conservé."
@@ -3116,13 +3107,12 @@ func _send_chatgpt_request(kind: String = "board") -> void:
     _save()
     if Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("share_chatgpt_reference"):
-            var shared_path: String = "" if kind == "reference" else ProjectSettings.globalize_path(imported_path) if not imported_path.is_empty() else ""
-            if bool(native.call("share_chatgpt_reference", shared_path, prompt)):
-                status.text = "Demande préparée pour ChatGPT. Lance la génération dans ChatGPT, enregistre l'image, puis reviens l'importer ici."
-            else:
-                status.text = "Partage indisponible. La consigne est copiée ; ouvre ChatGPT et joins ta référence."
-            return
+        var shared_path: String = "" if kind == "reference" else ProjectSettings.globalize_path(imported_path) if not imported_path.is_empty() else ""
+        if bool(native.call("share_chatgpt_reference", shared_path, prompt)):
+            status.text = "Demande préparée pour ChatGPT. Lance la génération dans ChatGPT, enregistre l'image, puis reviens l'importer ici."
+        else:
+            status.text = "Partage indisponible. La consigne est copiée ; ouvre ChatGPT et joins ta référence."
+        return
     OS.shell_open("https://chatgpt.com/")
     status.text = "Consigne copiée. Colle-la dans ChatGPT et joins ta référence. Puis enregistre et importe le résultat ici."
 
@@ -3228,14 +3218,12 @@ func _poll_shared_image() -> void:
         return
     if Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("peek_shared_image_result"):
-            _offer_shared_image(str(native.call("peek_shared_image_result")))
+        _offer_shared_image(str(native.call("peek_shared_image_result")))
 
 func _ack_shared_image(id: String) -> void:
     if Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("acknowledge_shared_image"):
-            native.call("acknowledge_shared_image", id)
+        native.call("acknowledge_shared_image", id)
 
 func _offer_shared_image(encoded: String) -> void:
     if encoded.is_empty() or is_instance_valid(shared_image_dialog):
@@ -3328,7 +3316,7 @@ func _apply_shared_image(path: String, role: String) -> void:
 func _play_last_mp4() -> void:
     if Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("play_last_export") and bool(native.call("play_last_export")):
+        if bool(native.call("play_last_export")):
             status.text = "Ouverture de ta vidéo dans le lecteur Android."
             return
     status.text = "Crée d'abord une vidéo MP4. Les vidéos déjà enregistrées restent dans Movies/KARMA ONE."

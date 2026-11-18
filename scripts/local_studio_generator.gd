@@ -76,8 +76,7 @@ func inspect_local_engines(include_vision: bool = true, include_drawing: bool = 
     var failures: Array[String] = []
     if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("local_engine_installation_status"):
-            report["android_apps"] = JSON.parse_string(str(native.call("local_engine_installation_status")))
+        report["android_apps"] = JSON.parse_string(str(native.call("local_engine_installation_status")))
     if include_vision:
         var response: Dictionary = await _local_request(vision_base, "/v1/models", {}, true, 4.0)
         var parsed := JSON.new()
