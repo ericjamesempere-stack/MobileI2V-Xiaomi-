@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       expected_sha:
-        description: "Optional reference SHA (the workflow always builds the selected branch HEAD)"
+        description: "Optional full SHA; if provided it must match selected branch HEAD"
         required: false
         type: string
 
@@ -38,6 +38,18 @@ jobs:
     steps:
       - name: Checkout project
         uses: actions/checkout@v4
+
+      - name: Guard exact source and artifact identity
+        env:
+          REQUESTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" != 'karma/step11-final-integration-20261118' || test "$APK_NAME" = 'KARMA_ONE_STEP11_INTEGRATION_ARM64'
+          if [ -n "$REQUESTED_SHA" ]; then
+            test "$REQUESTED_SHA" = "$GITHUB_SHA" || { echo "::error::Selected branch SHA differs from requested SHA"; exit 1; }
+          fi
+          echo "Building $GITHUB_REF_NAME at $GITHUB_SHA as $APK_NAME"
+
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -404,7 +416,7 @@ jobs:
               assert any(b'share_last_export' in data for data in dex), 'MP4 share method absent'
               assert any(b'Lcom/mobilei2v/encoder/ReferenceImageImporter;' in data for data in dex), 'Native reference importer absent'
               assert any(b'pick_reference_image' in data for data in dex), 'Native photo picker absent'
-              if os.environ['GITHUB_REF_NAME'] == 'karma/step10-consolidation-safe-20261118':
+              if os.environ['GITHUB_REF_NAME'] in ('karma/step10-consolidation-safe-20261118', 'karma/step11-final-integration-20261118'):
                   assert any(b'prefer_document_image_picker' in data for data in dex), 'Document picker bridge absent'
               assert any(b'Lcom/mobilei2v/encoder/ReferenceImagePickerActivity;' in data for data in dex), 'Durable receiver absent'
               assert any(b'Lcom/mobilei2v/encoder/SharedImageReceiverActivity;' in data for data in dex), 'Shared image receiver absent'
@@ -422,7 +434,7 @@ jobs:
           set -euo pipefail
           sha256sum build/${APK_NAME}.apk | tee build/SHA256SUMS.txt
           {
-            echo "## MobileI2V Android build"
+            echo "## KARMA ONE Android build"
             echo "- Commit: \`$GITHUB_SHA\`"
             echo "- Godot: 4.5.2"
             echo "- KARMA ONE integration tests: passed"
