@@ -1,4 +1,6 @@
 #include <jni.h>
+#include "karma_sd_scheduler.hpp"
+#include <vector>
 #include <MNN/Interpreter.hpp>
 #include <MNN/Tensor.hpp>
 #include <memory>
@@ -59,4 +61,28 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_mobilei2v_mnn_KarmaMnnBridge_nativeRelease(JNIEnv*, jclass) {
     std::lock_guard<std::mutex> guard(g_lock);
     reset();
+}
+
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_com_mobilei2v_mnn_KarmaMnnBridge_nativeDdimStep(
+    JNIEnv* env, jclass, jfloatArray latent, jfloatArray epsilon,
+    jfloat alpha_t, jfloat alpha_prev) {
+    if (!latent || !epsilon) return nullptr;
+    const jsize count = env->GetArrayLength(latent);
+    if (count <= 0 || count > 16777216 || env->GetArrayLength(epsilon) != count)
+        return nullptr;
+    std::vector<float> x(static_cast<size_t>(count));
+    std::vector<float> e(static_cast<size_t>(count));
+    std::vector<float> output(static_cast<size_t>(count));
+    env->GetFloatArrayRegion(latent, 0, count, x.data());
+    if (env->ExceptionCheck()) return nullptr;
+    env->GetFloatArrayRegion(epsilon, 0, count, e.data());
+    if (env->ExceptionCheck()) return nullptr;
+    if (!karma_sd::ddim_step(x.data(), e.data(), alpha_t, alpha_prev, output.data(), output.size()))
+        return nullptr;
+    jfloatArray result = env->NewFloatArray(count);
+    if (!result) return nullptr;
+    env->SetFloatArrayRegion(result, 0, count, output.data());
+    if (env->ExceptionCheck()) return nullptr;
+    return result;
 }
