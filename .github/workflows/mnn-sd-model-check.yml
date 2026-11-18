@@ -1,0 +1,23 @@
+name: KARMA ONE - SD model manifest checks (no APK)
+on:
+  push:
+    branches: [karma/step12-consolidation-20261118]
+    paths:
+      - 'tools/mnn_sd_model_manifest.py'
+      - 'tests/test_mnn_sd_model_manifest.py'
+      - '.github/workflows/mnn-sd-model-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-model-manifest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test offline model manifest generation and safety
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p test_mnn_sd_model_manifest.py -v
+          python3 -m py_compile tools/mnn_sd_model_manifest.py
+          echo KARMA_MNN_SD_MANIFEST_OK
