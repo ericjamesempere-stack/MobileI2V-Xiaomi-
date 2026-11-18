@@ -36,10 +36,6 @@ const LOCAL_REVISION := "mnn-localdream-v3-clip-prompts"
 var drawing_probe_base: String = ""
 var last_probe: Dictionary = {}
 
-const LOCAL_REVISION := "mnn-localdream-v3-clip-prompts"
-var drawing_probe_base: String = ""
-var last_probe: Dictionary = {}
-
 func vision_provider_id() -> String:
     # Connectivity changes do not invalidate existing checked drawings when
     # reopening a project before the engine has been contacted again.
