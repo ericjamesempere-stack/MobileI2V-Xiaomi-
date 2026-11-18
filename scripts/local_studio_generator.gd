@@ -33,7 +33,9 @@ func _local_request(base: String, path: String, payload: Dictionary = {}, get_re
     if not _loopback(base) or path not in ["/v1/models", "/v1/chat/completions", "/generate", "/health", "/tokenize"]:
         return {"ok": false, "error": "Adresse locale invalide. Aucun fichier envoyé."}
     var http := HTTPRequest.new()
-    http.timeout = timeout_seconds
+    # Vision analysis must release the Android UI promptly if MNN stops responding.
+    # Preserve the longer budget for actual image generation, which can be slow.
+    http.timeout = minf(timeout_seconds, 75.0) if path == "/v1/chat/completions" else timeout_seconds
     http.max_redirects = 0 # Never forward a photo or token outside loopback.
     http.body_size_limit = 18000000
     add_child(http)
