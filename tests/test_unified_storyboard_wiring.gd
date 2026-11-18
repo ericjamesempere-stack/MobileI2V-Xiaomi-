@@ -13,7 +13,7 @@ func _initialize() -> void:
         "_entries_for_universal_plan",
         "_universal_drawing_entries",
         "_draw_remote_story",
-        "_friendly_create",
+        "_friendly_generate",
         "_friendly_export",
         "_has_current_review"
     ]
