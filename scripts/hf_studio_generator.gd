@@ -400,9 +400,8 @@ func analyze_scene(reference: Image, story: String) -> Dictionary:
         if response.get("ok", false):
             response["provider"] = endpoint
             break
-        # Never submit another provider after an ambiguous in-flight failure.
-        if response.get("error_kind", "") == "hidden_server_error":
-            break
+        # Vision is read-only: a hidden Qwen server error can fail over once
+        # to the next explicitly configured provider, without resubmitting Qwen.
         if response.get("error_kind", "") in ["authentication", "safety"]:
             break
     if not response.get("ok", false):
