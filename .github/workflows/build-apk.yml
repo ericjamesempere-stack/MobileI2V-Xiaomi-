@@ -44,6 +44,7 @@ jobs:
             echo "::error::Autopilot script errors detected"
             exit 1
           fi
+      # Recheck corrected local engine declarations; keep Android APK build disabled on push.
       - name: Validate module registry, optimization agents and local wiring
         run: |
           set -euo pipefail
