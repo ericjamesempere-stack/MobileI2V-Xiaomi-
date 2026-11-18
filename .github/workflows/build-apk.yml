@@ -21,7 +21,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate-autopilot:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+      - name: Install Godot 4.5.2 for headless validation
+        run: |
+          set -euo pipefail
+          wget -q --timeout=30 https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
+          unzip -q Godot_v4.5.2-stable_linux.x86_64.zip
+          chmod +x Godot_v4.5.2-stable_linux.x86_64
+          ./Godot_v4.5.2-stable_linux.x86_64 --version
+      - name: Validate Autopilot budget, no errors and no timeout
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_autopilot_pipeline_budget.gd 2>&1 | tee autopilot-budget-validation.log
+          grep -q 'AUTOPILOT_PIPELINE_BUDGET_OK' autopilot-budget-validation.log
+          if grep -Ei 'SCRIPT ERROR|Parse Error|Invalid call|Invalid assignment|Assertion failed|ERROR:' autopilot-budget-validation.log; then
+            echo "::error::Autopilot script errors detected"
+            exit 1
+          fi
+      - name: Publish Autopilot test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autopilot-budget-validation-${{ github.sha }}
+          path: autopilot-budget-validation.log
+          if-no-files-found: ignore
+          retention-days: 7
+
   build:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
