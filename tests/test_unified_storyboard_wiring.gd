@@ -40,6 +40,24 @@ func _initialize() -> void:
     assert(source.contains("_configure_universal_pipeline(style_image, true)"))
     assert(source.contains('_configure_universal_pipeline(guide, universal_folder.ends_with("_remote_fallback"))'))
     assert(source.contains("_may_use_remote_fallback(result)"))
+    # Exercise fallback policy, not just the presence of strings in the script.
+    var fallback_toggle := CheckBox.new()
+    fallback_toggle.button_pressed = true
+    board.set("remote_fallback", fallback_toggle)
+    for denied in [
+        {"ok": false, "error_kind": "quota"},
+        {"ok": false, "error_kind": "rate_limit"},
+        {"ok": false, "error_kind": "authentication"},
+        {"ok": false, "http_status": 429},
+        {"ok": false, "http_status": 402},
+        {"ok": false, "error": "Quota GPU gratuit atteint"}
+    ]:
+        assert(not board.call("_may_use_remote_fallback", denied), str(denied))
+    assert(board.call("_may_use_remote_fallback", {"ok": false, "http_status": 503}))
+    fallback_toggle.button_pressed = false
+    assert(not board.call("_may_use_remote_fallback", {"ok": false, "http_status": 503}))
+    assert(board.call("_explain_scene_failure", "missing_entities_or_actions").contains("personnages"))
+    fallback_toggle.free()
     board.free()
     print("PASS unified storyboard wiring: methods present")
     quit(0)
