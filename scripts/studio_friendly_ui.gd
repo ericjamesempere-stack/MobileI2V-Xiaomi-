@@ -258,19 +258,13 @@ func build(board: Control) -> void:
     button(board, drawings, "Continuer : ma vidéo", func() -> void: board._go_step(2), true).name = "NextVideo"
     board.preview_toggle = button(board, film, "Voir défiler mes dessins", board._toggle_drawing_preview)
     board.preview_toggle.name = "PreviewDrawings"
+    # Keep a hidden compatibility control for saved V53/V54 sessions.
+    # The user confirms only once, using the final MP4 button.
     board.review_check = CheckBox.new()
-    board.review_check.text = "J'ai regardé et validé mes dessins"
-    board.review_check.custom_minimum_size.y = 64
-    board.review_check.add_theme_constant_override("h_separation", 12)
-    for state in ["checked", "unchecked", "checked_disabled", "unchecked_disabled"]:
-        var checked: bool = state.begins_with("checked")
-        var image := Image.new()
-        var mark: String = '<path d="M7 14l5 5 9-11" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' if checked else ""
-        var svg: String = '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><rect x="1" y="1" width="26" height="26" rx="7" fill="%s" stroke="#6955da" stroke-width="2"/>%s</svg>' % ["#6955da" if checked else "white", mark]
-        if image.load_svg_from_string(svg) == OK:
-            board.review_check.add_theme_icon_override(state, ImageTexture.create_from_image(image))
+    board.review_check.visible = false
     film.add_child(board.review_check)
-    board.friendly_export = button(board, board.wizard_pages[2], "Créer ma vidéo MP4", board._friendly_export, true)
+    text(film, "Aperçu : regarde défiler les dessins. Si le résultat te convient, valide et exporte directement la vidéo.", 18, MUTED)
+    board.friendly_export = button(board, board.wizard_pages[2], "Valider l’aperçu et exporter MP4", board._friendly_export, true)
     board.friendly_export.name = "CreateMovie"
     button(board, board.wizard_pages[2], "Lire ma dernière vidéo", board._play_last_mp4).name = "PlayMovie"
     button(board, board.wizard_pages[2], "Partager ma vidéo", board._share_last_mp4)
