@@ -38,6 +38,13 @@ func _apply_image_optimization(payload: Dictionary) -> Dictionary:
     return {"ok": true, "payload": optimized, "plan": plan}
 
 const LOCAL_REVISION := "mnn-localdream-v3-clip-prompts"
+# Verified public generator; opens only on explicit user action. No unofficial API.
+const LOREMOTION_GENERATOR_URL := "https://loremotion.com/generate/"
+
+func open_loremotion() -> Dictionary:
+    var result: Error = OS.shell_open(LOREMOTION_GENERATOR_URL)
+    return {"ok": result == OK, "error": int(result), "url": LOREMOTION_GENERATOR_URL}
+
 var drawing_probe_base: String = ""
 var last_probe: Dictionary = {}
 
