@@ -2,12 +2,12 @@ name: Build Android APK KARMA ONE V60 Simplified Android
 
 on:
   push:
-    branches: [main, karma/storyboard-story-sequence-20261113, karma/v54-approval-safety-20261116, karma/autopilot-v2-20261117, karma/universal-text-entry-v55-20261117, karma/v55-finalisation-20261117, karma/v56-local-engines-20261117, karma/advanced-autonomy-integration-20261118, karma/integration-unified-20261118, karma/step12-visual-quality-gate-20261118, karma/final-android-v60-validation-20261118]
+    branches: [main, karma/storyboard-story-sequence-20261113, karma/v54-approval-safety-20261116, karma/autopilot-v2-20261117, karma/universal-text-entry-v55-20261117, karma/v55-finalisation-20261117, karma/v56-local-engines-20261117, karma/advanced-autonomy-integration-20261118, karma/integration-unified-20261118, karma/step12-visual-quality-gate-20261118]
     paths-ignore:
       - '**.md'
       - '.github/workflows/validate-universal-live.yml'
   pull_request:
-    branches: [main]
+    branches: [main, karma/v55-finalisation-20261117]
   workflow_dispatch:
 
 permissions:
@@ -21,6 +21,10 @@ concurrency:
 
 jobs:
   build:
+    if: >-
+      github.base_ref != 'karma/v55-finalisation-20261117' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.head_ref == 'karma/final-android-v60-validation-20261118')
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -346,9 +350,11 @@ jobs:
           test -s build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk
           unzip -t build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk | tail -2
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk | tee signing-check.log
-          # Actions caches are branch-scoped. Publish phone updates from this
-          # existing release lane, whose cached key signed the delivered V55.
-          if [ "$GITHUB_REF_NAME" = 'karma/v55-finalisation-20261117' ]; then
+          # The draft validation PR can restore the release branch's existing
+          # cache without advancing that branch. Verify the certificate before
+          # uploading an APK intended to update the installed application.
+          if [ "$GITHUB_REF_NAME" = 'karma/v55-finalisation-20261117' ] ||
+             [ "${GITHUB_BASE_REF:-}" = 'karma/v55-finalisation-20261117' ]; then
             grep -q 'certificate SHA-256 digest: 5fe844e7ae98d51d5464f1e3a7d58e218aeade4c11b8fe4a1c5ed5e45d9663ef' signing-check.log
           fi
           "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging build/KARMA_ONE_V60_SIMPLIFIED_ANDROID_ARM64.apk | tee apk-badging.txt
