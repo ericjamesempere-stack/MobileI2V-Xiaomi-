@@ -81,6 +81,12 @@ func _build_boards(reference: Image, story: String, seconds: float, style: Strin
         return {"ok": false, "stage": "analysis", "detail": plan, "drawings_unchanged": true, "ready_for_animation": false}
     if plan["keyposes"] > maximum_keyposes:
         return {"ok": false, "stage": "budget", "plan": plan, "error": "keypose_budget_exceeded", "required": plan["keyposes"], "budget": maximum_keyposes, "drawings_unchanged": true}
+    # Single authoritative contract for remote and local generation. This is
+    # prompt guidance only; the live vision review still determines fidelity.
+    var fidelity_contract: Dictionary = load("res://scripts/ReferenceFidelityGate.gd").build_request_from_image(reference, story)
+    if not fidelity_contract.get("ok", false):
+        return {"ok": false, "stage": "reference_fidelity", "error": fidelity_contract.get("error", "invalid_reference"), "drawings_unchanged": true, "ready_for_animation": false}
+    worker.reference_contract = fidelity_contract
     var generation: Dictionary = await generate_keyposes(reference, plan, style, folder)
     if not generation.get("ok", false):
         return {"ok": false, "stage": "generation", "plan": plan, "detail": generation, "ready_for_animation": false}
