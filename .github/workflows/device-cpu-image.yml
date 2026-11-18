@@ -6,6 +6,8 @@ on:
       - 'scripts/karma_device_image_engine.gd'
       - 'scripts/local_studio_generator.gd'
       - 'tests/test_device_cpu_image_engine.gd'
+      - 'scripts/karma_embedded_diffusion_check.gd'
+      - 'tests/test_embedded_diffusion_check.gd'
       - '.github/workflows/device-cpu-image.yml'
   workflow_dispatch:
 permissions:
@@ -28,3 +30,9 @@ jobs:
           ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_device_cpu_image_engine.gd 2>&1 | tee cpu-render.log
           grep -Fq KARMA_DEVICE_CPU_RENDER_OK cpu-render.log
           if grep -Ei 'SCRIPT ERROR|Parse Error|Assertion failed|ERROR:' cpu-render.log; then exit 1; fi
+      - name: Verify embedded model integrity diagnostics
+        run: |
+          set -euo pipefail
+          ./Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script res://tests/test_embedded_diffusion_check.gd 2>&1 | tee model-check.log
+          grep -Fq KARMA_EMBEDDED_DIFFUSION_CHECK_OK model-check.log
+          if grep -Ei 'SCRIPT ERROR|Parse Error|Assertion failed|ERROR:' model-check.log; then exit 1; fi
