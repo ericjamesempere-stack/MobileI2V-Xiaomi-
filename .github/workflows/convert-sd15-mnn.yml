@@ -40,7 +40,7 @@ jobs:
           set -euo pipefail
           git clone --filter=blob:none https://github.com/alibaba/MNN.git /tmp/MNN
           git -C /tmp/MNN checkout 40ad7e340cdf5cb29fe9d5f1f9eec794adbaef6d
-          python3 -m pip install --user 'huggingface_hub>=0.25,<1' 'diffusers>=0.30,<1' 'transformers>=4.44,<5' 'onnx>=1.16,<2' 'onnxruntime>=1.18,<2' 'safetensors>=0.4,<1' 'accelerate>=0.33,<2' 'sentencepiece>=0.2,<1'
+          python3 -m pip install --user 'torch>=2.2,<2.9' 'huggingface_hub>=0.25,<1' 'diffusers>=0.30,<1' 'transformers>=4.44,<5' 'onnx>=1.16,<2' 'onnxruntime>=1.18,<2' 'safetensors>=0.4,<1' 'accelerate>=0.33,<2' 'sentencepiece>=0.2,<1'
           cmake -S /tmp/MNN -B /tmp/MNN/build -G Ninja -DMNN_BUILD_CONVERTER=ON -DMNN_BUILD_TEST=OFF -DMNN_BUILD_BENCHMARK=OFF
           cmake --build /tmp/MNN/build --target MNNConvert --parallel 2
       - name: Download real licensed model at pinned revision
@@ -61,12 +61,14 @@ jobs:
           test -s /tmp/karma-sd15-source/unet/diffusion_pytorch_model.safetensors
           test -s /tmp/karma-sd15-source/text_encoder/model.safetensors
           test -s /tmp/karma-sd15-source/vae/diffusion_pytorch_model.safetensors
+          test -s /tmp/karma-sd15-source/tokenizer/vocab.json
+          test -s /tmp/karma-sd15-source/tokenizer/merges.txt
       - name: Convert genuine weights using official MNN scripts
         run: |
           set -euo pipefail
           bash tools/convert_sd15_to_mnn.sh /tmp/MNN /tmp/karma-sd15-source /tmp/karma-sd15-onnx /tmp/karma-sd15-mnn
           python3 tools/verify_mnn_sd_export.py --model-dir /tmp/karma-sd15-mnn
-          echo KARMA_SD15_CONVERTED_FILES_VERIFIED
+          echo KARMA_SD15_CONVERTED_FILES_PRESENT_NOT_EXECUTED
       - name: Publish real converted graphs (not an APK)
         uses: actions/upload-artifact@v4
         with:
