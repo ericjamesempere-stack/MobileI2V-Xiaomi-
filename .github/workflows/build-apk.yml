@@ -190,11 +190,16 @@ jobs:
         run: |
           set -euo pipefail
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > sdk-licenses.log 2>&1 || {
+          # sdkmanager exits before yes; inspect sdkmanager status, not yes SIGPIPE.
+          set +o pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > sdk-licenses.log 2>&1
+          license_status=${PIPESTATUS[1]}
+          set -o pipefail
+          if [ "$license_status" -ne 0 ]; then
             cat sdk-licenses.log
-            echo "::error::Android SDK licenses were not accepted"
+            echo "::error::Android SDK license acceptance failed"
             exit 1
-          }
+          fi
           grep -q "All SDK package licenses accepted" sdk-licenses.log || {
             cat sdk-licenses.log
             echo "::error::Android SDK license acceptance not confirmed"
