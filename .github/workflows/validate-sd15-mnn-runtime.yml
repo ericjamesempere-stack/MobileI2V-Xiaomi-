@@ -1,0 +1,53 @@
+name: KARMA ONE - SD15 MNN graph runtime validation (NO APK)
+on:
+  push:
+    branches:
+      - karma/step12-consolidation-20261118
+    paths:
+      - .github/workflows/validate-sd15-mnn-runtime.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  validate-graphs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Guard repository and branch
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "ericjamesempere-stack/MobileI2V-Xiaomi-"
+          test "$GITHUB_REF_NAME" = "karma/step12-consolidation-20261118"
+      - uses: actions/checkout@v4
+      - name: Download ONLY successful SD15 conversion artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run download 44420581040 --repo "$GITHUB_REPOSITORY" --name karma-sd15-real-mnn-models --dir /tmp/karma-sd15-mnn
+          python3 tools/verify_mnn_sd_export.py --model-dir /tmp/karma-sd15-mnn
+      - name: Build pinned CPU MNN runtime and actual graph loader
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://github.com/alibaba/MNN.git /tmp/MNN
+          git -C /tmp/MNN checkout 40ad7e340cdf5cb29fe9d5f1f9eec794adbaef6d
+          cmake -S /tmp/MNN -B /tmp/MNN/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DMNN_BUILD_SHARED_LIBS=ON -DMNN_BUILD_TEST=OFF -DMNN_BUILD_BENCHMARK=OFF
+          cmake --build /tmp/MNN/build --target MNN --parallel 2
+          c++ -std=c++17 -O2 -I/tmp/MNN/include tools/verify_mnn_graph_load.cpp -L/tmp/MNN/build -lMNN -Wl,-rpath,/tmp/MNN/build -o /tmp/verify_mnn_graph_load
+      - name: Load real graphs and create MNN CPU sessions
+        run: |
+          set -euo pipefail
+          cd /tmp/karma-sd15-mnn
+          for graph in text_encoder unet vae_decoder; do
+            /tmp/verify_mnn_graph_load "$graph.mnn"
+          done
+          echo KARMA_SD15_MNN_REAL_GRAPH_SESSIONS_OK
+      - name: Publish diagnostic evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: karma-sd15-runtime-check
+          path: /tmp/karma-sd15-mnn/manifest.json
+          if-no-files-found: ignore
+          retention-days: 3
