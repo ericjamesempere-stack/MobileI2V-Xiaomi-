@@ -44,3 +44,29 @@ static func approval_required(generated: Dictionary, user_approved: bool) -> Dic
     if not user_approved:
         return {"ok": false, "error": "approval_required"}
     return {"ok": true, "approved": true}
+
+# Uses the already decoded Android image, avoiding a second decoder that
+# could reject HEIC/AVIF photos successfully imported by the native picker.
+static func build_request_from_image(reference: Image, description: String, subject_type: String = "unknown", pose: Dictionary = {}) -> Dictionary:
+    if reference == null or reference.is_empty():
+        return {"ok": false, "error": "reference_unreadable"}
+    if description.strip_edges().is_empty():
+        return {"ok": false, "error": "description_missing"}
+    if not SUBJECT_TYPES.has(subject_type):
+        return {"ok": false, "error": "unsupported_subject_type"}
+    var constraints := [
+        "Preserve subject identity, silhouette, materials, colors and proportions.",
+        "Preserve scene and background unless the action requests changes.",
+        "Do not invent anatomy or accessories absent from the reference.",
+        "Use physically coherent poses and consistent scale across frames."
+    ]
+    if subject_type in ["object", "plant", "vehicle"]:
+        constraints.append("Do not anthropomorphize unless explicitly requested.")
+    return {
+        "ok": true, "subject_type": subject_type,
+        "action": description.strip_edges(), "pose": pose.duplicate(true),
+        "constraints": constraints, "reference_width": reference.get_width(),
+        "reference_height": reference.get_height(),
+        "identity_verified": false, "pose_verified": false,
+        "requires_human_review": true
+    }
