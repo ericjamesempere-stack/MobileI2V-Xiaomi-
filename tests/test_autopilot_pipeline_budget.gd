@@ -6,6 +6,14 @@ class FailingPipeline extends "res://scripts/universal_board_pipeline.gd":
         calls += 1
         return {"ok": false, "stage": "analysis", "detail": {"error": "synthetic provider failure"}}
 
+class BudgetFixtureWorker extends Node:
+    var local_model: String = ""
+    var style_reference: Image = null
+    func vision_provider_id() -> String:
+        return "budget-fixture-provider"
+    func inference_context_id() -> String:
+        return "budget-fixture:" + local_model
+
 func _initialize() -> void:
     call_deferred("run")
 
@@ -13,6 +21,7 @@ func run() -> void:
     var story: String = "SYNTHETIC autopilot retry %d" % Time.get_ticks_usec()
     var image := Image.create(512, 512, false, Image.FORMAT_RGB8)
     var node := FailingPipeline.new()
+    node.worker = BudgetFixtureWorker.new()
     root.add_child(node)
     for i in range(2):
         var result: Dictionary = await node.build_boards(image, story, 3.0, "original", "user://unused_budget_test")
@@ -20,6 +29,7 @@ func run() -> void:
     assert(node.calls == 2)
     node.free()
     node = FailingPipeline.new()
+    node.worker = BudgetFixtureWorker.new()
     root.add_child(node)
     var blocked: Dictionary = await node.build_boards(image, story, 3.0, "original", "user://unused_budget_test")
     assert(blocked["stage"] == "supervision" and blocked["error"] == "autopilot_failure_budget_exhausted")
@@ -29,6 +39,7 @@ func run() -> void:
     node.free()
     node = FailingPipeline.new()
     node.local_inference = true
+    node.worker = BudgetFixtureWorker.new()
     root.add_child(node)
     node.worker.local_model = "fixture-model-a"
     var stable_provider: String = node.worker.vision_provider_id()
