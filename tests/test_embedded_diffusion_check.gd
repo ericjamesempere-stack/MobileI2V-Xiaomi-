@@ -1,0 +1,21 @@
+extends SceneTree
+func _initialize() -> void:
+    var check: RefCounted = load("res://scripts/karma_embedded_diffusion_check.gd").new()
+    var missing: Dictionary = check.inspect_embedded_model("user://missing_karma_sd15/manifest.json")
+    assert(not missing.get("ok", false) and not missing.get("embedded", true), "missing model must not be reported as embedded")
+    assert(missing.get("reason", "") == "model_manifest_missing", "missing manifest classification")
+    var dir: String = "user://karma_sd15_verifier_test"
+    assert(DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir)) == OK, "cannot create test folder")
+    var path: String = dir.path_join("manifest.json")
+    var f: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+    assert(f != null, "cannot write test manifest")
+    f.store_string(JSON.stringify({"components": {"tokenizer": {"file": "../escape.bin", "sha256": "00"}, "text_encoder": {"file": "missing.bin", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}}))
+    f.close()
+    var bad: Dictionary = check.inspect_embedded_model(path)
+    assert(not bad.get("ok", false), "invalid or missing weights accepted")
+    assert(bad.get("invalid", []).has("tokenizer"), "unsafe relative path accepted")
+    assert(bad.get("missing", []).has("text_encoder"), "missing weight not detected")
+    assert(not bad.get("native_runtime_verified", true), "native runtime verification fabricated")
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+    print("KARMA_EMBEDDED_DIFFUSION_CHECK_OK")
+    quit()
