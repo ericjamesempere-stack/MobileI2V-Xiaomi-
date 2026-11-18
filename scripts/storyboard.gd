@@ -2325,6 +2325,20 @@ func _draw_remote_story() -> void:
     universal_quality = result.get("quality", {"ok": false, "fidelity_verified": false})
     # This contract is a constraint checklist, not proof of visual fidelity.
     universal_quality["reference_contract"] = fidelity_contract
+    # Diagnostics are advisory: an unchanged pose can be intentional.
+    # Never substitute pixel metrics for semantic identity/pose verification.
+    var visual_warnings: Array = []
+    var frame_validator = load("res://scripts/GeneratedFrameValidator.gd")
+    for i in range(candidate_sources.size()):
+        var visual: Dictionary = frame_validator.inspect_visual_change(reference, candidate_sources[i].get_image())
+        if not visual.get("ok", false):
+            visual_warnings.append({"index": i, "reason": visual.get("error", "visual_check_failed")})
+        else:
+            for warning in visual.get("warnings", []):
+                visual_warnings.append({"index": i, "reason": warning})
+    universal_quality["visual_diagnostics"] = visual_warnings
+    universal_quality["identity_verified"] = false
+    universal_quality["pose_verified"] = false
     universal_style = _selected_drawing_style()
     universal_input_signature = signature
     sources = candidate_sources
