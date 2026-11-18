@@ -70,12 +70,17 @@ func _loopback(base: String) -> bool:
 func _local_request(base: String, path: String, payload: Dictionary = {}, get_request: bool = false, timeout_seconds: float = 900.0) -> Dictionary:
     if not _loopback(base) or path not in ["/v1/models", "/v1/chat/completions", "/generate", "/health", "/tokenize"]:
         return {"ok": false, "error": "Adresse locale invalide. Aucun fichier envoyé."}
+    # Only the documented read-only probes may use GET.
+    if get_request and path not in ["/v1/models", "/health"]:
+        return {"ok": false, "error": "invalid_local_method", "endpoint": path}
     var body: String = "" if get_request else JSON.stringify(payload)
     # Reject oversized requests before allocating HTTP resources or sending data.
     if body.to_utf8_buffer().size() > 8000000:
         return {"ok": false, "error": "local_payload_too_large", "endpoint": path}
+    # Bound every request; a stalled local service must not freeze the project.
+    var timeout_limit: float = 75.0 if path == "/v1/chat/completions" else 180.0
     var http := HTTPRequest.new()
-    http.timeout = minf(timeout_seconds, 75.0) if path == "/v1/chat/completions" else timeout_seconds
+    http.timeout = clampf(timeout_seconds, 1.0, timeout_limit)
     http.max_redirects = 0 # Never forward a photo or token outside loopback.
     http.body_size_limit = 18000000
     add_child(http)
