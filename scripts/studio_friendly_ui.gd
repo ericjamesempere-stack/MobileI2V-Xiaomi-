@@ -286,9 +286,10 @@ func build(board: Control) -> void:
     advanced.add_child(board.local_mode)
     text(advanced, "Décoche le mode local pour envoyer tes demandes et images aux services Hugging Face de KARMA ONE. Leurs quotas s'appliquent.", 18, MUTED)
     board.remote_fallback = CheckBox.new()
-    board.remote_fallback.text = "Autoriser le secours Hugging Face pour cette session"
+    board.remote_fallback.text = "Secours IA automatique en ligne (Hugging Face) — activé"
+    board.remote_fallback.button_pressed = true
     advanced.add_child(board.remote_fallback)
-    text(advanced, "Si le moteur local est indisponible, Créer peut envoyer ta demande et tes images aux services Hugging Face.", 18, MUTED)
+    text(advanced, "Si le moteur local échoue, les photos et consignes peuvent être envoyées à Hugging Face. Décoche cette option pour rester uniquement en local. Services gratuits soumis à disponibilité et quotas.", 18, MUTED)
     text(advanced, "Durée personnalisée (secondes)", 20)
     board.duration_input = SpinBox.new()
     board.duration_input.min_value = 1
