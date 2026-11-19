@@ -90,3 +90,10 @@ assert 'start_sd15_auto_provision()' in java and 'sd15_auto_provision_status()' 
 assert 'native.call("start_sd15_auto_provision")' in board
 assert 'gh release create' in publish and 'catalog.json' in publish
 print('SD15_PUBLIC_RESUMABLE_VERIFIED_DISTRIBUTION_STATIC_OK')
+
+# Immutable public catalog must be authenticated independently of the files it lists.
+assert 'CATALOG_SHA256 = "1d62ee46d72b02761c50e403fc66fc3a5d9ba83420155da8c43e1d2a9b64ed3e"' in provision
+assert 'catalog_integrity_mismatch' in provision
+assert 'getUsableSpace()' in provision
+assert 'insufficient_storage_' in provision
+print('SD15_PUBLIC_CATALOG_PIN_AND_STORAGE_GUARD_OK')
