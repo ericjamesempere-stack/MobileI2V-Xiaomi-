@@ -77,3 +77,16 @@ assert 'graph + ".weight"' in installer
 assert 'sd15_external_weights_missing' in java
 assert 'components.put(graph + ".weight"' in java
 print('SD15_EXTERNAL_MNN_WEIGHTS_GUARD_OK')
+
+# Public distribution requires no login, resumes only on a valid byte range,
+# verifies SHA256 before atomic activation, and waits for unmetered network.
+provision=(ROOT/'native/mp4exporter/src/main/java/com/mobilei2v/encoder/Sd15AutoProvision.java').read_text()
+publish=(ROOT/'.github/workflows/publish-sd15-public-models.yml').read_text()
+assert 'releases/download/karma-sd15-mnn-v1/' in provision
+assert 'NET_CAPABILITY_NOT_METERED' in provision
+assert 'Content-Range' in provision and 'Range' in provision
+assert 'sha256_mismatch_' in provision and 'renameTo(target)' in provision
+assert 'start_sd15_auto_provision()' in java and 'sd15_auto_provision_status()' in java
+assert 'native.call("start_sd15_auto_provision")' in board
+assert 'gh release create' in publish and 'catalog.json' in publish
+print('SD15_PUBLIC_RESUMABLE_VERIFIED_DISTRIBUTION_STATIC_OK')
