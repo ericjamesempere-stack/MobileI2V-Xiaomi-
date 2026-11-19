@@ -11,6 +11,7 @@ public final class KarmaMnnBridge {
     static {
         try {
             System.loadLibrary("MNN");
+            System.loadLibrary("llm");
             System.loadLibrary("karma_mnn");
             available = true;
         } catch (UnsatisfiedLinkError e) {
