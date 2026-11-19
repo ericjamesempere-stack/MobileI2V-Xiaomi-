@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/validate-sd15-mtok-parity.yml'
       - 'tools/verify_mnn_clip_tokenizer.cpp'
+      - 'tools/patch_mnn_clip_eow_experiment.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -30,6 +31,7 @@ jobs:
           set -euo pipefail
           git clone --filter=blob:none https://github.com/alibaba/MNN.git /tmp/MNN
           git -C /tmp/MNN checkout 40ad7e340cdf5cb29fe9d5f1f9eec794adbaef6d
+          python3 tools/patch_mnn_clip_eow_experiment.py /tmp/MNN/transformers/llm/engine/src/tokenizer/tokenizer.cpp
           cmake -S /tmp/MNN -B /tmp/MNN/build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release -DMNN_BUILD_SHARED_LIBS=ON \
             -DMNN_BUILD_TEST=OFF -DMNN_BUILD_BENCHMARK=OFF \
