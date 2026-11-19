@@ -51,6 +51,60 @@ jobs:
           test -s /tmp/karma-native/mnn-upstream-sha.txt
           test -s /tmp/karma-native/mnn-tokenizer-patched-sha256.txt
           grep -Fxq '40ad7e340cdf5cb29fe9d5f1f9eec794adbaef6d' /tmp/karma-native/mnn-upstream-sha.txt
+      - name: Verify real AArch64 JNI exports and native dependencies
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          java = Path('native/mnnarm64/src/KarmaMnnBridge.java').read_text()
+          cpp = Path('native/mnnarm64/src/karma_mnn_jni.cpp').read_text()
+          methods = re.findall(r'\\b(?:private|public)\\s+static\\s+native\\s+\\S+\\s+(native\\w+)\\s*\\(', java)
+          assert methods, 'No native Java methods found'
+          for method in methods:
+              symbol = 'Java_com_mobilei2v_mnn_KarmaMnnBridge_' + method
+              assert symbol in cpp, 'JNI C++ implementation missing: ' + symbol
+          print('KARMA_MNN_JAVA_CPP_NATIVE_SIGNATURES_OK', len(methods))
+          PY
+          readelf -h /tmp/karma-native/libkarma_mnn.so | grep -Fq 'AArch64'
+          readelf -Ws /tmp/karma-native/libkarma_mnn.so > /tmp/karma-mnn-jni-symbols.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          java = Path('native/mnnarm64/src/KarmaMnnBridge.java').read_text()
+          symbols = Path('/tmp/karma-mnn-jni-symbols.txt').read_text()
+          methods = re.findall(r'\\b(?:private|public)\\s+static\\s+native\\s+\\S+\\s+(native\\w+)\\s*\\(', java)
+          for method in methods:
+              symbol = 'Java_com_mobilei2v_mnn_KarmaMnnBridge_' + method
+              assert re.search(r'\\bGLOBAL\\s+DEFAULT\\s+\\d+\\s+' + re.escape(symbol) + r'\\s*
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/karma-android-build
+          printf 'plugins { id "com.android.library" }\n' > /tmp/karma-android-build/build.gradle
+          python3 tools/stage_mnn_arm64.py /tmp/karma-native /tmp/karma-android-build
+          test -s /tmp/karma-android-build/src/main/jniLibs/arm64-v8a/libMNN.so
+          test -s /tmp/karma-android-build/src/main/jniLibs/arm64-v8a/libllm.so
+          test -s /tmp/karma-android-build/src/main/jniLibs/arm64-v8a/libkarma_mnn.so
+          mkdir -p /tmp/karma-android-build/src/main/java/com/mobilei2v/mnn
+          cp native/mnnarm64/src/KarmaMnnBridge.java native/mnnarm64/src/KarmaClipEncoder.java native/mnnarm64/src/KarmaSdInference.java /tmp/karma-android-build/src/main/java/com/mobilei2v/mnn/
+          ANDROID_JAR="$(find "${ANDROID_HOME:-/opt/android-sdk}" -path '*/platforms/android-*/android.jar' -print | sort -V | tail -n 1)"
+          test -s "$ANDROID_JAR"
+          mkdir -p /tmp/karma-mnn-java-classes
+          javac -source 8 -target 8 -cp "$ANDROID_JAR" -d /tmp/karma-mnn-java-classes /tmp/karma-android-build/src/main/java/com/mobilei2v/mnn/*.java
+          test -s /tmp/karma-mnn-java-classes/com/mobilei2v/mnn/KarmaMnnBridge.class
+          echo KARMA_MNN_ARM64_ANDROID_STAGING_OK
+      - name: Publish integration evidence (not APK)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: karma-mnn-arm64-android-staging-proof
+          path: /tmp/karma-native/*.txt
+          retention-days: 7
+, symbols, re.M), 'JNI ELF export missing: ' + symbol
+          print('KARMA_MNN_ARM64_JNI_ELF_EXPORTS_OK', len(methods))
+          PY
+          readelf -d /tmp/karma-native/libkarma_mnn.so | tee /tmp/karma-mnn-needed.txt
+          echo KARMA_MNN_ARM64_NATIVE_SYMBOL_CHECK_OK
       - name: Validate Godot Android Gradle layout and stage libraries
         run: |
           set -euo pipefail
