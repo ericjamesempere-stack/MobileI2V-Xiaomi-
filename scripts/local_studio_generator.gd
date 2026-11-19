@@ -417,7 +417,36 @@ func render_device_camera_frame(reference: Image, fraction: float, motion: Strin
 # A successful /health response is not proof that a diffusion model can render.
 # This diagnostic performs one real on-device 512px inference, never cloud.
 # The caller must explicitly request it because it can take minutes and heat up.
+func verify_native_sd15(prompt: String, negative_prompt: String = "watermark, text") -> Dictionary:
+    if OS.get_name() != "Android" or not Engine.has_singleton("MP4Exporter"):
+        return {"ok": false, "inference_verified": false, "error": "native_android_plugin_unavailable"}
+    var native: Object = Engine.get_singleton("MP4Exporter")
+    if not native.has_method("start_native_sd15") or not native.has_method("native_sd15_job_status"):
+        return {"ok": false, "inference_verified": false, "error": "native_sd15_bridge_not_in_apk"}
+    if not bool(native.call("start_native_sd15", prompt, negative_prompt)):
+        var rejected: Variant = JSON.parse_string(str(native.call("native_sd15_job_status")))
+        return {"ok": false, "inference_verified": false, "error": str(rejected.get("error", "native_sd15_start_rejected")) if rejected is Dictionary else "native_sd15_start_rejected"}
+    var started: int = Time.get_ticks_msec()
+    while Time.get_ticks_msec() - started < 240000:
+        await get_tree().create_timer(0.5).timeout
+        var raw: Variant = JSON.parse_string(str(native.call("native_sd15_job_status")))
+        if not raw is Dictionary:
+            return {"ok": false, "inference_verified": false, "error": "native_sd15_invalid_job_response"}
+        if raw.get("state") == "error":
+            return {"ok": false, "inference_verified": false, "error": str(raw.get("error", "native_sd15_failed")), "detail": str(raw.get("detail", ""))}
+        if raw.get("state") == "completed":
+            var file_path: String = str(raw.get("file", ""))
+            var image: Image = Image.new()
+            if file_path.is_empty() or image.load(file_path) != OK or image.is_empty() or image.get_width() != 512 or image.get_height() != 512:
+                return {"ok": false, "inference_verified": false, "error": "native_sd15_invalid_png"}
+            return {"ok": true, "inference_verified": true, "on_device": true, "provider": "MNN native SD15", "file": file_path, "image": image, "width": 512, "height": 512, "elapsed_ms": Time.get_ticks_msec() - started, "semantic_quality_verified": false}
+    return {"ok": false, "inference_verified": false, "error": "native_sd15_wait_timeout"}
+
 func verify_real_local_diffusion() -> Dictionary:
+    if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
+        var native: Object = Engine.get_singleton("MP4Exporter")
+        if native.has_method("start_native_sd15"):
+            return await verify_native_sd15("a single bright yellow banana on a plain blue background, clean cartoon illustration", "watermark, text, multiple bananas, people")
     var started: int = Time.get_ticks_msec()
     var health: Dictionary = await _local_request(drawing_base, "/health", {}, true, 4.0)
     if not health.get("ok", false):
