@@ -83,6 +83,8 @@ public final class MP4Exporter extends GodotPlugin {
         return report.toString();
     }
 
+    @UsedByGodot public boolean start_sd15_auto_provision() { return Sd15AutoProvision.start(getContext()); }
+    @UsedByGodot public String sd15_auto_provision_status() { return Sd15AutoProvision.status(); }
     @UsedByGodot public boolean pick_sd15_model_archive() { return Sd15ModelImportActivity.launch(getActivity()); }
     @UsedByGodot public String sd15_model_import_status() { return Sd15ModelImportActivity.status(); }
 
