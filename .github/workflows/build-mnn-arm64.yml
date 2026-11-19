@@ -6,6 +6,7 @@ on:
       - '.github/workflows/build-mnn-arm64.yml'
       - 'native/mnnarm64/src/karma_sd_scheduler.hpp'
       - 'native/mnnarm64/src/karma_mnn_jni.cpp'
+      - 'native/mnnarm64/CMakeLists.txt'
       - 'native/mnnarm64/src/KarmaMnnBridge.java'
       - 'native/mnnarm64/src/KarmaSdInference.java'
       - 'native/mnnarm64/src/KarmaClipEncoder.java'
@@ -64,9 +65,16 @@ jobs:
           cmake --build /tmp/mnn-android-build --target MNN llm --parallel 2
           mkdir -p native/mnnarm64/prebuilt/include native/mnnarm64/prebuilt/lib/arm64-v8a
           cp -R /tmp/MNN/include/MNN native/mnnarm64/prebuilt/include/
+          mkdir -p native/mnnarm64/prebuilt/include/tokenizer
+          cp /tmp/MNN/transformers/llm/engine/src/tokenizer/tokenizer.hpp native/mnnarm64/prebuilt/include/tokenizer/
+          mkdir -p native/mnnarm64/prebuilt/include/llm
+          cp /tmp/MNN/transformers/llm/engine/include/llm/*.hpp native/mnnarm64/prebuilt/include/llm/
           MNN_SO="$(find /tmp/mnn-android-build -type f -name libMNN.so | head -n 1)"
           test -n "$MNN_SO"
           cp "$MNN_SO" native/mnnarm64/prebuilt/lib/arm64-v8a/libMNN.so
+          LLM_SO="$(find /tmp/mnn-android-build -type f -name libllm.so | head -n 1)"
+          test -n "$LLM_SO"
+          cp "$LLM_SO" native/mnnarm64/prebuilt/lib/arm64-v8a/libllm.so
       - name: Build actual KARMA JNI ARM64 library
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
@@ -81,6 +89,7 @@ jobs:
           test -s /tmp/karma-mnn-build/libkarma_mnn.so
           mkdir -p mnn-arm64-output
           cp native/mnnarm64/prebuilt/lib/arm64-v8a/libMNN.so mnn-arm64-output/
+          cp native/mnnarm64/prebuilt/lib/arm64-v8a/libllm.so mnn-arm64-output/
           cp /tmp/karma-mnn-build/libkarma_mnn.so mnn-arm64-output/
           cp mnn-upstream-sha.txt mnn-arm64-output/
           sha256sum mnn-arm64-output/*.so | tee mnn-arm64-output/SHA256SUMS
