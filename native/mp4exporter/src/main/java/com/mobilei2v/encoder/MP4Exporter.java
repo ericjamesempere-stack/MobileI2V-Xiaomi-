@@ -83,6 +83,36 @@ public final class MP4Exporter extends GodotPlugin {
         return report.toString();
     }
 
+    // Real on-device readiness: this does not claim successful model inference.
+    // Use the app-private files directory; never trust a caller-supplied absolute path.
+    @UsedByGodot public String native_sd15_readiness() {
+        JSONObject report = new JSONObject();
+        try {
+            boolean librariesLoaded = com.mobilei2v.mnn.KarmaMnnBridge.isAvailable();
+            File models = new File(getContext().getFilesDir(), "models/sd15");
+            JSONObject components = new JSONObject();
+            boolean filesPresent = true;
+            for (String name : new String[]{"tokenizer.mtok", "text_encoder.mnn", "unet.mnn", "vae_decoder.mnn"}) {
+                File file = new File(models, name);
+                boolean present = file.isFile() && file.length() > 0;
+                components.put(name, new JSONObject().put("present", present)
+                        .put("bytes", present ? file.length() : 0));
+                filesPresent &= present;
+            }
+            report.put("ok", librariesLoaded && filesPresent);
+            report.put("native_libraries_loaded", librariesLoaded);
+            report.put("model_files_present", filesPresent);
+            report.put("components", components);
+            report.put("inference_verified", false);
+            report.put("reason", !librariesLoaded ? "mnn_native_library_unavailable"
+                    : !filesPresent ? "sd15_model_files_missing" : "inference_not_tested");
+        } catch (Exception e) {
+            try { report.put("ok", false).put("inference_verified", false)
+                    .put("reason", "native_readiness_check_failed"); } catch (Exception ignored) {}
+        }
+        return report.toString();
+    }
+
     @UsedByGodot public String peek_shared_image_result() { return SharedImageInbox.peek(getContext()); }
     @UsedByGodot public void acknowledge_shared_image(String id) { SharedImageInbox.acknowledge(getContext(), id); }
 
