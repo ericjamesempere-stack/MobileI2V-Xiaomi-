@@ -395,6 +395,16 @@ func configure_local(token: String) -> void:
 func create_reference(description: String, style: String) -> Dictionary:
     if description.strip_edges().is_empty():
         return {"ok": false, "error": "Décris d'abord le sujet à créer."}
+    # Native text-to-image requires no loopback server. Do not route photo edits here.
+    if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
+        var native: Object = Engine.get_singleton("MP4Exporter")
+        if native.has_method("start_native_sd15"):
+            var prompt: String = description.strip_edges() + ", " + style.strip_edges()
+            var result: Dictionary = await verify_native_sd15(prompt, "watermark, text, unwanted people")
+            if result.get("ok", false):
+                return {"ok": true, "image": result["image"], "provider": "MNN native SD15", "inference_verified": true}
+            # Explicit native failure must be visible; never silently invent a drawing.
+            return result
     var service: Dictionary = await _ensure_drawing_service()
     if not service.get("ok", false):
         return service
