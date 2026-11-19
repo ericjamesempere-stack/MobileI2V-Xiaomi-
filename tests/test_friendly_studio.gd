@@ -138,7 +138,7 @@ func test_idea_entry() -> void:
     await board._friendly_generate()
     assert(board.requested_ideas.back() == "Deux véhicules dans un désert")
     assert(board.received_stories.back() == "Ils se croisent.")
-    assert(board.remote_fallback.button_pressed, "V61 enables online fallback by default")
+    assert(not board.remote_fallback.button_pressed, "Online photo upload must require explicit session consent")
     board.remote_fallback.button_pressed = false
     var before_fallback: int = board.requested_ideas.size()
     board.probe_status = 503
