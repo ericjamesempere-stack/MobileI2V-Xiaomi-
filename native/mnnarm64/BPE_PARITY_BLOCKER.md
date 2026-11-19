@@ -29,3 +29,15 @@ The mismatch must be corrected in the actual runtime tokenizer path, not hidden 
 4. Re-run strict 385-token parity and then expand coverage before full DDIM/PNG integration.
 
 This file records observed evidence, not a claimed fix.
+
+## Native source investigation (pinned MNN)
+
+Read upstream `transformers/llm/engine/src/tokenizer/tokenizer.cpp` at the pinned revision:
+
+- `PipelineTokenizer::encode` performs normalizer → pre-tokenizer → `model_->tokenize`.
+- `ByteLevelPreTokenizer` uses a GPT-2-style regex and byte mapping.
+- `BPEModel::tokenize` begins with per-character token IDs and repeatedly merges ranked adjacent pairs.
+- The upstream CLIP tokenizer uses end-of-word BPE semantics; inspect whether the exported pre-tokenizer/model and the native BPE model represent the `</w>` suffix identically. This is a **hypothesis**, not a verified root cause.
+- The host mismatch on `a red apple` is especially useful for a minimal reproducer: [64,1893,8629] vs [320,736,3055].
+
+**Do not patch upstream BPE merging based on this hypothesis alone.** First inspect the generated `tokenizer.json` and serialized pipeline flags and run a focused minimal regression that identifies the first divergent stage.
