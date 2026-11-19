@@ -6,6 +6,7 @@ on:
       - 'tests/test_native_sd15_wiring.py'
       - 'scripts/local_studio_generator.gd'
       - 'scripts/storyboard.gd'
+      - 'native/mp4exporter/build.gradle'
       - 'native/mp4exporter/src/main/java/com/mobilei2v/encoder/MP4Exporter.java'
       - 'native/mnnarm64/src/KarmaMnnBridge.java'
       - 'native/mnnarm64/src/KarmaClipEncoder.java'
@@ -22,6 +23,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify native readiness and fail-closed CLIP pipeline wiring
         run: python3 tests/test_native_sd15_wiring.py
+      - name: Compile Android plugin AAR with native MNN Java sources (NO APK)
+        run: gradle -p native/mp4exporter assembleDebug --no-daemon
       - name: Install Godot 4.5.2 for real GDScript parsing
         run: |
           wget -q --timeout=30 https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
