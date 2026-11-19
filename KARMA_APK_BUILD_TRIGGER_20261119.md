@@ -9,3 +9,10 @@ Validated source before this build: `32ef7fedda2060a76bae4f18beb0aba3c7012f35`.
 - On-device inference and archive installation are **not yet verified**.
 
 This is a controlled build request, not a claim of working on-device inference.
+
+## Build request 2026-11-20
+
+User authorized a single ARM64 APK build with the published public SD15 models,
+verified SHA256 catalog, resumable Wi-Fi download, and automatic provisioning.
+The release assets are public and static wiring tests passed at `2cf7c365`.
+On-device inference remains unverified until installation and test.
