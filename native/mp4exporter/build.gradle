@@ -13,6 +13,11 @@ android {
             testLogging { exceptionFormat = 'full' }
         }
     }
+    // Reuse the existing native MNN Java sources in the Android plugin AAR.
+    // Without this, MP4Exporter cannot resolve KarmaMnnBridge at compile time.
+    sourceSets {
+        main.java.srcDirs += ['../mnnarm64/src']
+    }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
