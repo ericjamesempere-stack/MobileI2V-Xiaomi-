@@ -2573,14 +2573,10 @@ func _detect_sd15_engine() -> void:
         sd15_engine_last_state = "missing_models"
 
 func _probe_sd15_fallbacks() -> void:
-    var worker: Object = get_node_or_null("LocalStudioGenerator")
-    if worker == null:
-        sd15_auto_probe_pending = false
-        return
-    if not worker.has_method("inspect_local_engines"):
-        sd15_auto_probe_pending = false
-        return
+    var worker: Node = _make_drawing_worker()
+    add_child(worker)
     var probe: Dictionary = await worker.inspect_local_engines(true, true)
+    worker.queue_free()
     sd15_auto_probe_pending = false
     if sd15_import_status_label == null or sd15_engine_last_state != "missing_models":
         return
