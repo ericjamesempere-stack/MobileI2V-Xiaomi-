@@ -8,6 +8,7 @@ on:
       - 'native/mnnarm64/src/karma_mnn_jni.cpp'
       - 'native/mnnarm64/src/KarmaMnnBridge.java'
       - 'native/mnnarm64/src/KarmaSdInference.java'
+      - 'native/mnnarm64/src/KarmaClipEncoder.java'
       - 'native/mnnarm64/MODEL_SETUP.md'
       - 'tests/test_mnn_ddim_scheduler.cpp'
   workflow_dispatch:
@@ -31,7 +32,7 @@ jobs:
           test -f "$ANDROID_JAR"
           mkdir -p /tmp/karma-java-classes
           javac -source 8 -target 8 -cp "$ANDROID_JAR" -d /tmp/karma-java-classes \
-            native/mnnarm64/src/KarmaMnnBridge.java native/mnnarm64/src/KarmaSdInference.java
+            native/mnnarm64/src/KarmaMnnBridge.java native/mnnarm64/src/KarmaSdInference.java native/mnnarm64/src/KarmaClipEncoder.java
           echo KARMA_SD_JAVA_LOOP_COMPILES_OK
       - name: Setup Android NDK r27c
         uses: nttld/setup-ndk@v1
