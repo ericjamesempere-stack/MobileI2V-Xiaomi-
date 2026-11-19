@@ -195,7 +195,9 @@ func build(board: Control) -> void:
     board.action_input.custom_minimum_size.y = 200
     board.action_input.placeholder_text = "Il marche, puis court. Il trébuche, tombe et se relève."
     story.add_child(board.action_input)
-    var examples := HBoxContainer.new()
+    # Stack examples on narrow portrait screens; three labels in one row
+    # can overflow the usable width and make touch targets too small.
+    var examples := VBoxContainer.new()
     examples.add_theme_constant_override("separation", 8)
     story.add_child(examples)
     var stories: Array[String] = ["Il marche, puis court. Il tombe et se relève.", "Elle danse, puis saute et salue.", "Il marche, puis salue et s'arrête."]
