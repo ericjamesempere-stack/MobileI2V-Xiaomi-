@@ -1,0 +1,40 @@
+name: KARMA ONE - pinned SD15 CLIP BPE reference (NO APK)
+on:
+  push:
+    branches: [karma/step12-consolidation-20261118]
+    paths:
+      - '.github/workflows/validate-sd15-clip-bpe.yml'
+      - 'tools/verify_sd15_clip_reference.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official-clip-reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Download tokenizer files from exact pinned SD15 model revision
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "ericjamesempere-stack/MobileI2V-Xiaomi-"
+          mkdir -p /tmp/karma-official-tokenizer
+          for name in vocab.json merges.txt tokenizer_config.json special_tokens_map.json; do
+            curl --fail --location --retry 3 --silent --show-error \
+              "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/451f4fe16113bff5a5d2269ed5ad43b0592e9a14/tokenizer/$name" \
+              -o "/tmp/karma-official-tokenizer/$name"
+          done
+      - name: Generate official CLIP BPE vectors (MNN parity still pending)
+        run: |
+          set -euo pipefail
+          python -m pip install 'transformers>=4.44,<5'
+          python tools/verify_sd15_clip_reference.py /tmp/karma-official-tokenizer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: karma-sd15-official-clip-reference
+          path: clip_reference_vectors.json
+          if-no-files-found: error
+          retention-days: 7
