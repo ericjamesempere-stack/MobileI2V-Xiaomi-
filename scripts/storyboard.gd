@@ -2600,9 +2600,11 @@ func _sync_friendly_ui() -> void:
     local_mode.disabled = busy
     remote_fallback.disabled = busy or not local_mode.button_pressed
     local_auth_input.editable = not busy
+    # Indeterminate animation: never imply a measured percentage of generation.
     busy_bar.visible = busy
-    if busy:
-        busy_bar.value = 20.0 + 60.0 * (0.5 + 0.5 * sin(float(Time.get_ticks_msec()) / 800.0))
+    busy_bar.indeterminate = busy
+    if not busy:
+        busy_bar.value = 0.0
     choice_summary.text = "%d secondes · %d dessins · %s" % [int(duration_input.value), int(ai_drawings_count.value), drawing_style.get_item_text(drawing_style.selected)]
 
 func _friendly_generate() -> void:
