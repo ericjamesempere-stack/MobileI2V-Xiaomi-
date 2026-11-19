@@ -30,7 +30,7 @@ func _initialize() -> void:
     assert(source.contains("if not visual_warnings.is_empty():"))
     assert(source.contains("anomalies visuelles potentielles"))
     assert(source.contains("func _explain_scene_failure(reason: String) -> String:"))
-    assert(source.contains('kind in ["authentication", "safety", "quota", "rate_limit", "budget", "unsupported_scene_registry"]'))
+    assert(source.contains('kind in ["authentication", "safety", "quota", "rate_limit", "budget", "invalid_request", "unsupported_scene_registry"]'))
     assert(source.contains('status_code in [400, 401, 402, 403, 409, 422, 429]'))
     assert(source.contains('detail.contains("quota")'))
     assert(source.contains('"missing_entities_or_actions":'))
