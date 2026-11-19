@@ -101,9 +101,9 @@ public final class KarmaSdInference {
                 float[] batchContext = new float[2 * 77 * 768];
                 System.arraycopy(negativeEmbeddings, 0, batchContext, 0, 77 * 768);
                 System.arraycopy(positiveEmbeddings, 0, batchContext, 77 * 768, 77 * 768);
-                float[] batchTimestep = { (float) t, (float) t };
+                int[] batchTimestep = { t, t };
                 require(KarmaMnnBridge.setFloatInput(cfg.latentInput, batchLatent), "UNet batch latent");
-                require(KarmaMnnBridge.setFloatInput(cfg.timestepInput, batchTimestep), "UNet batch timestep");
+                require(KarmaMnnBridge.setIntInput(cfg.timestepInput, batchTimestep), "UNet batch timestep");
                 require(KarmaMnnBridge.setFloatInput(cfg.contextInput, batchContext), "UNet batch context");
                 require(KarmaMnnBridge.runGraph(), "UNet batched inference");
                 float[] noiseBatch = KarmaMnnBridge.getFloatOutput(cfg.noiseOutput);
