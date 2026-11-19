@@ -277,7 +277,12 @@ func build(board: Control) -> void:
     button(board, board.wizard_pages[2], "Partager ma vidéo", board._share_last_mp4)
     button(board, board.wizard_pages[2], "Améliorer mon histoire", func() -> void: board._go_step(1))
 
-    button(board, board.root_box, "Réglages et outils", func() -> void: board.advanced_panel.visible = not board.advanced_panel.visible).name = "AdvancedToggle"
+    var settings_button: Button = button(board, shell, "Réglages et outils", func() -> void:
+        board.advanced_panel.visible = not board.advanced_panel.visible
+        if board.advanced_panel.visible:
+            board.wizard_scroll.scroll_vertical = int(board.advanced_panel.position.y)
+    )
+    settings_button.name = "AdvancedToggle"
     var advanced: VBoxContainer = card(board.root_box, "Le coin des réglages", "Facultatif : les trois étapes suffisent pour commencer.", Color("edf0f9"))
     board.advanced_panel = advanced.get_parent()
     board.advanced_panel.visible = false
