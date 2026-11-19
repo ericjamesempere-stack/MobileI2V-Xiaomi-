@@ -313,6 +313,13 @@ jobs:
           test -s /tmp/karma-native-arm64/mnn-tokenizer-patched-sha256.txt
           grep -Fxq '40ad7e340cdf5cb29fe9d5f1f9eec794adbaef6d' /tmp/karma-native-arm64/mnn-upstream-sha.txt
           python3 tools/stage_mnn_arm64.py /tmp/karma-native-arm64 android/build
+          mkdir -p android/build/src/main/java/com/mobilei2v/mnn
+          for source in KarmaMnnBridge.java KarmaClipEncoder.java KarmaSdInference.java; do
+            test -s "native/mnnarm64/src/$source"
+            cp "native/mnnarm64/src/$source" "android/build/src/main/java/com/mobilei2v/mnn/$source"
+          done
+          grep -Fq 'package com.mobilei2v.mnn;' android/build/src/main/java/com/mobilei2v/mnn/KarmaMnnBridge.java
+          echo KARMA_MNN_ANDROID_JAVA_BRIDGE_STAGED_OK
           for lib in libMNN.so libllm.so libkarma_mnn.so; do
             test -s "android/build/src/main/jniLibs/arm64-v8a/$lib"
           done
