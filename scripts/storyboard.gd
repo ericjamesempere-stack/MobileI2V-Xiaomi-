@@ -16,6 +16,9 @@ var local_mode: CheckBox
 var remote_fallback: CheckBox
 var local_auth_input: LineEdit
 var local_engine_status: Label
+var sd15_import_status_label: Label
+var sd15_import_poll_clock: float = 0.0
+var sd15_import_last_state: String = ""
 var last_local_probe: Dictionary = {}
 var ai_http: HTTPRequest
 var ai_running: bool = false
@@ -2539,8 +2542,53 @@ func _go_step(index: int) -> void:
     wizard_scroll.scroll_vertical = 0
     _sync_friendly_ui()
 
+func _install_sd15_models() -> void:
+    if OS.get_name() != "Android" or not Engine.has_singleton("MP4Exporter"):
+        status.text = "Installation des modèles disponible uniquement dans l'APK Android."
+        return
+    var native: Object = Engine.get_singleton("MP4Exporter")
+    if not native.has_java_method("pick_sd15_model_archive") or not native.has_java_method("sd15_model_import_status"):
+        status.text = "Le module d'installation des modèles n'est pas présent dans cet APK."
+        return
+    if bool(native.call("pick_sd15_model_archive")):
+        status.text = "Choisis le fichier ZIP des modèles SD1.5 dans ton téléphone."
+        sd15_import_last_state = ""
+    else:
+        status.text = "Installation déjà en cours ou sélecteur Android indisponible."
+
+func _poll_sd15_model_import(delta: float) -> void:
+    sd15_import_poll_clock += delta
+    if sd15_import_poll_clock < 0.5:
+        return
+    sd15_import_poll_clock = 0.0
+    if sd15_import_status_label == null or OS.get_name() != "Android" or not Engine.has_singleton("MP4Exporter"):
+        return
+    var native: Object = Engine.get_singleton("MP4Exporter")
+    if not native.has_java_method("sd15_model_import_status"):
+        return
+    var parsed: Variant = JSON.parse_string(str(native.call("sd15_model_import_status")))
+    if not parsed is Dictionary:
+        return
+    var phase: String = str(parsed.get("state", "unknown"))
+    if phase == "idle":
+        return
+    var message: String = "Modèles IA : " + phase
+    if phase == "importing":
+        message = "Installation des modèles : %.1f Mo copiés" % (float(parsed.get("bytes", 0)) / 1048576.0)
+    elif phase == "completed":
+        message = "Modèles installés. Vérifie le moteur IA avant de générer."
+    elif phase == "error":
+        message = "Importation impossible : " + str(parsed.get("detail", parsed.get("reason", "erreur inconnue")))
+    elif phase == "cancelled":
+        message = "Installation annulée. Projet conservé."
+    sd15_import_status_label.text = message
+    if phase != sd15_import_last_state and phase in ["completed", "error", "cancelled"]:
+        status.text = message
+    sd15_import_last_state = phase
+
 func _process(delta: float) -> void:
     _poll_photo_import(delta)
+    _poll_sd15_model_import(delta)
     if Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
         var shared: String = str(native.call("consume_chatgpt_share_result"))
