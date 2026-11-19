@@ -167,6 +167,11 @@ jobs:
             test -s "/tmp/karma-official-android/build/src/main/java/com/mobilei2v/mnn/$source"
           done
           echo KARMA_GODOT_REAL_GRADLE_MNN_STAGING_OK
+      - name: Set up supported Java 17 for Godot Gradle 8.11.1
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Verify Gradle recognizes MNN source sets (no APK)
         run: |
           set -euo pipefail
