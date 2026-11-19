@@ -20,6 +20,7 @@ var sd15_import_status_label: Label
 var sd15_import_poll_clock: float = 0.0
 var sd15_import_last_state: String = ""
 var sd15_engine_last_state: String = ""
+var sd15_auto_probe_pending: bool = false
 var last_local_probe: Dictionary = {}
 var ai_http: HTTPRequest
 var ai_running: bool = false
@@ -2565,8 +2566,30 @@ func _detect_sd15_engine() -> void:
         sd15_import_status_label.text = "Moteur IA natif indisponible. Les agents peuvent essayer les moteurs distants autorisés."
         sd15_engine_last_state = "missing_libraries"
     else:
-        sd15_import_status_label.text = "Modèles locaux absents. KARMA ONE peut utiliser un moteur distant autorisé ; installation locale automatique à développer."
+        sd15_import_status_label.text = "Modèles locaux absents : recherche automatique des moteurs disponibles. Aucun téléchargement non vérifié." 
+        if not sd15_auto_probe_pending:
+            sd15_auto_probe_pending = true
+            call_deferred("_probe_sd15_fallbacks")
         sd15_engine_last_state = "missing_models"
+
+func _probe_sd15_fallbacks() -> void:
+    var worker: Object = get_node_or_null("LocalStudioGenerator")
+    if worker == null:
+        sd15_auto_probe_pending = false
+        return
+    if not worker.has_method("inspect_local_engines"):
+        sd15_auto_probe_pending = false
+        return
+    var probe: Dictionary = await worker.inspect_local_engines(true, true)
+    sd15_auto_probe_pending = false
+    if sd15_import_status_label == null or sd15_engine_last_state != "missing_models":
+        return
+    var vision: bool = probe.get("vision", {}).get("status", "") == "active_model_listed"
+    var drawing: bool = probe.get("drawing", {}).get("status", "") == "http_reachable"
+    if vision or drawing:
+        sd15_import_status_label.text = "Moteurs locaux détectés : vision %s, dessin %s. Génération réelle encore à valider." % ["disponible" if vision else "absente", "joignable" if drawing else "absent"]
+    else:
+        sd15_import_status_label.text = "Aucun moteur local prêt. Installation automatique suspendue : aucune source de modèles authentifiée et téléchargeable sans connexion GitHub."
 
 func _install_sd15_models() -> void:
     if OS.get_name() != "Android" or not Engine.has_singleton("MP4Exporter"):
