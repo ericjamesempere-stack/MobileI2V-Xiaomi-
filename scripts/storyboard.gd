@@ -2109,7 +2109,11 @@ func _create_remote_reference(description_override: String = "") -> void:
     if worker.has_method("inspect_local_engines"):
         var probe: Dictionary = await worker.inspect_local_engines(false, true)
         _remember_local_probe(probe)
-        result = await worker.create_reference(description, _selected_drawing_style()) if probe.get("ok", false) else {
+        # Native SD15 text-to-image does not depend on Local Dream /health.
+        # Only bypass the loopback probe when the installed plugin exposes
+        # the actual native generation entry point. Native failures remain visible.
+        var native_t2i: bool = OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter") and Engine.get_singleton("MP4Exporter").has_method("start_native_sd15")
+        result = await worker.create_reference(description, _selected_drawing_style()) if probe.get("ok", false) or native_t2i else {
             "ok": false, "error": probe.get("message", "Moteur image indisponible."),
             "http_status": probe.get("drawing", {}).get("http_status", 0)
         }
