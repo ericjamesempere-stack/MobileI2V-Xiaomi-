@@ -126,6 +126,12 @@ func inspect_local_engines(include_vision: bool = true, include_drawing: bool = 
     if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
         report["android_apps"] = JSON.parse_string(str(native.call("local_engine_installation_status")))
+        if native.has_method("native_sd15_readiness"):
+            var native_status: Variant = JSON.parse_string(str(native.call("native_sd15_readiness")))
+            if native_status is Dictionary:
+                report["embedded_sd15"] = native_status
+            else:
+                report["embedded_sd15"] = {"ok": false, "inference_verified": false, "reason": "invalid_native_readiness_response"}
     if include_vision:
         var response: Dictionary = await _local_request(vision_base, "/v1/models", {}, true, 4.0)
         var parsed := JSON.new()
