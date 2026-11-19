@@ -29,6 +29,8 @@ jobs:
           assert 'python3 tools/stage_mnn_arm64.py /tmp/karma-native-arm64 android/build' in source
           assert 'gh run download 44459460832' in source
           assert 'actions: read' in source
+          assert 'cp "native/mnnarm64/src/$source" "android/build/src/main/java/com/mobilei2v/mnn/$source"' in source
+          assert 'KARMA_MNN_ANDROID_JAVA_BRIDGE_STAGED_OK' in source
           print('KARMA_MNN_REAL_EXPORT_STAGE_WIRING_OK')
           PY
       - name: Fetch exact successful ARM64 native artifact
@@ -55,6 +57,13 @@ jobs:
           test -s /tmp/karma-android-build/src/main/jniLibs/arm64-v8a/libMNN.so
           test -s /tmp/karma-android-build/src/main/jniLibs/arm64-v8a/libllm.so
           test -s /tmp/karma-android-build/src/main/jniLibs/arm64-v8a/libkarma_mnn.so
+          mkdir -p /tmp/karma-android-build/src/main/java/com/mobilei2v/mnn
+          cp native/mnnarm64/src/KarmaMnnBridge.java native/mnnarm64/src/KarmaClipEncoder.java native/mnnarm64/src/KarmaSdInference.java /tmp/karma-android-build/src/main/java/com/mobilei2v/mnn/
+          ANDROID_JAR="$(find "${ANDROID_HOME:-/opt/android-sdk}" -path '*/platforms/android-*/android.jar' -print | sort -V | tail -n 1)"
+          test -s "$ANDROID_JAR"
+          mkdir -p /tmp/karma-mnn-java-classes
+          javac -source 8 -target 8 -cp "$ANDROID_JAR" -d /tmp/karma-mnn-java-classes /tmp/karma-android-build/src/main/java/com/mobilei2v/mnn/*.java
+          test -s /tmp/karma-mnn-java-classes/com/mobilei2v/mnn/KarmaMnnBridge.class
           echo KARMA_MNN_ARM64_ANDROID_STAGING_OK
       - name: Publish integration evidence (not APK)
         if: success()
