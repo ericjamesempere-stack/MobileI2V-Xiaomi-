@@ -41,6 +41,7 @@ jobs:
           c++ -std=c++17 -O2 \
             -I/tmp/MNN/transformers/llm/engine/src \
             -I/tmp/MNN/transformers/llm/engine/include \
+            -I/tmp/MNN/include \
             tools/verify_mnn_clip_tokenizer.cpp \
             "$LLM_SO" "$MNN_SO" \
             -Wl,-rpath,"$(dirname "$LLM_SO")" \
