@@ -20,6 +20,19 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/karma-models
           gh run download 44534183813 --repo "$GITHUB_REPOSITORY" --name karma-sd15-mnn-models-preserved --dir /tmp/karma-models
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+          root=Path("/tmp/karma-models")
+          for name in ["tokenizer.mtok","text_encoder.mnn","unet.mnn","vae_decoder.mnn"]:
+              matches=list(root.rglob(name))
+              if len(matches)!=1: raise RuntimeError("Missing or ambiguous model file: "+name)
+              if matches[0].parent!=root: shutil.copy2(matches[0],root/name)
+          for name in ["text_encoder.mnn.weight","unet.mnn.weight","vae_decoder.mnn.weight"]:
+              matches=list(root.rglob(name))
+              if len(matches)>1: raise RuntimeError("Ambiguous external weight: "+name)
+              if matches and matches[0].parent!=root: shutil.copy2(matches[0],root/name)
+          PY
           python3 tools/verify_mnn_sd_export.py --model-dir /tmp/karma-models
       - name: Prepare SHA256 catalog of all native model files
         run: |
