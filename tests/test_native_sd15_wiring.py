@@ -37,3 +37,11 @@ assert 'KarmaSdInference.generatePrompt(cfg,' in java
 assert 'new Thread(() -> {' in java
 assert 'native_sd15_job_status()' in java
 print('NATIVE_SD15_CREATE_BUTTON_STATIC_ROUTE_OK')
+
+# Regression for GitHub Actions run 44522942556: the Android plugin AAR must
+# compile the real MNN Java classes, not just stage them for the final APK.
+gradle=(ROOT/'native/mp4exporter/build.gradle').read_text()
+assert "main.java.srcDirs += ['../mnnarm64/src']" in gradle
+for source in ('KarmaMnnBridge.java', 'KarmaClipEncoder.java', 'KarmaSdInference.java'):
+    assert (ROOT/'native/mnnarm64/src'/source).is_file()
+print('NATIVE_SD15_PLUGIN_JAVA_SOURCESET_OK')
