@@ -2564,10 +2564,10 @@ func _detect_sd15_engine() -> void:
         sd15_import_status_label.text = "Moteur IA local détecté et modèles présents. Prêt pour un test de génération."
         sd15_engine_last_state = "ready"
     elif not bool(result.get("native_libraries_loaded", false)):
-        sd15_import_status_label.text = "Moteur IA natif indisponible. Les agents peuvent essayer les moteurs distants autorisés."
+        sd15_import_status_label.text = "Bibliothèques natives MNN indisponibles : " + str(result.get("reason", "vérifier le module Android"))
         sd15_engine_last_state = "missing_libraries"
     else:
-        sd15_import_status_label.text = "Modèles locaux absents : recherche automatique des moteurs disponibles. Aucun téléchargement non vérifié." 
+        sd15_import_status_label.text = "Modèles locaux absents : téléchargement vérifié en Wi-Fi demandé." 
         if not sd15_auto_probe_pending:
             sd15_auto_probe_pending = true
             call_deferred("_probe_sd15_fallbacks")
@@ -2588,7 +2588,7 @@ func _probe_sd15_fallbacks() -> void:
     if vision or drawing:
         sd15_import_status_label.text = "Moteurs locaux détectés : vision %s, dessin %s. Génération réelle encore à valider." % ["disponible" if vision else "absente", "joignable" if drawing else "absent"]
     else:
-        sd15_import_status_label.text = "Aucun moteur local prêt. Installation automatique suspendue : aucune source de modèles authentifiée et téléchargeable sans connexion GitHub."
+        sd15_import_status_label.text = "Aucun autre moteur local prêt. Vérifie le statut du téléchargement SD15 dans les réglages."
 
 func _install_sd15_models() -> void:
     if OS.get_name() != "Android" or not Engine.has_singleton("MP4Exporter"):
@@ -2620,10 +2620,12 @@ func _poll_sd15_model_import(delta: float) -> void:
             var auto_state: String = str(auto_result.get("state", "idle"))
             if auto_state not in ["idle", ""]:
                 if auto_state != sd15_auto_last_state:
-                    sd15_import_status_label.text = "Modèles IA : " + str(auto_result.get("detail", auto_state))
+                    sd15_import_status_label.text = "Modèles IA [" + auto_state + "] : " + str(auto_result.get("detail", auto_state))
                     sd15_auto_last_state = auto_state
                     if auto_state == "completed":
                         _detect_sd15_engine()
+                    elif auto_state in ["error", "waiting_wifi"]:
+                        status.text = sd15_import_status_label.text
                 return
     var parsed: Variant = JSON.parse_string(str(native.call("sd15_model_import_status")))
     if not parsed is Dictionary:
@@ -3512,5 +3514,8 @@ func _test_real_local_diffusion() -> void:
     if result.get("ok", false):
         status.text = "Modèle local validé : image enregistrée dans " + str(result.get("file", "")) + " (" + str(result.get("elapsed_ms", 0)) + " ms). Qualité à examiner."
     else:
-        status.text = "Modèle local non validé : " + str(result.get("error", "Erreur inconnue")) + ". Aucun moteur extérieur sollicité."
+        var reason: String = str(result.get("error", result.get("reason", result.get("detail", "diagnostic non renseigné"))))
+        if reason.is_empty() or reason == "<null>":
+            reason = "diagnostic non renseigné : " + JSON.stringify(result)
+        status.text = "Modèle local non validé : " + reason + ". Aucun moteur extérieur sollicité."
     _sync_friendly_ui()
