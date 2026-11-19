@@ -16,7 +16,7 @@ for name in ('tokenizer.mtok','text_encoder.mnn','unet.mnn','vae_decoder.mnn'):
     assert name in java
 assert 'report.put("inference_verified", false)' in java
 assert 'report.put("ok", librariesLoaded && filesPresent)' in java
-assert 'native.has_method("native_sd15_readiness")' in local
+assert 'native.has_java_method("native_sd15_readiness")' in local
 assert 'report["embedded_sd15"] = native_status' in local
 assert '"inference_verified": false' in local
 assert 'generatePrompt(' in sd and 'KarmaClipEncoder.encodePrompt(' in sd
