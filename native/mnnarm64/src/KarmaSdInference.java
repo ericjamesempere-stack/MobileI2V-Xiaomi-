@@ -34,17 +34,6 @@ public final class KarmaSdInference {
         if (!ok) throw new IllegalStateException(message + ": " + KarmaMnnBridge.lastError());
     }
 
-    private static float[] predict(Config cfg, float[] latent, float[] timestep,
-                                   float[] embedding) {
-        require(KarmaMnnBridge.setFloatInput(cfg.latentInput, latent), "UNet latent input");
-        require(KarmaMnnBridge.setFloatInput(cfg.timestepInput, timestep), "UNet timestep input");
-        require(KarmaMnnBridge.setFloatInput(cfg.contextInput, embedding), "UNet context input");
-        require(KarmaMnnBridge.runGraph(), "UNet inference");
-        float[] result = KarmaMnnBridge.getFloatOutput(cfg.noiseOutput);
-        require(result != null && result.length == latent.length, "UNet output shape");
-        return result;
-    }
-
     /**
      * @param positiveEmbeddings real CLIP text encoder output, flattened float32
      * @param negativeEmbeddings real unconditional/negative CLIP output, same shape
@@ -88,7 +77,6 @@ public final class KarmaSdInference {
             require(KarmaMnnBridge.loadGraph(cfg.unetPath), "UNet graph load");
             for (int i = 0; i < cfg.steps; ++i) {
                 int t = cfg.timesteps[i];
-                float[] ts = {(float) t};
                 // Exported UNet has fixed batch=2: [negative, positive].
                 float[] batchLatent = new float[latentCount * 2];
                 System.arraycopy(latent, 0, batchLatent, 0, latentCount);
