@@ -19,6 +19,7 @@ var local_engine_status: Label
 var sd15_import_status_label: Label
 var sd15_import_poll_clock: float = 0.0
 var sd15_import_last_state: String = ""
+var sd15_engine_last_state: String = ""
 var last_local_probe: Dictionary = {}
 var ai_http: HTTPRequest
 var ai_running: bool = false
@@ -149,6 +150,7 @@ func _ready() -> void:
     pose_http.request_completed.connect(_pose_completed)
     review_check.toggled.connect(_review_confirmation_changed)
     _load_saved()
+    call_deferred("_detect_sd15_engine")
     if not sources.is_empty():
         _build_contact_sheet()
 
@@ -2542,6 +2544,30 @@ func _go_step(index: int) -> void:
     wizard_scroll.scroll_vertical = 0
     _sync_friendly_ui()
 
+func _detect_sd15_engine() -> void:
+    if sd15_import_status_label == null:
+        return
+    if OS.get_name() != "Android" or not Engine.has_singleton("MP4Exporter"):
+        sd15_import_status_label.text = "Moteur Android non disponible sur cette plateforme."
+        return
+    var native: Object = Engine.get_singleton("MP4Exporter")
+    if not native.has_java_method("native_sd15_readiness"):
+        sd15_import_status_label.text = "Moteur natif absent de cette version."
+        return
+    var result: Variant = JSON.parse_string(str(native.call("native_sd15_readiness")))
+    if not result is Dictionary:
+        sd15_import_status_label.text = "Diagnostic du moteur IA illisible."
+        return
+    if bool(result.get("ok", false)):
+        sd15_import_status_label.text = "Moteur IA local détecté et modèles présents. Prêt pour un test de génération."
+        sd15_engine_last_state = "ready"
+    elif not bool(result.get("native_libraries_loaded", false)):
+        sd15_import_status_label.text = "Moteur IA natif indisponible. Les agents peuvent essayer les moteurs distants autorisés."
+        sd15_engine_last_state = "missing_libraries"
+    else:
+        sd15_import_status_label.text = "Modèles locaux absents. KARMA ONE peut utiliser un moteur distant autorisé ; installation locale automatique à développer."
+        sd15_engine_last_state = "missing_models"
+
 func _install_sd15_models() -> void:
     if OS.get_name() != "Android" or not Engine.has_singleton("MP4Exporter"):
         status.text = "Installation des modèles disponible uniquement dans l'APK Android."
@@ -2582,6 +2608,8 @@ func _poll_sd15_model_import(delta: float) -> void:
     elif phase == "cancelled":
         message = "Installation annulée. Projet conservé."
     sd15_import_status_label.text = message
+    if phase == "completed" and phase != sd15_import_last_state:
+        _detect_sd15_engine()
     if phase != sd15_import_last_state and phase in ["completed", "error", "cancelled"]:
         status.text = message
     sd15_import_last_state = phase
