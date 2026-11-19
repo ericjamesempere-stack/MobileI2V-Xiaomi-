@@ -284,6 +284,9 @@ func build(board: Control) -> void:
             board.wizard_scroll.ensure_control_visible.call_deferred(board.advanced_panel)
     )
     settings_button.name = "AdvancedToggle"
+    # Keep the persistent shortcut compact so the scrollable editor has room.
+    settings_button.custom_minimum_size.y = 56
+    settings_button.add_theme_font_size_override("font_size", 18)
     var advanced: VBoxContainer = card(board.root_box, "Le coin des réglages", "Facultatif : les trois étapes suffisent pour commencer.", Color("edf0f9"))
     board.advanced_panel = advanced.get_parent()
     board.advanced_panel.visible = false
