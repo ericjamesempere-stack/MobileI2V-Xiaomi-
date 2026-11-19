@@ -9,6 +9,16 @@ Date : 2026-11-19. Inventaire technique issu du code existant et du test réel s
 - `scripts/hf_studio_generator.gd` : adaptateur distant existant, soumis aux conditions, disponibilité, quotas et consentement explicite pour les images.
 - Pipeline storyboard, images intermédiaires et MP4 : tests d'intégration réussis avec inférence simulée, pas avec moteur neuronal Android réel.
 
+## Réutilisation vérifiée des agents précédents — étape 1/4
+
+- `native/mnnarm64/src/KarmaClipEncoder.java` : `encodePrompt` utilise `tokenizeClip`, charge le graphe CLIP et récupère deux tenseurs 77×768. Validation stricte des formes et des valeurs finies. **Code présent, pas d'exécution sur Xiaomi démontrée**.
+- `native/mnnarm64/src/KarmaSdInference.java` : `generatePrompt` relie déjà tokenizer + CLIP à `generate`, qui exécute UNet batch=2, DDIM puis VAE et écrit un PNG 512×512. L'ancien commentaire de classe « Not text-to-image yet » est obsolète au regard de cette méthode ; l'exécution complète n'est pas prouvée sur appareil.
+- `native/mnnarm64/src/KarmaMnnBridge.java` : chargement natif des bibliothèques et primitives `loadGraph`, `runGraph`, `setIntInput`, `setFloatInput`, `getFloatOutput`, `tokenizeClip`, `ddimStep`. **Le chargement des bibliothèques ne prouve pas celui des poids**.
+- `.github/workflows/validate-sd15-mnn-runtime.yml` : référence explicitement l'artefact `karma-sd15-real-mnn-models` du run `44420581040`. Le workflow de validation est verrouillé sur la branche de consolidation ; ne pas le déclencher sur la branche courante sans adaptation vérifiée.
+- Comparaison GitHub `karma/step12-consolidation-20261118...karma/step04-clip-parity-validated-20261119` : branche actuelle **31 commits en avance, 0 en retard** lors de l'audit. Pas de fusion nécessaire depuis cette branche.
+
+**Point de blocage à traiter en premier :** déterminer où les poids MNN et le tokenizer sont stockés, vérifier leur disponibilité et leur licence, puis trouver le point d'appel Android/Godot de `KarmaSdInference.generatePrompt`. Ne pas coder un second pipeline de diffusion. Un artefact CI ne signifie pas que les modèles sont présents sur le téléphone.
+
 ## Bibliothèque — disponibilité et exigences
 
 | Fonction | Candidat | Statut prouvé | Condition avant activation |
