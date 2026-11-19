@@ -49,4 +49,8 @@ jobs:
             echo 'Release already exists: refusing to overwrite published model checksums.'
             exit 1
           fi
-          gh release create "$tag" /tmp/karma-models/catalog.json /tmp/karma-models/tokenizer.mtok /tmp/karma-models/text_encoder.mnn /tmp/karma-models/unet.mnn /tmp/karma-models/vae_decoder.mnn /tmp/karma-models/*.mnn.weight --repo "$GITHUB_REPOSITORY" --title 'KARMA ONE SD1.5 MNN models v1' --notes 'Public model assets; checksums in catalog.json. Graph inference on Android not yet verified.' --latest=false
+          assets=(/tmp/karma-models/catalog.json /tmp/karma-models/tokenizer.mtok /tmp/karma-models/text_encoder.mnn /tmp/karma-models/unet.mnn /tmp/karma-models/vae_decoder.mnn)
+          for weight in /tmp/karma-models/*.mnn.weight; do
+            if [ -f "$weight" ]; then assets+=("$weight"); fi
+          done
+          gh release create "$tag" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --title 'KARMA ONE SD1.5 MNN models v1' --notes 'Public model assets; checksums in catalog.json. Graph inference on Android not yet verified.' --latest=false
