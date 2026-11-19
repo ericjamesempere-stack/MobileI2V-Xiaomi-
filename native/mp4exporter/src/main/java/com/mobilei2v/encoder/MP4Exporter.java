@@ -146,11 +146,14 @@ public final class MP4Exporter extends GodotPlugin {
                 cfg.vaePath = new File(dir, "vae_decoder.mnn").getAbsolutePath();
                 cfg.outputPng = new File(outputDir, "native_sd15_" + System.currentTimeMillis() + ".png").getAbsolutePath();
                 cfg.steps = 8;
-                // SD1.5 linear beta schedule: 1000 training timesteps.
+                // SD1.5 uses the scaled_linear beta schedule (not linear).
+                // Keep DDIM alpha values aligned with the converted checkpoint.
                 cfg.alphasCumprod = new float[1000];
                 double alpha = 1.0;
                 for (int i = 0; i < 1000; ++i) {
-                    double beta = 0.00085 + (0.012 - 0.00085) * i / 999.0;
+                    double sqrtBeta = Math.sqrt(0.00085)
+                            + (Math.sqrt(0.012) - Math.sqrt(0.00085)) * i / 999.0;
+                    double beta = sqrtBeta * sqrtBeta;
                     alpha *= 1.0 - beta;
                     cfg.alphasCumprod[i] = (float) alpha;
                 }
