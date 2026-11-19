@@ -41,3 +41,15 @@ Read upstream `transformers/llm/engine/src/tokenizer/tokenizer.cpp` at the pinne
 - The host mismatch on `a red apple` is especially useful for a minimal reproducer: [64,1893,8629] vs [320,736,3055].
 
 **Do not patch upstream BPE merging based on this hypothesis alone.** First inspect the generated `tokenizer.json` and serialized pipeline flags and run a focused minimal regression that identifies the first divergent stage.
+
+## Controlled diagnostic gate — 2026-11-19
+
+The mismatch is **not fixed**. Before editing the pinned MNN engine or rebuilding an APK, run a stage-by-stage probe using the exact model artifacts:
+
+1. Download the pinned SD1.5 `tokenizer/vocab.json`, `merges.txt`, and tokenizer configuration; preserve SHA-256 checksums.
+2. Export or inspect the actual `tokenizer.mtok` used by JNI, including its normalizer, pre-tokenizer, BPE model, and post-processing configuration.
+3. For `a red apple`, log normalized text, pre-tokenized pieces, byte-level pieces, BPE symbols and merge ranks, and final IDs on both paths. The first differing stage determines the fix.
+4. Include empty, accented French, punctuation, and long prompts in the regression; require all 385 IDs to match the official pinned reference.
+5. Keep Android/APK build blocked until the strict parity job succeeds. Do not substitute the expected IDs at runtime or change the official reference vectors.
+
+No native fix or successful parity claim is implied by this diagnostic update.
