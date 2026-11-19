@@ -17,6 +17,15 @@ public final class KarmaClipEncoder {
         }
     }
 
+    public static Embeddings encodePrompt(String mtokPath, String textEncoderPath,
+                                          String negativePrompt, String positivePrompt) {
+        int[] negative = KarmaMnnBridge.tokenizeClip(mtokPath, negativePrompt);
+        int[] positive = KarmaMnnBridge.tokenizeClip(mtokPath, positivePrompt);
+        if (negative == null || positive == null)
+            throw new IllegalStateException("real_mtok_tokenization_failed");
+        return encode(textEncoderPath, negative, positive);
+    }
+
     public static Embeddings encode(String textEncoderPath, int[] negativeTokens,
                                     int[] positiveTokens) {
         if (textEncoderPath == null || textEncoderPath.isEmpty()
