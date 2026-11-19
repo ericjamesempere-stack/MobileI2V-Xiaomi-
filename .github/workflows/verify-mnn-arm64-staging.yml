@@ -31,6 +31,9 @@ jobs:
           assert 'actions: read' in source
           assert 'cp "native/mnnarm64/src/$source" "android/build/src/main/java/com/mobilei2v/mnn/$source"' in source
           assert 'KARMA_MNN_ANDROID_JAVA_BRIDGE_STAGED_OK' in source
+          assert 'KARMA_MNN_APK_NATIVE_AND_JAVA_PACKAGING_OK' in source
+          assert 'grep -Fxq "lib/arm64-v8a/$native_lib" apk-entries.txt' in source
+          assert "('KarmaMnnBridge', 'KarmaClipEncoder', 'KarmaSdInference')" in source
           print('KARMA_MNN_REAL_EXPORT_STAGE_WIRING_OK')
           PY
       - name: Fetch exact successful ARM64 native artifact
