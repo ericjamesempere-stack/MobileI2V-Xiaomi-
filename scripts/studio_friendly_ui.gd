@@ -280,6 +280,8 @@ func build(board: Control) -> void:
     button(board, board.wizard_pages[2], "Améliorer mon histoire", func() -> void: board._go_step(1))
 
     var settings_button: Button = button(board, shell, "Réglages et outils", func() -> void:
+        # Close the Android soft keyboard before scrolling to advanced controls.
+        board.get_viewport().gui_release_focus()
         board.advanced_panel.visible = not board.advanced_panel.visible
         if board.advanced_panel.visible:
             # Defer until the previously hidden panel has been laid out.
