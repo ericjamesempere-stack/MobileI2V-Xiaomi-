@@ -45,3 +45,13 @@ assert "main.java.srcDirs += ['../mnnarm64/src']" in gradle
 for source in ('KarmaMnnBridge.java', 'KarmaClipEncoder.java', 'KarmaSdInference.java'):
     assert (ROOT/'native/mnnarm64/src'/source).is_file()
 print('NATIVE_SD15_PLUGIN_JAVA_SOURCESET_OK')
+
+# Model archive import must be private, user-initiated, and compile with the plugin.
+installer=(ROOT/'native/mp4exporter/src/main/java/com/mobilei2v/encoder/Sd15ModelImportActivity.java').read_text()
+plugin=(ROOT/'native/mp4exporter/src/main/java/com/mobilei2v/encoder/MP4Exporter.java').read_text()
+manifest=(ROOT/'native/mp4exporter/src/main/AndroidManifest.xml').read_text()
+assert 'ACTION_OPEN_DOCUMENT' in installer and 'ZipInputStream' in installer
+assert 'missing_model_files' in installer and 'model_size_limit' in installer
+assert 'pick_sd15_model_archive' in plugin and 'sd15_model_import_status' in plugin
+assert 'Sd15ModelImportActivity' in manifest and 'android:exported="false"' in manifest
+print('SD15_USER_SELECTED_ARCHIVE_IMPORT_WIRING_OK')
