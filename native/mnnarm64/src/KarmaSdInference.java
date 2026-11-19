@@ -72,6 +72,14 @@ public final class KarmaSdInference {
                     || (i > 0 && t >= cfg.timesteps[i - 1]))
                 throw new IllegalArgumentException("invalid_timestep_sequence");
         }
+        // The pinned SD15 ONNX export uses fixed batch=2 for CLIP and UNet,
+        // while the VAE decoder uses batch=1. Fail closed rather than
+        // silently supplying batch=1 tensors to a batch=2 UNet.
+        if (cfg.width != 512 || cfg.height != 512)
+            throw new IllegalArgumentException("sd15_export_requires_512x512");
+        if (positiveEmbeddings.length != 77 * 768
+                || negativeEmbeddings.length != 77 * 768)
+            throw new IllegalArgumentException("sd15_clip_embedding_shape_mismatch");
         int latentCount = 4 * (cfg.width / 8) * (cfg.height / 8);
         float[] latent = new float[latentCount];
         Random random = new Random(cfg.seed);
@@ -81,10 +89,25 @@ public final class KarmaSdInference {
             for (int i = 0; i < cfg.steps; ++i) {
                 int t = cfg.timesteps[i];
                 float[] ts = {(float) t};
-                float[] unconditional = predict(cfg, latent, ts, negativeEmbeddings);
-                float[] conditional = predict(cfg, latent, ts, positiveEmbeddings);
+                // Exported UNet has fixed batch=2: [negative, positive].
+                float[] batchLatent = new float[latentCount * 2];
+                System.arraycopy(latent, 0, batchLatent, 0, latentCount);
+                System.arraycopy(latent, 0, batchLatent, latentCount, latentCount);
+                float[] batchContext = new float[2 * 77 * 768];
+                System.arraycopy(negativeEmbeddings, 0, batchContext, 0, 77 * 768);
+                System.arraycopy(positiveEmbeddings, 0, batchContext, 77 * 768, 77 * 768);
+                float[] batchTimestep = { (float) t, (float) t };
+                require(KarmaMnnBridge.setFloatInput(cfg.latentInput, batchLatent), "UNet batch latent");
+                require(KarmaMnnBridge.setFloatInput(cfg.timestepInput, batchTimestep), "UNet batch timestep");
+                require(KarmaMnnBridge.setFloatInput(cfg.contextInput, batchContext), "UNet batch context");
+                require(KarmaMnnBridge.runGraph(), "UNet batched inference");
+                float[] noiseBatch = KarmaMnnBridge.getFloatOutput(cfg.noiseOutput);
+                require(noiseBatch != null && noiseBatch.length == 2 * latentCount,
+                        "UNet batched output shape");
+                float[] unconditional = new float[latentCount];
                 for (int j = 0; j < latentCount; ++j)
-                    unconditional[j] += cfg.guidance * (conditional[j] - unconditional[j]);
+                    unconditional[j] = noiseBatch[j] + cfg.guidance
+                            * (noiseBatch[latentCount + j] - noiseBatch[j]);
                 float previousAlpha = i + 1 == cfg.steps ? 1.0f
                         : cfg.alphasCumprod[cfg.timesteps[i + 1]];
                 float[] next = KarmaMnnBridge.ddimStep(
