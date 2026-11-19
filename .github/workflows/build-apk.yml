@@ -2,7 +2,7 @@ name: KARMA ONE - Unified ARM64 release
 
 on:
   push:
-    branches: [karma/step12-consolidation-20261118]
+    branches: [karma/step12-consolidation-20261118, karma/step04-clip-parity-validated-20261119]
     paths:
       - '.github/workflows/build-apk.yml'
       - 'native/mp4exporter/**'
@@ -234,7 +234,10 @@ jobs:
               *) echo "::error::Manual APK build not permitted on $GITHUB_REF_NAME"; exit 1 ;;
             esac
           else
-            test "$GITHUB_REF_NAME" = "karma/step12-consolidation-20261118"
+            case "$GITHUB_REF_NAME" in
+              karma/step12-consolidation-20261118|karma/step04-clip-parity-validated-20261119) ;;
+              *) exit 1 ;;
+            esac
           fi
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             if [ -n "$REQUESTED_SHA" ]; then
