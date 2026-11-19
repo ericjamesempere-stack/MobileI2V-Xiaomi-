@@ -190,6 +190,7 @@ jobs:
                   if (main == null) return
                   def jniDirs = main.jniLibs.srcDirs
                   def javaDirs = main.java.srcDirs
+                  println 'KARMA_GRADLE_JAVA_SOURCE_DIRS ' + p.path + ' ' + javaDirs
                   def libs = ['libMNN.so', 'libllm.so', 'libkarma_mnn.so']
                   def sources = ['KarmaMnnBridge.java', 'KarmaClipEncoder.java', 'KarmaSdInference.java']
                   def jniOk = libs.every { lib -> jniDirs.any { dir -> new File(dir, 'arm64-v8a/' + lib).isFile() } }
@@ -201,6 +202,15 @@ jobs:
               println 'KARMA_MNN_REAL_GRADLE_SOURCESETS_OK'
           }
           GRADLE
+          # Godot may configure a nonstandard Java source root. Register the existing
+          # staged Java directory explicitly in the Android module for this validation.
+          python3 - <<'PY'
+          from pathlib import Path
+          build = Path('build.gradle')
+          text = build.read_text()
+          text += "\n// KARMA MNN validation: include existing Java sources\nandroid.sourceSets.main.java.srcDirs += ['src/main/java']\n"
+          build.write_text(text)
+          PY
           ./gradlew --no-daemon --console=plain --init-script /tmp/karma-mnn-source-sets.init.gradle help
       - name: Publish integration evidence (not APK)
         if: success()
