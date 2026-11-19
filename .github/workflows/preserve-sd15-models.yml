@@ -1,6 +1,9 @@
 name: KARMA ONE - preserve existing SD15 MNN models (NO APK)
 on:
   workflow_dispatch:
+  push:
+    branches: [karma/step04-clip-parity-validated-20261119]
+    paths: ['.github/workflows/preserve-sd15-models.yml']
 permissions:
   contents: read
   actions: read
