@@ -12,6 +12,7 @@ import java.util.zip.*;
 /** User-selected SD1.5 model archive. No network, root, or storage permission. */
 public final class Sd15ModelImportActivity extends Activity {
     private static final String[] REQUIRED = {"tokenizer.mtok", "text_encoder.mnn", "unet.mnn", "vae_decoder.mnn"};
+    private static final String[] OPTIONAL_WEIGHTS = {"text_encoder.mnn.weight", "unet.mnn.weight", "vae_decoder.mnn.weight"};
     private static volatile String state = "{\"state\":\"idle\"}";
     private static volatile boolean busy;
     static synchronized boolean launch(Activity host) {
@@ -60,7 +61,7 @@ public final class Sd15ModelImportActivity extends Activity {
                             if (entry.isDirectory()) { zip.closeEntry(); continue; }
                             String name = entry.getName().replace('\\', '/');
                             String leaf = name.substring(name.lastIndexOf('/') + 1);
-                            if (!Arrays.asList(REQUIRED).contains(leaf)) { zip.closeEntry(); continue; }
+                            if (!Arrays.asList(REQUIRED).contains(leaf) && !Arrays.asList(OPTIONAL_WEIGHTS).contains(leaf)) { zip.closeEntry(); continue; }
                             if (!seen.add(leaf)) throw new IOException("duplicate_model_file");
                             File out = new File(stage, leaf);
                             long fileBytes = 0;
@@ -79,7 +80,15 @@ public final class Sd15ModelImportActivity extends Activity {
                         }
                     }
                 }
-                if (seen.size() != REQUIRED.length) throw new IOException("missing_model_files");
+                for (String required : REQUIRED) if (!seen.contains(required)) throw new IOException("missing_model_files");
+                // MNN can store large tensors in companion .weight files. Never install
+                // a tiny graph without its external tensor file.
+                for (String graph : new String[]{"text_encoder.mnn", "unet.mnn", "vae_decoder.mnn"}) {
+                    File graphFile = new File(stage, graph);
+                    File weights = new File(stage, graph + ".weight");
+                    if (graphFile.length() < 1024L * 1024L && (!weights.isFile() || weights.length() < 1024L))
+                        throw new IOException("missing_external_weights_" + graph);
+                }
                 // Never destroy a previous working installation before the new set is complete.
                 File backup = new File(base, "sd15-backup");
                 deleteTree(backup);
