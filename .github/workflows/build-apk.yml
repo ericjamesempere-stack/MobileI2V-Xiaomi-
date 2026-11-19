@@ -5,6 +5,7 @@ on:
     branches: [karma/step12-consolidation-20261118, karma/step04-clip-parity-validated-20261119]
     paths:
       - '.github/workflows/build-apk.yml'
+      - 'KARMA_APK_BUILD_TRIGGER_20261119.md'
       - 'native/mp4exporter/**'
       - 'scripts/local_studio_generator.gd'
       - 'scripts/studio_friendly_ui.gd'
