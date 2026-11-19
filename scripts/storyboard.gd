@@ -21,6 +21,7 @@ var sd15_import_poll_clock: float = 0.0
 var sd15_import_last_state: String = ""
 var sd15_engine_last_state: String = ""
 var sd15_auto_probe_pending: bool = false
+var sd15_auto_last_state: String = ""
 var last_local_probe: Dictionary = {}
 var ai_http: HTTPRequest
 var ai_running: bool = false
@@ -2570,6 +2571,8 @@ func _detect_sd15_engine() -> void:
         if not sd15_auto_probe_pending:
             sd15_auto_probe_pending = true
             call_deferred("_probe_sd15_fallbacks")
+        if native.has_java_method("start_sd15_auto_provision"):
+            native.call("start_sd15_auto_provision")
         sd15_engine_last_state = "missing_models"
 
 func _probe_sd15_fallbacks() -> void:
@@ -2611,6 +2614,17 @@ func _poll_sd15_model_import(delta: float) -> void:
     var native: Object = Engine.get_singleton("MP4Exporter")
     if not native.has_java_method("sd15_model_import_status"):
         return
+    if native.has_java_method("sd15_auto_provision_status"):
+        var auto_result: Variant = JSON.parse_string(str(native.call("sd15_auto_provision_status")))
+        if auto_result is Dictionary:
+            var auto_state: String = str(auto_result.get("state", "idle"))
+            if auto_state not in ["idle", ""]:
+                if auto_state != sd15_auto_last_state:
+                    sd15_import_status_label.text = "Modèles IA : " + str(auto_result.get("detail", auto_state))
+                    sd15_auto_last_state = auto_state
+                    if auto_state == "completed":
+                        _detect_sd15_engine()
+                return
     var parsed: Variant = JSON.parse_string(str(native.call("sd15_model_import_status")))
     if not parsed is Dictionary:
         return
