@@ -280,7 +280,8 @@ func build(board: Control) -> void:
     var settings_button: Button = button(board, shell, "Réglages et outils", func() -> void:
         board.advanced_panel.visible = not board.advanced_panel.visible
         if board.advanced_panel.visible:
-            board.wizard_scroll.scroll_vertical = int(board.advanced_panel.position.y)
+            # Defer until the previously hidden panel has been laid out.
+            board.wizard_scroll.ensure_control_visible.call_deferred(board.advanced_panel)
     )
     settings_button.name = "AdvancedToggle"
     var advanced: VBoxContainer = card(board.root_box, "Le coin des réglages", "Facultatif : les trois étapes suffisent pour commencer.", Color("edf0f9"))
