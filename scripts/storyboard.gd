@@ -2522,7 +2522,9 @@ func _universal_ready_for_review() -> bool:
 
 
 func _go_step(index: int) -> void:
-    if ai_running or disk_drawing_running or exporting_video:
+    # Keep the current page stable while an Android picker or a long-running
+    # generation/export operation is active.
+    if ai_running or disk_drawing_running or exporting_video or photo_importing:
         return
     get_viewport().gui_release_focus()
     wizard_step = clampi(index, 0, 2)
