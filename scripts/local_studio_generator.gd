@@ -126,7 +126,7 @@ func inspect_local_engines(include_vision: bool = true, include_drawing: bool = 
     if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
         report["android_apps"] = JSON.parse_string(str(native.call("local_engine_installation_status")))
-        if native.has_method("native_sd15_readiness"):
+        if native.has_java_method("native_sd15_readiness"):
             var native_status: Variant = JSON.parse_string(str(native.call("native_sd15_readiness")))
             if native_status is Dictionary:
                 report["embedded_sd15"] = native_status
@@ -398,7 +398,7 @@ func create_reference(description: String, style: String) -> Dictionary:
     # Native text-to-image requires no loopback server. Do not route photo edits here.
     if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("start_native_sd15"):
+        if native.has_java_method("start_native_sd15"):
             var prompt: String = description.strip_edges() + ", " + style.strip_edges()
             var result: Dictionary = await verify_native_sd15(prompt, "watermark, text, unwanted people")
             if result.get("ok", false):
@@ -431,7 +431,7 @@ func verify_native_sd15(prompt: String, negative_prompt: String = "watermark, te
     if OS.get_name() != "Android" or not Engine.has_singleton("MP4Exporter"):
         return {"ok": false, "inference_verified": false, "error": "native_android_plugin_unavailable"}
     var native: Object = Engine.get_singleton("MP4Exporter")
-    if not native.has_method("start_native_sd15") or not native.has_method("native_sd15_job_status"):
+    if not native.has_java_method("start_native_sd15") or not native.has_java_method("native_sd15_job_status"):
         return {"ok": false, "inference_verified": false, "error": "native_sd15_bridge_not_in_apk"}
     if not bool(native.call("start_native_sd15", prompt, negative_prompt)):
         var rejected: Variant = JSON.parse_string(str(native.call("native_sd15_job_status")))
@@ -455,7 +455,7 @@ func verify_native_sd15(prompt: String, negative_prompt: String = "watermark, te
 func verify_real_local_diffusion() -> Dictionary:
     if OS.get_name() == "Android" and Engine.has_singleton("MP4Exporter"):
         var native: Object = Engine.get_singleton("MP4Exporter")
-        if native.has_method("start_native_sd15"):
+        if native.has_java_method("start_native_sd15"):
             return await verify_native_sd15("a single bright yellow banana on a plain blue background, clean cartoon illustration", "watermark, text, multiple bananas, people")
     var started: int = Time.get_ticks_msec()
     var health: Dictionary = await _local_request(drawing_base, "/health", {}, true, 4.0)
