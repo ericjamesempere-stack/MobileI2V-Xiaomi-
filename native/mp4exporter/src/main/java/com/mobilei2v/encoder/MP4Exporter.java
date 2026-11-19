@@ -102,6 +102,16 @@ public final class MP4Exporter extends GodotPlugin {
                         .put("bytes", present ? file.length() : 0));
                 filesPresent &= present;
             }
+            // Small MNN graphs require their separate external tensor weights.
+            for (String graph : new String[]{"text_encoder.mnn", "unet.mnn", "vae_decoder.mnn"}) {
+                File graphFile = new File(models, graph);
+                File weights = new File(models, graph + ".weight");
+                boolean needed = graphFile.isFile() && graphFile.length() < 1024L * 1024L;
+                boolean present = weights.isFile() && weights.length() >= 1024L;
+                components.put(graph + ".weight", new JSONObject().put("required", needed)
+                        .put("present", present).put("bytes", present ? weights.length() : 0));
+                if (needed) filesPresent &= present;
+            }
             report.put("ok", librariesLoaded && filesPresent);
             report.put("native_libraries_loaded", librariesLoaded);
             report.put("model_files_present", filesPresent);
@@ -133,6 +143,14 @@ public final class MP4Exporter extends GodotPlugin {
         for (String name : names) if (!new File(dir, name).isFile()) {
             nativeSd15Job = "{\"state\":\"error\",\"error\":\"sd15_model_files_missing\"}";
             return false;
+        }
+        for (String graph : new String[]{"text_encoder.mnn", "unet.mnn", "vae_decoder.mnn"}) {
+            File graphFile = new File(dir, graph);
+            File weightFile = new File(dir, graph + ".weight");
+            if (graphFile.length() < 1024L * 1024L && (!weightFile.isFile() || weightFile.length() < 1024L)) {
+                nativeSd15Job = "{\"state\":\"error\",\"error\":\"sd15_external_weights_missing\"}";
+                return false;
+            }
         }
         nativeSd15Busy = true;
         nativeSd15Job = "{\"state\":\"running\"}";
