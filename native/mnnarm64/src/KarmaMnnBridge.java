@@ -18,6 +18,11 @@ public final class KarmaMnnBridge {
         }
     }
     public static boolean isAvailable() { return available; }
+    public static synchronized int[] tokenizeClip(String mtokPath, String prompt) {
+        return available && mtokPath != null && prompt != null
+                ? nativeTokenizeClip(mtokPath, prompt) : null;
+    }
+    private static native int[] nativeTokenizeClip(String mtokPath, String prompt);
     public static synchronized boolean loadGraph(String absolutePath) {
         return available && absolutePath != null && nativeLoadGraph(absolutePath);
     }
