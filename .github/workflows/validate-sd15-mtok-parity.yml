@@ -1,0 +1,64 @@
+name: KARMA ONE - real MNN mtok parity (NO APK)
+on:
+  push:
+    branches: [karma/step12-consolidation-20261118]
+    paths:
+      - '.github/workflows/validate-sd15-mtok-parity.yml'
+      - 'tools/verify_mnn_clip_tokenizer.cpp'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  mtok-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download existing real mtok and official reference artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "ericjamesempere-stack/MobileI2V-Xiaomi-"
+          gh run download 44420581040 --repo "$GITHUB_REPOSITORY" --name karma-sd15-real-mnn-models --dir /tmp/karma-models
+          gh run download 44445594311 --repo "$GITHUB_REPOSITORY" --name karma-sd15-official-clip-reference --dir /tmp/karma-reference
+          test -s /tmp/karma-models/tokenizer.mtok
+          test -s /tmp/karma-reference/clip_reference_vectors.json
+      - name: Build pinned real MNN tokenizer runtime
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://github.com/alibaba/MNN.git /tmp/MNN
+          git -C /tmp/MNN checkout 40ad7e340cdf5cb29fe9d5f1f9eec794adbaef6d
+          cmake -S /tmp/MNN -B /tmp/MNN/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DMNN_BUILD_SHARED_LIBS=ON \
+            -DMNN_BUILD_TEST=OFF -DMNN_BUILD_BENCHMARK=OFF \
+            -DMNN_BUILD_LLM=ON -DMNN_LLM_BUILD_DEMO=OFF
+          cmake --build /tmp/MNN/build --target MNN llm --parallel 2
+          LLM_SO="$(find /tmp/MNN/build -type f -name libllm.so | head -n 1)"
+          MNN_SO="$(find /tmp/MNN/build -type f -name libMNN.so | head -n 1)"
+          test -n "$LLM_SO" && test -n "$MNN_SO"
+          c++ -std=c++17 -O2 \
+            -I/tmp/MNN/transformers/llm/engine/src \
+            tools/verify_mnn_clip_tokenizer.cpp \
+            "$LLM_SO" "$MNN_SO" \
+            -Wl,-rpath,"$(dirname "$LLM_SO")" \
+            -Wl,-rpath,"$(dirname "$MNN_SO")" \
+            -o /tmp/karma-mtok-probe
+      - name: Compare all 77 IDs in five real prompts
+        run: |
+          set -euo pipefail
+          /tmp/karma-mtok-probe /tmp/karma-models/tokenizer.mtok > /tmp/karma-actual-ids.csv
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          expected = list(json.loads(Path('/tmp/karma-reference/clip_reference_vectors.json').read_text())['vectors'].values())
+          actual = [[int(v) for v in line.split(',')] for line in Path('/tmp/karma-actual-ids.csv').read_text().splitlines()]
+          assert len(actual) == len(expected) == 5, (len(actual), len(expected))
+          for case, (got, want) in enumerate(zip(actual, expected)):
+              assert len(got) == len(want) == 77, case
+              for index, (a, e) in enumerate(zip(got, want)):
+                  if a != e:
+                      raise AssertionError(f'KARMA_CLIP_MTOK_PARITY_MISMATCH case={case} index={index} actual={a} expected={e}')
+          print('KARMA_CLIP_MTOK_PARITY_OK cases=5 tokens=385')
+          PY
