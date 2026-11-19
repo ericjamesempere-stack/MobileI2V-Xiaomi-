@@ -89,6 +89,35 @@ jobs:
           javac -source 8 -target 8 -cp "$ANDROID_JAR" -d /tmp/karma-mnn-java-classes /tmp/karma-android-build/src/main/java/com/mobilei2v/mnn/*.java
           test -s /tmp/karma-mnn-java-classes/com/mobilei2v/mnn/KarmaMnnBridge.class
           echo KARMA_MNN_ARM64_ANDROID_STAGING_OK
+      - name: Inspect actual Godot Android source template (no APK build)
+        run: |
+          set -euo pipefail
+          curl -fL --retry 2 --max-time 180 -o /tmp/godot-android-templates.tpz \
+            https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_export_templates.tpz
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile
+          tpz = Path('/tmp/godot-android-templates.tpz')
+          with zipfile.ZipFile(tpz) as archive:
+              candidates = [name for name in archive.namelist() if name.endswith('android_source.zip')]
+              assert len(candidates) == 1, 'Expected one official Godot Android Gradle template'
+              with archive.open(candidates[0]) as source:
+                  import io
+                  with zipfile.ZipFile(io.BytesIO(source.read())) as gradle:
+                      names = gradle.namelist()
+                      build_files = [name for name in names if name.endswith('build.gradle')]
+                      assert build_files, 'Missing Gradle build.gradle in official template'
+                      prefix = ''
+                      for name in build_files:
+                          if name.endswith('build/build.gradle'):
+                              prefix = name[:-len('build/build.gradle')]
+                              break
+                      assert any(name.endswith('gradlew') for name in names), 'Missing Gradle wrapper'
+                      assert any(name.endswith('src/main/AndroidManifest.xml') for name in names), 'Missing Android manifest'
+                      print('KARMA_GODOT_OFFICIAL_ANDROID_TEMPLATE_LAYOUT_OK')
+                      print('Template Gradle build files:', build_files[:12])
+                      print('Extraction prefix:', repr(prefix))
+          PY
       - name: Publish integration evidence (not APK)
         if: success()
         uses: actions/upload-artifact@v4
