@@ -167,6 +167,36 @@ jobs:
             test -s "/tmp/karma-official-android/build/src/main/java/com/mobilei2v/mnn/$source"
           done
           echo KARMA_GODOT_REAL_GRADLE_MNN_STAGING_OK
+      - name: Verify Gradle recognizes MNN source sets (no APK)
+        run: |
+          set -euo pipefail
+          cd /tmp/karma-official-android/build
+          chmod +x gradlew
+          cat > /tmp/karma-mnn-source-sets.init.gradle <<'GRADLE'
+          gradle.projectsEvaluated {
+              def matches = gradle.rootProject.allprojects.findAll { p ->
+                  p.plugins.hasPlugin('com.android.application') || p.plugins.hasPlugin('com.android.library')
+              }
+              assert !matches.isEmpty() : 'No Android Gradle module configured'
+              def found = false
+              matches.each { p ->
+                  def android = p.extensions.findByName('android')
+                  def main = android?.sourceSets?.findByName('main')
+                  if (main == null) return
+                  def jniDirs = main.jniLibs.srcDirs
+                  def javaDirs = main.java.srcDirs
+                  def libs = ['libMNN.so', 'libllm.so', 'libkarma_mnn.so']
+                  def sources = ['KarmaMnnBridge.java', 'KarmaClipEncoder.java', 'KarmaSdInference.java']
+                  def jniOk = libs.every { lib -> jniDirs.any { dir -> new File(dir, 'arm64-v8a/' + lib).isFile() } }
+                  def javaOk = sources.every { src -> javaDirs.any { dir -> new File(dir, 'com/mobilei2v/mnn/' + src).isFile() } }
+                  println "KARMA_GRADLE_MODULE_CHECK " + p.path + " JNI=" + jniOk + " JAVA=" + javaOk
+                  if (jniOk && javaOk) found = true
+              }
+              assert found : 'MNN JNI libraries and Java classes are not both recognized by an Android Gradle module'
+              println 'KARMA_MNN_REAL_GRADLE_SOURCESETS_OK'
+          }
+          GRADLE
+          ./gradlew --no-daemon --console=plain --init-script /tmp/karma-mnn-source-sets.init.gradle help
       - name: Publish integration evidence (not APK)
         if: success()
         uses: actions/upload-artifact@v4
