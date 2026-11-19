@@ -55,3 +55,14 @@ assert 'missing_model_files' in installer and 'model_size_limit' in installer
 assert 'pick_sd15_model_archive' in plugin and 'sd15_model_import_status' in plugin
 assert 'Sd15ModelImportActivity' in manifest and 'android:exported="false"' in manifest
 print('SD15_USER_SELECTED_ARCHIVE_IMPORT_WIRING_OK')
+
+# Startup engine detection must not require the user to browse a ZIP archive.
+ui=(ROOT/'scripts/studio_friendly_ui.gd').read_text()
+assert 'call_deferred("_detect_sd15_engine")' in board
+assert 'func _detect_sd15_engine() -> void:' in board
+assert 'native.call("native_sd15_readiness")' in board
+assert 'board._detect_sd15_engine' in ui
+assert 'Installer les modèles IA (ZIP)' not in ui
+assert 'RefreshSd15Engine' in ui
+assert 'installation locale automatique à développer' in board
+print('SD15_STARTUP_AUTO_DETECTION_UI_OK: diagnostic only; provisioning not implemented')
