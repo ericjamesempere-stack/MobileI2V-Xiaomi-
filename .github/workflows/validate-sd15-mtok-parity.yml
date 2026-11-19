@@ -57,10 +57,16 @@ jobs:
           expected = list(json.loads(Path('/tmp/karma-reference/clip_reference_vectors.json').read_text())['vectors'].values())
           actual = [[int(v) for v in line.split(',')] for line in Path('/tmp/karma-actual-ids.csv').read_text().splitlines()]
           assert len(actual) == len(expected) == 5, (len(actual), len(expected))
+          mismatch_count = 0
           for case, (got, want) in enumerate(zip(actual, expected)):
               assert len(got) == len(want) == 77, case
-              for index, (a, e) in enumerate(zip(got, want)):
-                  if a != e:
-                      raise AssertionError(f'KARMA_CLIP_MTOK_PARITY_MISMATCH case={case} index={index} actual={a} expected={e}')
+              differences = [(index, a, e) for index, (a, e) in enumerate(zip(got, want)) if a != e]
+              mismatch_count += len(differences)
+              print(f'KARMA_CLIP_MTOK_CASE case={case} differences={len(differences)} '
+                    f'actual_first={got[:12]} expected_first={want[:12]}')
+              for index, a, e in differences[:5]:
+                  print(f'KARMA_CLIP_MTOK_DIFFERENCE case={case} index={index} actual={a} expected={e}')
+          if mismatch_count:
+              raise AssertionError(f'KARMA_CLIP_MTOK_PARITY_FAILED differences={mismatch_count}')
           print('KARMA_CLIP_MTOK_PARITY_OK cases=5 tokens=385')
           PY
