@@ -1,0 +1,49 @@
+name: KARMA ONE - verify MNN ARM64 Android staging (NO APK)
+on:
+  push:
+    branches: [karma/step04-clip-parity-validated-20261119]
+    paths:
+      - 'tools/stage_mnn_arm64.py'
+      - '.github/workflows/verify-mnn-arm64-staging.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  stage-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch exact successful ARM64 native artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'ericjamesempere-stack/MobileI2V-Xiaomi-'
+          mkdir -p /tmp/karma-native
+          gh run download 44459460832 --repo "$GITHUB_REPOSITORY" --name karma-mnn-arm64-native-libs --dir /tmp/karma-native
+          test -s /tmp/karma-native/libMNN.so
+          test -s /tmp/karma-native/libllm.so
+          test -s /tmp/karma-native/libkarma_mnn.so
+          test -s /tmp/karma-native/SHA256SUMS
+          test -s /tmp/karma-native/mnn-upstream-sha.txt
+          test -s /tmp/karma-native/mnn-tokenizer-patched-sha256.txt
+          grep -Fxq '40ad7e340cdf5cb29fe9d5f1f9eec794adbaef6d' /tmp/karma-native/mnn-upstream-sha.txt
+      - name: Validate Godot Android Gradle layout and stage libraries
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/karma-android-build
+          printf 'plugins { id "com.android.library" }\n' > /tmp/karma-android-build/build.gradle
+          python3 tools/stage_mnn_arm64.py /tmp/karma-native /tmp/karma-android-build
+          test -s /tmp/karma-android-build/src/main/jniLibs/arm64-v8a/libMNN.so
+          test -s /tmp/karma-android-build/src/main/jniLibs/arm64-v8a/libllm.so
+          test -s /tmp/karma-android-build/src/main/jniLibs/arm64-v8a/libkarma_mnn.so
+          echo KARMA_MNN_ARM64_ANDROID_STAGING_OK
+      - name: Publish integration evidence (not APK)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: karma-mnn-arm64-android-staging-proof
+          path: /tmp/karma-native/*.txt
+          retention-days: 7
