@@ -35,6 +35,23 @@ public final class KarmaSdInference {
     }
 
     /**
+     * Text-to-image entry point using real MNN .mtok BPE and CLIP.
+     * Requires matching converted SD1.5 graphs and a configured DDIM schedule.
+     * Not considered device-validated until an actual PNG is produced.
+     */
+    public static File generatePrompt(Config cfg, String mtokPath, String textEncoderPath,
+                                      String negativePrompt, String positivePrompt)
+            throws IOException {
+        if (cfg == null || mtokPath == null || textEncoderPath == null
+                || negativePrompt == null || positivePrompt == null)
+            throw new IllegalArgumentException("missing_text_to_image_configuration");
+        KarmaClipEncoder.Embeddings embeddings =
+                KarmaClipEncoder.encodePrompt(mtokPath, textEncoderPath,
+                                              negativePrompt, positivePrompt);
+        return generate(cfg, embeddings.positive, embeddings.negative);
+    }
+
+    /**
      * @param positiveEmbeddings real CLIP text encoder output, flattened float32
      * @param negativeEmbeddings real unconditional/negative CLIP output, same shape
      */
