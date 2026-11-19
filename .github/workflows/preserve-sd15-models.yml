@@ -1,0 +1,52 @@
+name: KARMA ONE - preserve existing SD15 MNN models (NO APK)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  preserve-models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch previously converted model artifact without reconversion
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'ericjamesempere-stack/MobileI2V-Xiaomi-'
+          mkdir -p /tmp/karma-sd15-models
+          gh run download 44420581040 --repo "$GITHUB_REPOSITORY" --name karma-sd15-real-mnn-models --dir /tmp/karma-sd15-models
+          python3 tools/verify_mnn_sd_export.py --model-dir /tmp/karma-sd15-models
+      - name: Build verified inventory and bounded chunks for archival
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+          root=Path('/tmp/karma-sd15-models')
+          out=Path('/tmp/karma-sd15-archive')
+          out.mkdir(exist_ok=True)
+          manifest=[]
+          for path in sorted(root.rglob('*')):
+              if not path.is_file(): continue
+              rel=path.relative_to(root).as_posix()
+              h=hashlib.sha256()
+              with path.open('rb') as f:
+                  for block in iter(lambda:f.read(1024*1024),b''): h.update(block)
+              manifest.append({'path':rel,'bytes':path.stat().st_size,'sha256':h.hexdigest()})
+          (out/'MANIFEST.json').write_text(json.dumps(manifest,indent=2)+'\n')
+          assert manifest, 'Missing converted model files'
+          print('KARMA_SD15_EXISTING_MODELS_INVENTORIED',len(manifest))
+          PY
+      - name: Upload renewed model archive (no APK, no conversion)
+        uses: actions/upload-artifact@v4
+        with:
+          name: karma-sd15-mnn-models-preserved
+          path: |
+            /tmp/karma-sd15-models/**
+            /tmp/karma-sd15-archive/MANIFEST.json
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
