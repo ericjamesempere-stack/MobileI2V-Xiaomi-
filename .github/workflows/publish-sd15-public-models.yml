@@ -1,0 +1,52 @@
+name: KARMA ONE - publish verified public SD15 models (NO APK)
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recover existing converted model artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/karma-models
+          gh run download 44534183813 --repo "$GITHUB_REPOSITORY" --name karma-sd15-mnn-models-preserved --dir /tmp/karma-models
+          python3 tools/verify_mnn_sd_export.py --model-dir /tmp/karma-models
+      - name: Prepare SHA256 catalog of all native model files
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          root=Path('/tmp/karma-models')
+          names=['tokenizer.mtok','text_encoder.mnn','unet.mnn','vae_decoder.mnn']
+          names += [n+'.weight' for n in names if n.endswith('.mnn') and (root/(n+'.weight')).is_file()]
+          catalog={'format':'karma-sd15-public-v1','files':[]}
+          for name in names:
+              p=root/name
+              assert p.is_file() and p.stat().st_size>1024,name
+              assert p.stat().st_size<2_000_000_000,'Release asset too large: '+name
+              h=hashlib.sha256()
+              with p.open('rb') as f:
+                  for b in iter(lambda:f.read(4*1024*1024),b''):h.update(b)
+              catalog['files'].append({'name':name,'bytes':p.stat().st_size,'sha256':h.hexdigest()})
+          (root/'catalog.json').write_text(json.dumps(catalog,indent=2)+'\n')
+          print('VERIFIED_PUBLIC_RELEASE_FILES',len(catalog['files']))
+          PY
+      - name: Publish immutable public release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=karma-sd15-mnn-v1
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'Release already exists: refusing to overwrite published model checksums.'
+            exit 1
+          fi
+          gh release create "$tag" /tmp/karma-models/catalog.json /tmp/karma-models/tokenizer.mtok /tmp/karma-models/text_encoder.mnn /tmp/karma-models/unet.mnn /tmp/karma-models/vae_decoder.mnn /tmp/karma-models/*.mnn.weight --repo "$GITHUB_REPOSITORY" --title 'KARMA ONE SD1.5 MNN models v1' --notes 'Public model assets; checksums in catalog.json. Graph inference on Android not yet verified.' --latest=false
