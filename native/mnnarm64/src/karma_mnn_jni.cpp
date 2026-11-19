@@ -109,6 +109,31 @@ Java_com_mobilei2v_mnn_KarmaMnnBridge_nativeSetFloatInput(
     g_last_error.clear();
     return JNI_TRUE;
 }
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_mobilei2v_mnn_KarmaMnnBridge_nativeSetIntInput(
+    JNIEnv* env, jclass, jstring name, jintArray values) {
+    std::lock_guard<std::mutex> guard(g_lock);
+    if (!g_interpreter || !g_session || !name || !values) {
+        error("graph_or_int_input_missing"); return JNI_FALSE;
+    }
+    const char* key = env->GetStringUTFChars(name, nullptr);
+    if (!key) { error("invalid_int_tensor_name"); return JNI_FALSE; }
+    auto* tensor = g_interpreter->getSessionInput(g_session, key);
+    env->ReleaseStringUTFChars(name, key);
+    if (!tensor || tensor->getType().code != halide_type_int ||
+        tensor->getType().bits != 32 || tensor->elementSize() <= 0 ||
+        tensor->elementSize() != env->GetArrayLength(values)) {
+        error("int_input_shape_or_type_mismatch"); return JNI_FALSE;
+    }
+    MNN::Tensor host(tensor, tensor->getDimensionType());
+    env->GetIntArrayRegion(values, 0, env->GetArrayLength(values),
+                           reinterpret_cast<jint*>(host.host<int32_t>()));
+    if (env->ExceptionCheck()) { error("jni_int_input_copy_failed"); return JNI_FALSE; }
+    if (!tensor->copyFromHostTensor(&host)) { error("mnn_int_input_copy_failed"); return JNI_FALSE; }
+    g_last_error.clear();
+    return JNI_TRUE;
+}
+
 extern "C" JNIEXPORT jfloatArray JNICALL
 Java_com_mobilei2v_mnn_KarmaMnnBridge_nativeGetFloatOutput(
     JNIEnv* env, jclass, jstring name) {
