@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/validate-sd15-mnn-runtime.yml
       - tools/verify_mnn_unet_execute.cpp
+      - tools/verify_sd15_ddim_config.py
   workflow_dispatch:
 permissions:
   contents: read
@@ -28,6 +29,13 @@ jobs:
           set -euo pipefail
           gh run download 44420581040 --repo "$GITHUB_REPOSITORY" --name karma-sd15-real-mnn-models --dir /tmp/karma-sd15-mnn
           python3 tools/verify_mnn_sd_export.py --model-dir /tmp/karma-sd15-mnn
+      - name: Verify official pinned SD15 scheduler configuration
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --silent --show-error \
+            'https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/451f4fe16113bff5a5d2269ed5ad43b0592e9a14/scheduler/scheduler_config.json' \
+            -o /tmp/karma-sd15-scheduler.json
+          python3 tools/verify_sd15_ddim_config.py /tmp/karma-sd15-scheduler.json
       - name: Build pinned CPU MNN runtime and actual graph loader
         run: |
           set -euo pipefail
