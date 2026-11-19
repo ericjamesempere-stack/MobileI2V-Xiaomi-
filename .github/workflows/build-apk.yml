@@ -33,6 +33,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 # Separate cheap push validation from manual APK builds. Never cancel a running
 # Android build when a push validation starts; serialize manual builds instead.
@@ -300,6 +301,22 @@ jobs:
           (root / ".gdignore").write_text("")
           print("Android Gradle template extracted with Godot 4.5.2 version marker")
           PY
+
+      - name: Stage verified MNN ARM64 JNI libraries in real Android Gradle export
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/karma-native-arm64
+          gh run download 44459460832 --repo "$GITHUB_REPOSITORY" --name karma-mnn-arm64-native-libs --dir /tmp/karma-native-arm64
+          test -s /tmp/karma-native-arm64/mnn-upstream-sha.txt
+          test -s /tmp/karma-native-arm64/mnn-tokenizer-patched-sha256.txt
+          grep -Fxq '40ad7e340cdf5cb29fe9d5f1f9eec794adbaef6d' /tmp/karma-native-arm64/mnn-upstream-sha.txt
+          python3 tools/stage_mnn_arm64.py /tmp/karma-native-arm64 android/build
+          for lib in libMNN.so libllm.so libkarma_mnn.so; do
+            test -s "android/build/src/main/jniLibs/arm64-v8a/$lib"
+          done
+          echo KARMA_MNN_REAL_ANDROID_EXPORT_LIBRARIES_STAGED_OK
 
       - name: Preserve debug signing identity for subsequent updates
         uses: actions/cache@v4
