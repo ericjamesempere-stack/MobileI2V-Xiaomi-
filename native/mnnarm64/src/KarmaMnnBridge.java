@@ -41,6 +41,10 @@ public final class KarmaMnnBridge {
     public static synchronized boolean setFloatInput(String name, float[] values) {
         return available && name != null && values != null && nativeSetFloatInput(name, values);
     }
+    public static synchronized boolean setIntInput(String name, int[] values) {
+        return available && name != null && values != null && nativeSetIntInput(name, values);
+    }
+    private static native boolean nativeSetIntInput(String name, int[] values);
     public static synchronized float[] getFloatOutput(String name) {
         return available && name != null ? nativeGetFloatOutput(name) : null;
     }
