@@ -226,7 +226,16 @@ jobs:
           REQUESTED_SHA: ${{ inputs.expected_sha }}
         run: |
           set -euo pipefail
-          test "$GITHUB_REF_NAME" = "karma/step12-consolidation-20261118"
+          # Preserve the original push gate; explicitly allow the current
+          # consolidated branch only for user-triggered, exact-SHA builds.
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            case "$GITHUB_REF_NAME" in
+              karma/step12-consolidation-20261118|karma/step04-clip-parity-validated-20261119) ;;
+              *) echo "::error::Manual APK build not permitted on $GITHUB_REF_NAME"; exit 1 ;;
+            esac
+          else
+            test "$GITHUB_REF_NAME" = "karma/step12-consolidation-20261118"
+          fi
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             if [ -n "$REQUESTED_SHA" ]; then
               test "$REQUESTED_SHA" = "$GITHUB_SHA" || { echo "::error::Source SHA mismatch: requested $REQUESTED_SHA, selected $GITHUB_SHA"; exit 1; }
