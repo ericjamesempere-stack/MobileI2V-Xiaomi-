@@ -6,6 +6,7 @@
         <package android:name="com.alibaba.mnnllm.android.release" />
     </queries>
     <application android:networkSecurityConfig="@xml/karma_network_security">
+        <activity android:name="com.mobilei2v.encoder.Sd15ModelImportActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <activity android:name="com.mobilei2v.encoder.ReferenceImagePickerActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <activity android:name="com.mobilei2v.encoder.SharedImageReceiverActivity" android:exported="true" android:label="KARMA ONE — importer une image" android:theme="@android:style/Theme.Material.Light.NoActionBar">
             <intent-filter>
