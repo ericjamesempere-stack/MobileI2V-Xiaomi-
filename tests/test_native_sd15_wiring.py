@@ -66,3 +66,12 @@ assert 'Installer les modèles IA (ZIP)' not in ui
 assert 'RefreshSd15Engine' in ui
 assert 'installation locale automatique à développer' in board
 print('SD15_STARTUP_AUTO_DETECTION_UI_OK: diagnostic only; provisioning not implemented')
+
+# Genuine MNN exports may have external .weight tensors; do not report ready
+# or attempt inference with an incomplete converted graph.
+assert 'OPTIONAL_WEIGHTS' in installer
+assert 'missing_external_weights_' in installer
+assert 'graph + ".weight"' in installer
+assert 'sd15_external_weights_missing' in java
+assert 'components.put(graph + ".weight"' in java
+print('SD15_EXTERNAL_MNN_WEIGHTS_GUARD_OK')
