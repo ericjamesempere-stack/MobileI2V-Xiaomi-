@@ -1,0 +1,23 @@
+name: KARMA ONE - native SD15 wiring tests (NO APK)
+on:
+  push:
+    branches: [karma/step04-clip-parity-validated-20261119]
+    paths:
+      - 'tests/test_native_sd15_wiring.py'
+      - 'scripts/local_studio_generator.gd'
+      - 'native/mp4exporter/src/main/java/com/mobilei2v/encoder/MP4Exporter.java'
+      - 'native/mnnarm64/src/KarmaMnnBridge.java'
+      - 'native/mnnarm64/src/KarmaClipEncoder.java'
+      - 'native/mnnarm64/src/KarmaSdInference.java'
+      - '.github/workflows/test-native-sd15-wiring.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  static-wiring:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify native readiness and fail-closed CLIP pipeline wiring
+        run: python3 tests/test_native_sd15_wiring.py
