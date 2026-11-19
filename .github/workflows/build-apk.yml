@@ -319,6 +319,18 @@ jobs:
             cp "native/mnnarm64/src/$source" "android/build/src/main/java/com/mobilei2v/mnn/$source"
           done
           grep -Fq 'package com.mobilei2v.mnn;' android/build/src/main/java/com/mobilei2v/mnn/KarmaMnnBridge.java
+          # Godot 4.5.2 defaults to src as Java root; MNN sources are under src/main/java.
+          # Explicitly include the verified source root before Gradle compiles the APK.
+          python3 - <<'PY'
+          from pathlib import Path
+          build = Path('android/build/build.gradle')
+          content = build.read_text()
+          marker = '// KARMA MNN: register staged Java source root'
+          if marker not in content:
+              build.write_text(content + "\n" + marker + "\nandroid.sourceSets.main.java.srcDirs += ['src/main/java']\n")
+          assert marker in build.read_text()
+          print('KARMA_MNN_REAL_APK_JAVA_SOURCE_ROOT_REGISTERED_OK')
+          PY
           echo KARMA_MNN_ANDROID_JAVA_BRIDGE_STAGED_OK
           for lib in libMNN.so libllm.so libkarma_mnn.so; do
             test -s "android/build/src/main/jniLibs/arm64-v8a/$lib"
