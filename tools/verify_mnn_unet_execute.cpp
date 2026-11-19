@@ -7,10 +7,17 @@
 static bool fill(MNN::Interpreter* net, MNN::Session* session, const char* name, float value, int expected) {
     auto* t = net->getSessionInput(session, name);
     if (!t || t->elementSize() != expected || t->getType().code != halide_type_float ||
-        t->getType().bits != 32) { std::cerr << "UNET_INPUT_MISMATCH " << name << "\n"; return false; }
+        t->getType().bits != 32) { std::cerr << "UNET_INPUT_MISMATCH " << name
+            << " present=" << (t != nullptr)
+            << " count=" << (t ? t->elementSize() : -1)
+            << " type_code=" << (t ? static_cast<int>(t->getType().code) : -1)
+            << " type_bits=" << (t ? static_cast<int>(t->getType().bits) : -1)
+            << " expected_count=" << expected << "\n"; return false; }
     MNN::Tensor host(t, t->getDimensionType());
     for (int i = 0; i < expected; ++i) host.host<float>()[i] = value;
-    return t->copyFromHostTensor(&host);
+    const bool ok = t->copyFromHostTensor(&host);
+    if (!ok) std::cerr << "UNET_INPUT_COPY_FAILED " << name << "\n";
+    return ok;
 }
 int main(int argc, char** argv) {
     if (argc != 2) return 2;
