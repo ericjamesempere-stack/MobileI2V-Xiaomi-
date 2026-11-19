@@ -9,6 +9,7 @@
 #include <mutex>
 #include <string>
 #include <android/log.h>
+#include "tokenizer/tokenizer.hpp"
 
 namespace {
 std::mutex g_lock;
@@ -155,4 +156,35 @@ Java_com_mobilei2v_mnn_KarmaMnnBridge_nativeGetFloatOutput(
     if (env->ExceptionCheck()) { error("jni_output_copy_failed"); return nullptr; }
     g_last_error.clear();
     return result;
+}
+
+extern "C" JNIEXPORT jintArray JNICALL
+Java_com_mobilei2v_mnn_KarmaMnnBridge_nativeTokenizeClip(
+    JNIEnv* env, jclass, jstring mtok_path, jstring prompt) {
+    if (!mtok_path || !prompt) return nullptr;
+    const char* path_chars = env->GetStringUTFChars(mtok_path, nullptr);
+    if (!path_chars) return nullptr;
+    std::string path(path_chars);
+    env->ReleaseStringUTFChars(mtok_path, path_chars);
+    const char* prompt_chars = env->GetStringUTFChars(prompt, nullptr);
+    if (!prompt_chars) return nullptr;
+    std::string text(prompt_chars);
+    env->ReleaseStringUTFChars(prompt, prompt_chars);
+    std::unique_ptr<MNN::Transformer::Tokenizer> tokenizer(
+        MNN::Transformer::Tokenizer::createTokenizer(path));
+    if (!tokenizer) return nullptr;
+    auto ids = tokenizer->encode(text);
+    // SD1.5 CLIP requires BOS=49406, EOS/PAD=49407 and exactly 77 tokens.
+    // Keep tokenizer-produced special tokens when present; never double-add.
+    if (ids.empty() || ids.front() != 49406) ids.insert(ids.begin(), 49406);
+    if (ids.size() < 2 || ids.back() != 49407) ids.push_back(49407);
+    if (ids.size() > 77) {
+        ids.resize(77);
+        ids.back() = 49407;
+    }
+    ids.resize(77, 49407);
+    jintArray result = env->NewIntArray(77);
+    if (!result) return nullptr;
+    env->SetIntArrayRegion(result, 0, 77, ids.data());
+    return env->ExceptionCheck() ? nullptr : result;
 }
