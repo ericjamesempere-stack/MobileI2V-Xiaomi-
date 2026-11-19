@@ -40,6 +40,7 @@ jobs:
           test -n "$LLM_SO" && test -n "$MNN_SO"
           c++ -std=c++17 -O2 \
             -I/tmp/MNN/transformers/llm/engine/src \
+            -I/tmp/MNN/transformers/llm/engine/include \
             tools/verify_mnn_clip_tokenizer.cpp \
             "$LLM_SO" "$MNN_SO" \
             -Wl,-rpath,"$(dirname "$LLM_SO")" \
