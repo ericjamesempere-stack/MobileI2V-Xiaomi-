@@ -14,6 +14,8 @@ import java.util.Set;
 
 /** Public HTTPS release only; resumes downloads and verifies every file before activation. */
 public final class Sd15AutoProvision {
+    // Immutable release catalog digest verified from the published GitHub asset.
+    private static final String CATALOG_SHA256 = "1d62ee46d72b02761c50e403fc66fc3a5d9ba83420155da8c43e1d2a9b64ed3e";
     private static final String BASE = "https://github.com/ericjamesempere-stack/MobileI2V-Xiaomi-/releases/download/karma-sd15-mnn-v1/";
     private static volatile String state = "{\"state\":\"idle\"}";
     private static volatile boolean running = false;
@@ -41,11 +43,15 @@ public final class Sd15AutoProvision {
                 if (!stage.isDirectory() && !stage.mkdirs()) throw new IOException("stage_directory");
                 report("catalog","Récupération du catalogue HTTPS");
                 byte[] manifest = downloadSmall(BASE+"catalog.json",256*1024);
+                MessageDigest catalogDigest = MessageDigest.getInstance("SHA-256");
+                catalogDigest.update(manifest);
+                if (!CATALOG_SHA256.equals(hex(catalogDigest.digest()))) throw new IOException("catalog_integrity_mismatch");
                 JSONObject catalog = new JSONObject(new String(manifest,java.nio.charset.StandardCharsets.UTF_8));
                 if (!"karma-sd15-public-v1".equals(catalog.getString("format"))) throw new IOException("catalog_format");
                 JSONArray files = catalog.getJSONArray("files");
                 Set<String> found = new HashSet<>();
                 long total=0;
+                if (files.length()<4 || files.length()>7) throw new IOException("catalog_file_count");
                 for (int i=0;i<files.length();i++) {
                     JSONObject item=files.getJSONObject(i);
                     String name=item.getString("name");
@@ -57,6 +63,9 @@ public final class Sd15AutoProvision {
                     String hash=item.getString("sha256");
                     if (!hash.matches("[a-fA-F0-9]{64}")) throw new IOException("catalog_sha");
                     File dest=new File(stage,name);
+                    long existing = dest.isFile() && dest.length()<=size ? dest.length() : 0;
+                    if (root.getUsableSpace() < (size-existing)+64L*1024*1024)
+                        throw new IOException("insufficient_storage_"+name);
                     if (!dest.isFile() || dest.length()!=size || !hash.equalsIgnoreCase(sha256(dest))) {
                         report("downloading",name);
                         fetchResumable(BASE+name,dest,size);
@@ -140,8 +149,11 @@ public final class Sd15AutoProvision {
         try(InputStream in=new BufferedInputStream(new FileInputStream(file))) {
             byte[] b=new byte[65536];int n;while((n=in.read(b))!=-1)md.update(b,0,n);
         }
+        return hex(md.digest());
+    }
+    private static String hex(byte[] bytes) {
         StringBuilder out=new StringBuilder();
-        for(byte b:md.digest())out.append(String.format(java.util.Locale.ROOT,"%02x",b&255));
+        for(byte b:bytes)out.append(String.format(java.util.Locale.ROOT,"%02x",b&255));
         return out.toString();
     }
     private static void delete(File f) {
