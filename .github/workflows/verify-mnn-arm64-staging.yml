@@ -4,6 +4,7 @@ on:
     branches: [karma/step04-clip-parity-validated-20261119]
     paths:
       - 'tools/stage_mnn_arm64.py'
+      - '.github/workflows/build-apk.yml'
       - '.github/workflows/verify-mnn-arm64-staging.yml'
   workflow_dispatch:
 permissions:
@@ -15,6 +16,21 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Verify real APK export pipeline stages native libraries after Gradle extraction
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path('.github/workflows/build-apk.yml').read_text()
+          extract = source.index('      - name: Install Android Gradle build template without launching editor')
+          stage = source.index('      - name: Stage verified MNN ARM64 JNI libraries in real Android Gradle export')
+          signing = source.index('      - name: Preserve debug signing identity for subsequent updates')
+          assert extract < stage < signing, 'MNN staging must follow Gradle extraction'
+          assert 'python3 tools/stage_mnn_arm64.py /tmp/karma-native-arm64 android/build' in source
+          assert 'gh run download 44459460832' in source
+          assert 'actions: read' in source
+          print('KARMA_MNN_REAL_EXPORT_STAGE_WIRING_OK')
+          PY
       - name: Fetch exact successful ARM64 native artifact
         env:
           GH_TOKEN: ${{ github.token }}
