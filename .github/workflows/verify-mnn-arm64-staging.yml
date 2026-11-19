@@ -62,7 +62,7 @@ jobs:
           java = Path('native/mnnarm64/src/KarmaMnnBridge.java').read_text()
           cpp = Path('native/mnnarm64/src/karma_mnn_jni.cpp').read_text()
           symbols = Path('/tmp/karma-mnn-jni-symbols.txt').read_text()
-          methods = re.findall(r'\\b(?:private|public)\\s+static\\s+native\\s+\\S+\\s+(native\\w+)\\s*\\(', java)
+          methods = re.findall(r'\b(?:private|public)\s+static\s+native\s+\S+\s+(native\w+)\s*\(', java)
           assert methods, 'No Java native methods detected'
           for method in methods:
               symbol = 'Java_com_mobilei2v_mnn_KarmaMnnBridge_' + method
