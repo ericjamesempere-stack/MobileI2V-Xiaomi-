@@ -317,8 +317,8 @@ func build(board: Control) -> void:
     board.ai_drawings_count.value = 24
     advanced.add_child(board.ai_drawings_count)
     text(advanced, "Installation des moteurs locaux", 20)
-    button(board, advanced, "Installer les modèles IA (ZIP)", board._install_sd15_models).name = "InstallSd15Models"
-    board.sd15_import_status_label = text(advanced, "Sélectionne une archive ZIP contenant les quatre modèles SD1.5. Installation uniquement sur Android.", 18, MUTED)
+    board.sd15_import_status_label = text(advanced, "Détection automatique du moteur IA au démarrage…", 18, MUTED)
+    button(board, advanced, "Actualiser le diagnostic IA", board._detect_sd15_engine).name = "RefreshSd15Engine"
     text(advanced, "Pour utiliser le mode local, installe MNN Chat (vision) et Local Dream (images), charge leurs modèles puis active leurs services. Sinon, choisis le mode en ligne avec ton autorisation.", 18, MUTED)
     button(board, advanced, "Vérifier les moteurs du téléphone", board._check_local_engines).name = "CheckLocalEngines"
     board.local_engine_status = text(advanced, "Connexion locale non vérifiée. Ce contrôle ne génère aucune image.", 18, MUTED)
