@@ -113,6 +113,69 @@ public final class MP4Exporter extends GodotPlugin {
         return report.toString();
     }
 
+    private volatile String nativeSd15Job = "{\"state\":\"idle\"}";
+    private volatile boolean nativeSd15Busy = false;
+
+    // Runs the EXISTING CLIP -> UNet -> DDIM -> VAE pipeline on a worker thread.
+    // It is text-to-image only; it must never be used to claim image-to-image fidelity.
+    @UsedByGodot public synchronized boolean start_native_sd15(String prompt, String negativePrompt) {
+        if (nativeSd15Busy || prompt == null || prompt.trim().isEmpty() || prompt.length() > 4000
+                || negativePrompt == null || negativePrompt.length() > 4000) return false;
+        File dir = new File(getContext().getFilesDir(), "models/sd15");
+        String[] names = {"tokenizer.mtok", "text_encoder.mnn", "unet.mnn", "vae_decoder.mnn"};
+        if (!com.mobilei2v.mnn.KarmaMnnBridge.isAvailable()) {
+            nativeSd15Job = "{\"state\":\"error\",\"error\":\"mnn_native_library_unavailable\"}";
+            return false;
+        }
+        for (String name : names) if (!new File(dir, name).isFile()) {
+            nativeSd15Job = "{\"state\":\"error\",\"error\":\"sd15_model_files_missing\"}";
+            return false;
+        }
+        nativeSd15Busy = true;
+        nativeSd15Job = "{\"state\":\"running\"}";
+        File outputDir = new File(getContext().getFilesDir(), "generated_sd15");
+        final String positive = prompt;
+        final String negative = negativePrompt;
+        new Thread(() -> {
+            try {
+                if (!outputDir.isDirectory() && !outputDir.mkdirs())
+                    throw new java.io.IOException("output_directory_creation_failed");
+                com.mobilei2v.mnn.KarmaSdInference.Config cfg =
+                        new com.mobilei2v.mnn.KarmaSdInference.Config();
+                cfg.unetPath = new File(dir, "unet.mnn").getAbsolutePath();
+                cfg.vaePath = new File(dir, "vae_decoder.mnn").getAbsolutePath();
+                cfg.outputPng = new File(outputDir, "native_sd15_" + System.currentTimeMillis() + ".png").getAbsolutePath();
+                cfg.steps = 8;
+                // SD1.5 linear beta schedule: 1000 training timesteps.
+                cfg.alphasCumprod = new float[1000];
+                double alpha = 1.0;
+                for (int i = 0; i < 1000; ++i) {
+                    double beta = 0.00085 + (0.012 - 0.00085) * i / 999.0;
+                    alpha *= 1.0 - beta;
+                    cfg.alphasCumprod[i] = (float) alpha;
+                }
+                cfg.timesteps = new int[cfg.steps];
+                for (int i = 0; i < cfg.steps; ++i)
+                    cfg.timesteps[i] = (cfg.steps - i - 1) * (1000 / cfg.steps);
+                File result = com.mobilei2v.mnn.KarmaSdInference.generatePrompt(cfg,
+                        new File(dir, "tokenizer.mtok").getAbsolutePath(),
+                        new File(dir, "text_encoder.mnn").getAbsolutePath(), negative, positive);
+                JSONObject success = new JSONObject().put("state", "completed")
+                        .put("file", result.getAbsolutePath()).put("bytes", result.length())
+                        .put("inference_verified", result.isFile() && result.length() > 0);
+                nativeSd15Job = success.toString();
+            } catch (Exception e) {
+                try { nativeSd15Job = new JSONObject().put("state", "error")
+                        .put("error", e.getClass().getSimpleName())
+                        .put("detail", String.valueOf(e.getMessage())).toString(); }
+                catch (Exception ignored) { nativeSd15Job = "{\"state\":\"error\",\"error\":\"native_generation_failed\"}"; }
+            } finally { nativeSd15Busy = false; }
+        }, "KarmaNativeSd15").start();
+        return true;
+    }
+
+    @UsedByGodot public String native_sd15_job_status() { return nativeSd15Job; }
+
     @UsedByGodot public String peek_shared_image_result() { return SharedImageInbox.peek(getContext()); }
     @UsedByGodot public void acknowledge_shared_image(String id) { SharedImageInbox.acknowledge(getContext(), id); }
 
