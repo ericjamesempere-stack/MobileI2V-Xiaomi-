@@ -639,6 +639,23 @@ jobs:
           grep -Fxq "native-code: 'arm64-v8a'" apk-badging.txt
           unzip -Z1 "build/${APK_NAME}.apk" > apk-entries.txt
           grep -Fxq 'lib/arm64-v8a/libgodot_android.so' apk-entries.txt
+          # The packaged APK must contain the actual MNN runtime, JNI bridge and Java classes.
+          for native_lib in libMNN.so libllm.so libkarma_mnn.so; do
+            grep -Fxq "lib/arm64-v8a/$native_lib" apk-entries.txt || {
+              echo "::error::MNN ARM64 library missing from APK: $native_lib"
+              exit 1
+            }
+          done
+          python3 - <<'PY'
+          import os, zipfile
+          apk = 'build/' + os.environ['APK_NAME'] + '.apk'
+          with zipfile.ZipFile(apk) as archive:
+              dex = [archive.read(name) for name in archive.namelist() if name.endswith('.dex')]
+              for class_name in ('KarmaMnnBridge', 'KarmaClipEncoder', 'KarmaSdInference'):
+                  descriptor = ('Lcom/mobilei2v/mnn/' + class_name + ';').encode()
+                  assert any(descriptor in blob for blob in dex), f'MNN Java class missing from DEX: {class_name}'
+          print('KARMA_MNN_APK_NATIVE_AND_JAVA_PACKAGING_OK')
+          PY
           stat -c 'APK size: %s bytes' build/${APK_NAME}.apk
           sha256sum build/${APK_NAME}.apk
 
