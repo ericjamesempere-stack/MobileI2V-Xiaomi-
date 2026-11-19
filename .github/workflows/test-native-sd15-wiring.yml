@@ -5,6 +5,7 @@ on:
     paths:
       - 'tests/test_native_sd15_wiring.py'
       - 'scripts/local_studio_generator.gd'
+      - 'scripts/storyboard.gd'
       - 'native/mp4exporter/src/main/java/com/mobilei2v/encoder/MP4Exporter.java'
       - 'native/mnnarm64/src/KarmaMnnBridge.java'
       - 'native/mnnarm64/src/KarmaClipEncoder.java'
@@ -21,3 +22,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify native readiness and fail-closed CLIP pipeline wiring
         run: python3 tests/test_native_sd15_wiring.py
+      - name: Install Godot 4.5.2 for real GDScript parsing
+        run: |
+          wget -q --timeout=30 https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
+          unzip -q Godot_v4.5.2-stable_linux.x86_64.zip
+          chmod +x Godot_v4.5.2-stable_linux.x86_64
+      - name: Parse project scripts headlessly (NO APK)
+        run: |
+          set -euo pipefail
+          timeout 120s ./Godot_v4.5.2-stable_linux.x86_64 --headless --editor --path . --import --quit 2>&1 | tee godot-parse.log
+          if grep -Ei 'SCRIPT ERROR|Parse Error|Invalid call|Invalid assignment|Assertion failed' godot-parse.log; then exit 1; fi
