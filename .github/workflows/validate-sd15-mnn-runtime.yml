@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/validate-sd15-mnn-runtime.yml
       - tools/verify_mnn_unet_execute.cpp
+      - tools/verify_mnn_vae_execute.cpp
       - tools/verify_sd15_ddim_config.py
   workflow_dispatch:
 permissions:
@@ -44,6 +45,7 @@ jobs:
           cmake -S /tmp/MNN -B /tmp/MNN/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DMNN_BUILD_SHARED_LIBS=ON -DMNN_BUILD_TEST=OFF -DMNN_BUILD_BENCHMARK=OFF
           cmake --build /tmp/MNN/build --target MNN --parallel 2
           c++ -std=c++17 -O2 -I/tmp/MNN/include tools/verify_mnn_unet_execute.cpp -L/tmp/MNN/build -lMNN -Wl,-rpath,/tmp/MNN/build -o /tmp/verify_mnn_unet_execute
+          c++ -std=c++17 -O2 -I/tmp/MNN/include tools/verify_mnn_vae_execute.cpp -L/tmp/MNN/build -lMNN -Wl,-rpath,/tmp/MNN/build -o /tmp/verify_mnn_vae_execute
           c++ -std=c++17 -O2 -I/tmp/MNN/include tools/verify_mnn_clip_execute.cpp -L/tmp/MNN/build -lMNN -Wl,-rpath,/tmp/MNN/build -o /tmp/verify_mnn_clip_execute
           c++ -std=c++17 -O2 -I/tmp/MNN/include tools/verify_mnn_graph_load.cpp -L/tmp/MNN/build -lMNN -Wl,-rpath,/tmp/MNN/build -o /tmp/verify_mnn_graph_load
       - name: Load real graphs and create MNN CPU sessions
@@ -68,6 +70,13 @@ jobs:
           cd /tmp/karma-sd15-mnn
           /tmp/verify_mnn_unet_execute unet.mnn
           echo KARMA_UNET_REAL_EXECUTION_VERIFIED
+      - name: Execute actual VAE decoder on real SD15 MNN weights
+        timeout-minutes: 25
+        run: |
+          set -euo pipefail
+          cd /tmp/karma-sd15-mnn
+          /tmp/verify_mnn_vae_execute vae_decoder.mnn
+          echo KARMA_VAE_REAL_EXECUTION_VERIFIED
       - name: Publish diagnostic evidence only
         if: always()
         uses: actions/upload-artifact@v4
