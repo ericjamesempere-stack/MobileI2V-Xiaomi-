@@ -1,7 +1,7 @@
 name: KARMA ONE - Build real MNN Android ARM64 libraries (NO APK)
 on:
   push:
-    branches: [karma/step12-consolidation-20261118]
+    branches: [karma/step12-consolidation-20261118, karma/step04-clip-parity-validated-20261119]
     paths:
       - '.github/workflows/build-mnn-arm64.yml'
       - 'native/mnnarm64/src/karma_sd_scheduler.hpp'
@@ -12,6 +12,7 @@ on:
       - 'native/mnnarm64/src/KarmaClipEncoder.java'
       - 'native/mnnarm64/MODEL_SETUP.md'
       - 'tests/test_mnn_ddim_scheduler.cpp'
+      - 'tools/patch_mnn_clip_eow_experiment.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -47,6 +48,14 @@ jobs:
           git clone --filter=blob:none https://github.com/alibaba/MNN.git /tmp/MNN
           git -C /tmp/MNN checkout 40ad7e340cdf5cb29fe9d5f1f9eec794adbaef6d
           git -C /tmp/MNN rev-parse HEAD | tee mnn-upstream-sha.txt
+          test "$(cat mnn-upstream-sha.txt)" = '40ad7e340cdf5cb29fe9d5f1f9eec794adbaef6d'
+      - name: Apply parity-validated CLIP EOW patch to pinned MNN source
+        run: |
+          set -euo pipefail
+          python3 tools/patch_mnn_clip_eow_experiment.py /tmp/MNN/transformers/llm/engine/src/tokenizer/tokenizer.cpp
+          grep -Fq 'CLIP byte-level BPE uses </w> on the final initial symbol.' /tmp/MNN/transformers/llm/engine/src/tokenizer/tokenizer.cpp
+          sha256sum /tmp/MNN/transformers/llm/engine/src/tokenizer/tokenizer.cpp | tee mnn-tokenizer-patched-sha256.txt
+          echo KARMA_MNN_CLIP_EOW_PATCH_VERIFIED
       - name: Build actual MNN arm64-v8a CPU runtime
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
@@ -92,6 +101,7 @@ jobs:
           cp native/mnnarm64/prebuilt/lib/arm64-v8a/libllm.so mnn-arm64-output/
           cp /tmp/karma-mnn-build/libkarma_mnn.so mnn-arm64-output/
           cp mnn-upstream-sha.txt mnn-arm64-output/
+          cp mnn-tokenizer-patched-sha256.txt mnn-arm64-output/
           sha256sum mnn-arm64-output/*.so | tee mnn-arm64-output/SHA256SUMS
           file mnn-arm64-output/*.so
           echo KARMA_MNN_ARM64_NATIVE_BUILD_OK
