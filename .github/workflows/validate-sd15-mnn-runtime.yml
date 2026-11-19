@@ -5,6 +5,7 @@ on:
       - karma/step12-consolidation-20261118
     paths:
       - .github/workflows/validate-sd15-mnn-runtime.yml
+      - tools/verify_mnn_unet_execute.cpp
   workflow_dispatch:
 permissions:
   contents: read
