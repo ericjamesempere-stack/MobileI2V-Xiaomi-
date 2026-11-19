@@ -1,10 +1,11 @@
 name: KARMA ONE - real MNN mtok parity (NO APK)
 on:
   push:
-    branches: [karma/step12-consolidation-20261118]
+    branches: [karma/step12-consolidation-20261118, karma/clip-bpe-diagnostic-20261119]
     paths:
       - '.github/workflows/validate-sd15-mtok-parity.yml'
       - 'tools/verify_mnn_clip_tokenizer.cpp'
+      - 'tools/diagnose_clip_mtok.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -47,6 +48,18 @@ jobs:
             -Wl,-rpath,"$(dirname "$LLM_SO")" \
             -Wl,-rpath,"$(dirname "$MNN_SO")" \
             -o /tmp/karma-mtok-probe
+      - name: Download pinned official CLIP tokenizer files for diagnostics
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/karma-official-tokenizer
+          for name in vocab.json merges.txt tokenizer_config.json special_tokens_map.json; do
+            curl --fail --location --retry 3 --silent --show-error \
+              "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/451f4fe16113bff5a5d2269ed5ad43b0592e9a14/tokenizer/$name" \
+              -o "/tmp/karma-official-tokenizer/$name"
+          done
+      - name: Diagnose first mismatches without changing reference vectors
+        run: |
+          python3 tools/diagnose_clip_mtok.py /tmp/karma-official-tokenizer /tmp/karma-actual-ids.csv /tmp/karma-reference/clip_reference_vectors.json
       - name: Compare all 77 IDs in five real prompts
         run: |
           set -euo pipefail
