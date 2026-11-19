@@ -83,6 +83,9 @@ public final class MP4Exporter extends GodotPlugin {
         return report.toString();
     }
 
+    @UsedByGodot public boolean pick_sd15_model_archive() { return Sd15ModelImportActivity.launch(getActivity()); }
+    @UsedByGodot public String sd15_model_import_status() { return Sd15ModelImportActivity.status(); }
+
     // Real on-device readiness: this does not claim successful model inference.
     // Use the app-private files directory; never trust a caller-supplied absolute path.
     @UsedByGodot public String native_sd15_readiness() {
