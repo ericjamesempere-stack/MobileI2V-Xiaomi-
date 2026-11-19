@@ -24,3 +24,16 @@ assert 'KarmaMnnBridge.runGraph()' in sd
 assert 'nativeTokenizeClip' in bridge and 'last_hidden_state' in clip
 assert 'KarmaSdInference' in build and 'KarmaMnnBridge' in build
 print('NATIVE_SD15_WIRING_STATIC_OK: native readiness, model files, CLIP-to-PNG code, fail-closed inference status')
+
+# End-to-end static routing: main Create button -> worker -> Android JNI bridge.
+board=(ROOT/'scripts/storyboard.gd').read_text()
+assert 'var native_t2i: bool' in board
+assert 'or native_t2i' in board
+assert 'await worker.create_reference(description, _selected_drawing_style())' in board
+assert 'func create_reference(description: String, style: String)' in local
+assert 'await verify_native_sd15(prompt, "watermark, text, unwanted people")' in local
+assert 'start_native_sd15(String prompt, String negativePrompt)' in java
+assert 'KarmaSdInference.generatePrompt(cfg,' in java
+assert 'new Thread(() -> {' in java
+assert 'native_sd15_job_status()' in java
+print('NATIVE_SD15_CREATE_BUTTON_STATIC_ROUTE_OK')
