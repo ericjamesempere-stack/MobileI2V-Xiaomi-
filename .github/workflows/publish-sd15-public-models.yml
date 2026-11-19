@@ -1,6 +1,9 @@
 name: KARMA ONE - publish verified public SD15 models (NO APK)
 on:
   workflow_dispatch:
+  push:
+    branches: [karma/step04-clip-parity-validated-20261119]
+    paths: [".github/workflows/publish-sd15-public-models.yml"]
 permissions:
   contents: write
   actions: read
