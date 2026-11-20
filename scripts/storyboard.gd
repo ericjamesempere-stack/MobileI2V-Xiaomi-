@@ -2226,11 +2226,21 @@ func _check_local_engines() -> void:
     _sync_friendly_ui()
 
 func _copy_local_diagnostic() -> void:
-    if last_local_probe.is_empty():
-        status.text = "Vérifie d'abord les moteurs du téléphone."
-        return
-    DisplayServer.clipboard_set(JSON.stringify(last_local_probe, "  "))
-    status.text = "Diagnostic copié : connexion uniquement, sans photo ni jeton."
+    var diagnostic: Dictionary = {"external_local_engines": last_local_probe}
+    if OS.get_name() == "Android":
+        diagnostic["platform"] = "Android"
+        if Engine.has_singleton("MP4Exporter"):
+            var native: Object = Engine.get_singleton("MP4Exporter")
+            for method in ["native_sd15_readiness", "sd15_auto_provision_status", "sd15_model_import_status"]:
+                if native.has_java_method(method):
+                    var parsed: Variant = JSON.parse_string(str(native.call(method)))
+                    diagnostic[method] = parsed if parsed is Dictionary else {"error": "invalid_native_json"}
+                else:
+                    diagnostic[method] = {"error": "native_method_missing"}
+        else:
+            diagnostic["native_plugin"] = "MP4Exporter_missing"
+    DisplayServer.clipboard_set(JSON.stringify(diagnostic, "  "))
+    status.text = "Diagnostic IA copié : moteur intégré, modèles et connexions locales, sans photo ni jeton."
 
 func _universal_progress(stage: String, completed: int, total: int) -> void:
     match stage:
