@@ -130,7 +130,7 @@ public final class Sd15AutoProvision {
                 boolean append=offset>0 && c.getResponseCode()==206;
                 if(append) {
                     String range=c.getHeaderField("Content-Range");
-                    if(range==null || !range.startsWith("bytes "+offset+"-")) throw new IOException("invalid_content_range");
+                    if(range==null || !range.matches("bytes "+offset+"-[0-9]+/"+expected)) throw new IOException("invalid_content_range");
                 }
                 if(offset>0 && !append) offset=0;
                 try(InputStream in=c.getInputStream(); OutputStream out=new BufferedOutputStream(new FileOutputStream(dest,append))) {
