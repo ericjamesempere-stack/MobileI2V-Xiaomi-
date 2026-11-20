@@ -105,3 +105,9 @@ assert 'corrupt_file_reset_failed_' in provision
 assert 'dest.length()==size && !hash.equalsIgnoreCase(sha256(dest))' in provision
 assert 'if (!dest.isFile() || dest.length()!=size)' in provision
 print('SD15_CORRUPT_COMPLETE_DOWNLOAD_RECOVERY_OK')
+
+# Failed provisioning must remain retryable; partial HTTP responses must identify the expected total size.
+assert 'sd15_auto_requested = bool(native.call("start_sd15_auto_provision"))' in board
+assert 'sd15_auto_requested = false' in board
+assert 'range.matches("bytes "+offset+"-[0-9]+/"+expected)' in provision
+print('SD15_WIFI_RETRY_AND_STRICT_HTTP_RANGE_OK')
