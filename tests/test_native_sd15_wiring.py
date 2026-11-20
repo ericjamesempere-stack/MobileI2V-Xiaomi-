@@ -64,10 +64,12 @@ assert 'native.call("native_sd15_readiness")' in board
 assert 'board._detect_sd15_engine' in ui
 assert 'Installer les modèles IA (ZIP)' not in ui
 assert 'RefreshSd15Engine' in ui
-assert 'Aucun téléchargement non vérifié' in board
+assert 'Modèles locaux absents : téléchargement vérifié en Wi-Fi demandé.' in board
+assert 'auto_state in ["error", "waiting_wifi"]' in board
+assert 'diagnostic non renseigné' in board
 assert 'func _probe_sd15_fallbacks() -> void:' in board
 assert 'await worker.inspect_local_engines(true, true)' in board
-print('SD15_STARTUP_AUTO_DETECTION_UI_OK: diagnostic only; provisioning not implemented')
+print('SD15_STARTUP_AUTO_DETECTION_UI_OK: verified public provisioning and visible failure states')
 
 # Genuine MNN exports may have external .weight tensors; do not report ready
 # or attempt inference with an incomplete converted graph.
