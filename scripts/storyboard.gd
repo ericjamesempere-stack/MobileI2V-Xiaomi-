@@ -2563,8 +2563,7 @@ func _detect_sd15_engine() -> void:
         return
     var models_present: bool = bool(result.get("model_files_present", false))
     if not models_present and not sd15_auto_requested and native.has_java_method("start_sd15_auto_provision"):
-        sd15_auto_requested = true
-        native.call("start_sd15_auto_provision")
+        sd15_auto_requested = bool(native.call("start_sd15_auto_provision"))
     if bool(result.get("ok", false)):
         sd15_import_status_label.text = "Moteur IA local détecté et modèles présents. Prêt pour un test de génération."
         sd15_engine_last_state = "ready"
@@ -2635,6 +2634,7 @@ func _poll_sd15_model_import(delta: float) -> void:
                         else:
                             sd15_import_status_label.text = "Modèles installés ; moteur non prêt : " + str(readiness.get("reason", "diagnostic indisponible")) if readiness is Dictionary else "Modèles installés ; diagnostic natif illisible."
                     elif auto_state in ["error", "waiting_wifi"]:
+                        sd15_auto_requested = false
                         status.text = sd15_import_status_label.text
                 return
     var parsed: Variant = JSON.parse_string(str(native.call("sd15_model_import_status")))
