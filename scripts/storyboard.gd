@@ -22,6 +22,7 @@ var sd15_import_last_state: String = ""
 var sd15_engine_last_state: String = ""
 var sd15_auto_probe_pending: bool = false
 var sd15_auto_last_state: String = ""
+var sd15_auto_requested: bool = false
 var last_local_probe: Dictionary = {}
 var ai_http: HTTPRequest
 var ai_running: bool = false
@@ -2561,7 +2562,8 @@ func _detect_sd15_engine() -> void:
         sd15_import_status_label.text = "Diagnostic du moteur IA illisible."
         return
     var models_present: bool = bool(result.get("model_files_present", false))
-    if not models_present and native.has_java_method("start_sd15_auto_provision"):
+    if not models_present and not sd15_auto_requested and native.has_java_method("start_sd15_auto_provision"):
+        sd15_auto_requested = true
         native.call("start_sd15_auto_provision")
     if bool(result.get("ok", false)):
         sd15_import_status_label.text = "Moteur IA local détecté et modèles présents. Prêt pour un test de génération."
@@ -2586,6 +2588,8 @@ func _probe_sd15_fallbacks() -> void:
         return
     var vision: bool = probe.get("vision", {}).get("status", "") == "active_model_listed"
     var drawing: bool = probe.get("drawing", {}).get("status", "") == "http_reachable"
+    if sd15_auto_last_state not in ["", "idle"]:
+        return
     if vision or drawing:
         sd15_import_status_label.text = "Moteurs locaux détectés : vision %s, dessin %s. Génération réelle encore à valider." % ["disponible" if vision else "absente", "joignable" if drawing else "absent"]
     else:
@@ -2624,7 +2628,12 @@ func _poll_sd15_model_import(delta: float) -> void:
                     sd15_import_status_label.text = "Modèles IA [" + auto_state + "] : " + str(auto_result.get("detail", auto_state))
                     sd15_auto_last_state = auto_state
                     if auto_state == "completed":
-                        _detect_sd15_engine()
+                        sd15_engine_last_state = "provisioned"
+                        var readiness: Variant = JSON.parse_string(str(native.call("native_sd15_readiness")))
+                        if readiness is Dictionary and bool(readiness.get("ok", false)):
+                            sd15_import_status_label.text = "Modèles vérifiés et moteur prêt pour un test de génération."
+                        else:
+                            sd15_import_status_label.text = "Modèles installés ; moteur non prêt : " + str(readiness.get("reason", "diagnostic indisponible")) if readiness is Dictionary else "Modèles installés ; diagnostic natif illisible."
                     elif auto_state in ["error", "waiting_wifi"]:
                         status.text = sd15_import_status_label.text
                 return
