@@ -16,3 +16,9 @@ User authorized a single ARM64 APK build with the published public SD15 models,
 verified SHA256 catalog, resumable Wi-Fi download, and automatic provisioning.
 The release assets are public and static wiring tests passed at `2cf7c365`.
 On-device inference remains unverified until installation and test.
+
+## Build request after SD15 downloader fixes
+
+Validated commit: `38acfde30fc908c22cb3ddad9db63b0e88c01e2d`.
+Static native wiring and Godot validation passed in workflows `44645012667` and `44645012689`.
+This build includes resumable SHA-256 verified public models provisioning, corrupt-file recovery, Wi-Fi retry, and HTTP Content-Range validation. The APK must be tested on Xiaomi 14T Pro; model inference is not yet confirmed.
