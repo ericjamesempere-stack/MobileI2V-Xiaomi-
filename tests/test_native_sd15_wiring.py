@@ -111,3 +111,9 @@ assert 'sd15_auto_requested = bool(native.call("start_sd15_auto_provision"))' in
 assert 'sd15_auto_requested = false' in board
 assert 'range.matches("bytes "+offset+"-[0-9]+/"+expected)' in provision
 print('SD15_WIFI_RETRY_AND_STRICT_HTTP_RANGE_OK')
+
+# The in-app copy action must expose embedded Android SD15 diagnostics, not only external server probes.
+assert 'diagnostic["native_plugin"] = "MP4Exporter_missing"' in board
+assert 'for method in ["native_sd15_readiness", "sd15_auto_provision_status", "sd15_model_import_status"]:' in board
+assert 'DisplayServer.clipboard_set(JSON.stringify(diagnostic, "  "))' in board
+print('SD15_EMBEDDED_DIAGNOSTIC_COPY_OK')
