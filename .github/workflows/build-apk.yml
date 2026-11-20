@@ -216,7 +216,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      APK_NAME: KARMA_ONE_UNIFIED_ARM64_${{ github.sha }}
+      APK_NAME: KARMA_ONE_V66_DIAGNOSTIC_MNN_ARM64_${{ github.sha }}
 
     steps:
       - name: Checkout project
