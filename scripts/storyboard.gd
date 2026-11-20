@@ -2560,6 +2560,9 @@ func _detect_sd15_engine() -> void:
     if not result is Dictionary:
         sd15_import_status_label.text = "Diagnostic du moteur IA illisible."
         return
+    var models_present: bool = bool(result.get("model_files_present", false))
+    if not models_present and native.has_java_method("start_sd15_auto_provision"):
+        native.call("start_sd15_auto_provision")
     if bool(result.get("ok", false)):
         sd15_import_status_label.text = "Moteur IA local détecté et modèles présents. Prêt pour un test de génération."
         sd15_engine_last_state = "ready"
@@ -2571,8 +2574,6 @@ func _detect_sd15_engine() -> void:
         if not sd15_auto_probe_pending:
             sd15_auto_probe_pending = true
             call_deferred("_probe_sd15_fallbacks")
-        if native.has_java_method("start_sd15_auto_provision"):
-            native.call("start_sd15_auto_provision")
         sd15_engine_last_state = "missing_models"
 
 func _probe_sd15_fallbacks() -> void:
