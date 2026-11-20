@@ -66,7 +66,11 @@ public final class Sd15AutoProvision {
                     long existing = dest.isFile() && dest.length()<=size ? dest.length() : 0;
                     if (root.getUsableSpace() < (size-existing)+64L*1024*1024)
                         throw new IOException("insufficient_storage_"+name);
-                    if (!dest.isFile() || dest.length()!=size || !hash.equalsIgnoreCase(sha256(dest))) {
+                    // A complete but corrupt file must be restarted, not mistaken for a resumable success.
+                    if (dest.isFile() && dest.length()==size && !hash.equalsIgnoreCase(sha256(dest))) {
+                        if (!dest.delete()) throw new IOException("corrupt_file_reset_failed_"+name);
+                    }
+                    if (!dest.isFile() || dest.length()!=size) {
                         report("downloading",name);
                         fetchResumable(BASE+name,dest,size);
                     }
