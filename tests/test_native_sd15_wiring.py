@@ -99,3 +99,9 @@ assert 'catalog_integrity_mismatch' in provision
 assert 'getUsableSpace()' in provision
 assert 'insufficient_storage_' in provision
 print('SD15_PUBLIC_CATALOG_PIN_AND_STORAGE_GUARD_OK')
+
+# A fully downloaded file with the wrong hash must be deleted and fetched again.
+assert 'corrupt_file_reset_failed_' in provision
+assert 'dest.length()==size && !hash.equalsIgnoreCase(sha256(dest))' in provision
+assert 'if (!dest.isFile() || dest.length()!=size)' in provision
+print('SD15_CORRUPT_COMPLETE_DOWNLOAD_RECOVERY_OK')
